@@ -1,8 +1,38 @@
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { Link } from '@/i18n/routing';
+import { useState } from 'react';
+import { api } from '@/lib/api';
+import { ProductCard } from '@/components/product-card';
+import { useLocale } from 'next-intl';
+
+const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
+const CATEGORIES = ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional'];
 
 export default function ProductsPage() {
   const t = useTranslations('products');
+  const locale = useLocale();
+  const [page, setPage] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const params: Record<string, string> = {
+    locale,
+    page: String(page),
+    per_page: '12',
+  };
+  if (selectedSize) params.size = selectedSize;
+  if (selectedColor) params.color = selectedColor;
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['products', params],
+    queryFn: () => api.products.list(params),
+  });
+
+  const products = data?.data ?? [];
+  const meta = data?.meta;
 
   return (
     <div className="container py-8">
@@ -11,54 +41,93 @@ export default function ProductsPage() {
       <div className="flex flex-col md:flex-row gap-8">
         <aside className="w-full md:w-64 shrink-0">
           <div className="rounded-lg border p-4 space-y-4">
-            <h3 className="font-semibold">{t('filter.category')}</h3>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional'].map(
-                (cat) => (
-                  <div key={cat} className="capitalize">
+            <div>
+              <h3 className="font-semibold mb-2">{t('filter.category')}</h3>
+              <div className="space-y-1">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                    className={`block w-full text-left text-sm px-2 py-1 rounded capitalize transition-colors ${
+                      selectedCategory === cat ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                    }`}
+                  >
                     {cat}
-                  </div>
-                ),
-              )}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h3 className="font-semibold">{t('filter.size')}</h3>
-            <div className="flex gap-2 text-sm text-muted-foreground">
-              {['XS', 'S', 'M', 'L', 'XL'].map((size) => (
-                <span key={size} className="border rounded px-2 py-1">
-                  {size}
-                </span>
-              ))}
+            <div>
+              <h3 className="font-semibold mb-2">{t('filter.size')}</h3>
+              <div className="flex flex-wrap gap-2">
+                {SIZES.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(selectedSize === size ? null : size)}
+                    className={`border rounded px-3 py-1 text-sm transition-colors ${
+                      selectedSize === size
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'hover:border-primary'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h3 className="font-semibold">{t('filter.priceRange')}</h3>
-            <div className="text-sm text-muted-foreground">0 - 10,000 THB</div>
           </div>
         </aside>
 
         <div className="flex-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Link
-                key={i}
-                href={`/products/${i}`}
-                className="group rounded-lg border bg-card overflow-hidden hover:shadow-md transition-shadow"
-              >
-                <div className="aspect-[3/4] bg-muted flex items-center justify-center text-muted-foreground">
-                  {t('title')} #{i}
-                </div>
-                <div className="p-4">
-                  <h3 className="font-medium group-hover:text-primary transition-colors">
-                    {t('title')} #{i}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t('card.rentFrom')} 500 THB{t('card.perDay')}
-                  </p>
-                  <span className="text-xs text-primary font-medium mt-2 inline-block">
-                    {t('card.viewDetails')}
+          {isLoading && (
+            <div className="flex items-center justify-center py-20 text-muted-foreground">
+              {t('loading')}
+            </div>
+          )}
+
+          {isError && (
+            <div className="flex items-center justify-center py-20 text-destructive">
+              {t('error')}
+            </div>
+          )}
+
+          {!isLoading && !isError && products.length === 0 && (
+            <div className="flex items-center justify-center py-20 text-muted-foreground">
+              {t('empty')}
+            </div>
+          )}
+
+          {products.length > 0 && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {products.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+
+              {meta && meta.total_pages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page <= 1}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-50 hover:bg-muted"
+                  >
+                    {t('prev')}
+                  </button>
+                  <span className="text-sm text-muted-foreground">
+                    {page} / {meta.total_pages}
                   </span>
+                  <button
+                    onClick={() => setPage(Math.min(meta.total_pages, page + 1))}
+                    disabled={page >= meta.total_pages}
+                    className="px-3 py-1 rounded border text-sm disabled:opacity-50 hover:bg-muted"
+                  >
+                    {t('next')}
+                  </button>
                 </div>
-              </Link>
-            ))}
-          </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

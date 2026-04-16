@@ -10,13 +10,23 @@ export function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const loginError = useAuthStore((s) => s.loginError);
+  const isLoggingIn = useAuthStore((s) => s.isLoggingIn);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    login(email, password);
+  if (isAuthenticated) {
     navigate('/');
+    return null;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await login(email, password);
+    if (useAuthStore.getState().isAuthenticated) {
+      navigate('/');
+    }
   }
 
   return (
@@ -55,14 +65,14 @@ export function LoginPage() {
               required
             />
           </div>
-          <Button type="submit" className="w-full">
-            {t('login.submit')}
+          {loginError && (
+            <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              {loginError}
+            </div>
+          )}
+          <Button type="submit" className="w-full" disabled={isLoggingIn}>
+            {isLoggingIn ? t('common.loading') : t('login.submit')}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            <button type="button" className="hover:text-primary transition-colors">
-              {t('login.forgotPassword')}
-            </button>
-          </p>
         </form>
       </div>
     </div>

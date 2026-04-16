@@ -23,7 +23,8 @@
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.0",
     "lucide-react": "^0.363.0",
-    "@radix-ui/react-slot": "^1.0.2"
+    "@radix-ui/react-slot": "^1.0.2",
+    "recharts": "^2.12.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
