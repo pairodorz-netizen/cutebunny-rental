@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { getDb } from '../lib/db';
 import { success, created, error } from '../lib/response';
 import { confirmHolds } from '../lib/availability';

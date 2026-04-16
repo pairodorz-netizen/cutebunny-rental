@@ -1,11 +1,13 @@
 import { serve } from '@hono/node-server';
+import { validateEnv } from './lib/env';
 import app from './index';
 
-const port = parseInt(process.env.PORT ?? '3001', 10);
+// Fail fast if required env vars are missing
+const env = validateEnv();
 
-console.log(`CuteBunny API starting on http://localhost:${port}`);
+console.log(`CuteBunny API starting on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 
 serve({
   fetch: app.fetch,
-  port,
+  port: env.PORT,
 });
