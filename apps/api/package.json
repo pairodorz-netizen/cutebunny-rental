@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cutebunny/shared": "workspace:*",
+    "@prisma/client": "^5.12.0",
     "hono": "^4.2.0",
     "zod": "^3.22.0"
   },

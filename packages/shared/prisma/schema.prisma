@@ -1,0 +1,404 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum ProductCategory {
+  wedding
+  evening
+  cocktail
+  casual
+  costume
+  traditional
+  accessories
+}
+
+enum InventoryPhysicalStatus {
+  available
+  rented
+  cleaning
+  repair
+  ready
+  decommissioned
+}
+
+enum SlotStatus {
+  available
+  booked
+  cleaning
+  blocked_repair
+  tentative
+  late_return
+}
+
+enum OrderStatus {
+  unpaid
+  paid_locked
+  shipped
+  returned
+  cleaning
+  repair
+  ready
+}
+
+enum OrderItemStatus {
+  pending
+  confirmed
+  shipped
+  delivered
+  returned
+  inspecting
+  cleaned
+  damaged
+  lost
+}
+
+enum PaymentVerificationStatus {
+  pending
+  verified
+  rejected
+  duplicate
+}
+
+enum CustomerTier {
+  standard
+  silver
+  gold
+  vip
+}
+
+enum CustomerDocType {
+  id_card_front
+  id_card_back
+  facebook
+  instagram
+  selfie_with_id
+}
+
+enum FinanceTxType {
+  rental_revenue
+  deposit_received
+  deposit_returned
+  deposit_forfeited
+  late_fee
+  damage_fee
+  force_buy
+  shipping
+  cogs
+  cleaning
+  repair
+  marketing
+  platform_fee
+}
+
+enum AfterSalesEventType {
+  cancel
+  late_fee
+  damage_fee
+  force_buy
+  partial_refund
+}
+
+enum AdminRole {
+  superadmin
+  staff
+}
+
+// ─── MODELS ──────────────────────────────────────────────────────────────────
+
+model Brand {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name      String   @unique
+  nameI18n  Json?    @map("name_i18n") @db.JsonB
+  logoUrl   String?  @map("logo_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sku             String          @unique
+  brandId         String?         @map("brand_id") @db.Uuid
+  name            String
+  nameI18n        Json?           @map("name_i18n") @db.JsonB
+  description     String?         @default("")
+  descriptionI18n Json?           @map("description_i18n") @db.JsonB
+  category        ProductCategory
+  size            String[]
+  color           String[]
+  rentalPrice1Day Int             @map("rental_price_1day")
+  rentalPrice3Day Int             @map("rental_price_3day")
+  rentalPrice5Day Int             @map("rental_price_5day")
+  variableCost    Int             @default(0) @map("variable_cost")
+  retailPrice     Int             @default(0) @map("retail_price")
+  deposit         Int             @default(0)
+  currency        String          @default("THB")
+  thumbnailUrl    String?         @map("thumbnail_url")
+  available       Boolean         @default(true)
+  stockQuantity   Int             @default(1) @map("stock_quantity")
+  rentalCount     Int             @default(0) @map("rental_count")
+  tags            Json?           @default("[]") @db.JsonB
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  brand               Brand?               @relation(fields: [brandId], references: [id])
+  images              ProductImage[]
+  inventoryStatusLogs InventoryStatusLog[]
+  availabilitySlots   AvailabilityCalendar[]
+  orderItems          OrderItem[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  url       String
+  altText   String?  @map("alt_text")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model InventoryStatusLog {
+  id        String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId String                  @map("product_id") @db.Uuid
+  status    InventoryPhysicalStatus
+  note      String?
+  changedBy String?                 @map("changed_by") @db.Uuid
+  createdAt DateTime                @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_status_logs")
+}
+
+model AvailabilityCalendar {
+  id           String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId    String     @map("product_id") @db.Uuid
+  calendarDate DateTime   @map("calendar_date") @db.Date
+  slotStatus   SlotStatus @default(available) @map("slot_status")
+  orderId      String?    @map("order_id") @db.Uuid
+  note         String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  @@unique([productId, calendarDate], name: "product_date_unique")
+  @@map("availability_calendar")
+}
+
+model Customer {
+  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email        String       @unique
+  firstName    String       @map("first_name")
+  lastName     String       @map("last_name")
+  phone        String?
+  avatarUrl    String?      @map("avatar_url")
+  tier         CustomerTier @default(standard)
+  rentalCount  Int          @default(0) @map("rental_count")
+  totalPayment Int          @default(0) @map("total_payment")
+  creditBalance Int         @default(0) @map("credit_balance")
+  tags         Json?        @default("[]") @db.JsonB
+  address      Json?        @db.JsonB
+  locale       String       @default("en")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  orders    Order[]
+  documents CustomerDocument[]
+
+  @@map("customers")
+}
+
+model CustomerDocument {
+  id         String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customerId String          @map("customer_id") @db.Uuid
+  docType    CustomerDocType @map("doc_type")
+  storageKey String          @map("storage_key")
+  verified   Boolean         @default(false)
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("customer_documents")
+}
+
+model Order {
+  id                String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderNumber       String      @unique @map("order_number")
+  customerId        String      @map("customer_id") @db.Uuid
+  status            OrderStatus @default(unpaid)
+  rentalStartDate   DateTime    @map("rental_start_date") @db.Date
+  rentalEndDate     DateTime    @map("rental_end_date") @db.Date
+  totalDays         Int         @map("total_days")
+  subtotal          Int         @default(0)
+  deposit           Int         @default(0)
+  deliveryFee       Int         @default(0) @map("delivery_fee")
+  discount          Int         @default(0)
+  creditApplied     Int         @default(0) @map("credit_applied")
+  totalAmount       Int         @default(0) @map("total_amount")
+  shippingSnapshot  Json?       @map("shipping_snapshot") @db.JsonB
+  notes             String?     @default("")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  customer           Customer              @relation(fields: [customerId], references: [id])
+  items              OrderItem[]
+  statusLogs         OrderStatusLog[]
+  paymentSlips       PaymentSlip[]
+  availabilitySlots  AvailabilityCalendar[]
+  afterSalesEvents   AfterSalesEvent[]
+  financeTransactions FinanceTransaction[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId         String          @map("order_id") @db.Uuid
+  productId       String          @map("product_id") @db.Uuid
+  productName     String          @map("product_name")
+  size            String
+  quantity        Int             @default(1)
+  rentalPricePerDay Int           @map("rental_price_per_day")
+  subtotal        Int             @default(0)
+  status          OrderItemStatus @default(pending)
+  lateFee         Int             @default(0) @map("late_fee")
+  damageFee       Int             @default(0) @map("damage_fee")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderStatusLog {
+  id        String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId   String      @map("order_id") @db.Uuid
+  fromStatus OrderStatus? @map("from_status")
+  toStatus  OrderStatus @map("to_status")
+  note      String?
+  changedBy String?     @map("changed_by") @db.Uuid
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_logs")
+}
+
+model PaymentSlip {
+  id                 String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId            String                    @map("order_id") @db.Uuid
+  storageKey         String                    @map("storage_key")
+  declaredAmount     Int                       @map("declared_amount")
+  bankName           String?                   @map("bank_name")
+  verificationStatus PaymentVerificationStatus @default(pending) @map("verification_status")
+  verifiedBy         String?                   @map("verified_by") @db.Uuid
+  verifiedAt         DateTime?                 @map("verified_at")
+  note               String?
+  createdAt          DateTime                  @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payment_slips")
+}
+
+model ShippingZone {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  zoneName  String   @unique @map("zone_name")
+  nameI18n  Json?    @map("name_i18n") @db.JsonB
+  baseFee   Int      @default(0) @map("base_fee")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  provinceConfigs ShippingProvinceConfig[]
+
+  @@map("shipping_zones")
+}
+
+model ShippingProvinceConfig {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  zoneId       String   @map("zone_id") @db.Uuid
+  provinceCode String   @map("province_code")
+  provinceName String?  @map("province_name")
+  addonFee     Int      @default(0) @map("addon_fee")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@unique([zoneId, provinceCode], name: "zone_province_unique")
+  @@map("shipping_province_configs")
+}
+
+model FinanceTransaction {
+  id        String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId   String?       @map("order_id") @db.Uuid
+  txType    FinanceTxType @map("tx_type")
+  amount    Int
+  note      String?
+  createdBy String?       @map("created_by") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@map("finance_transactions")
+}
+
+model AfterSalesEvent {
+  id        String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId   String              @map("order_id") @db.Uuid
+  eventType AfterSalesEventType @map("event_type")
+  amount    Int                 @default(0)
+  note      String?
+  createdBy String?             @map("created_by") @db.Uuid
+  createdAt DateTime            @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("after_sales_events")
+}
+
+model I18nString {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  namespace String
+  key       String
+  locale    String
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([namespace, key, locale], name: "namespace_key_locale_unique")
+  @@map("i18n_strings")
+}
+
+model AdminUser {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String?
+  role         AdminRole @default(staff)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
