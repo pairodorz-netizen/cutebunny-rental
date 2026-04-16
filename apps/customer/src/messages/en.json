@@ -1,0 +1,60 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "Loading...",
+    "language": "Language",
+    "english": "English",
+    "thai": "Thai",
+    "chinese": "Chinese"
+  },
+  "nav": {
+    "home": "Home",
+    "products": "Products",
+    "about": "About",
+    "contact": "Contact",
+    "cart": "Cart",
+    "account": "Account"
+  },
+  "home": {
+    "hero": {
+      "title": "Rent Beautiful Dresses",
+      "subtitle": "Premium dress rental for every occasion",
+      "cta": "Browse Collection"
+    },
+    "featured": {
+      "title": "Featured Dresses",
+      "viewAll": "View All"
+    },
+    "categories": {
+      "title": "Shop by Category"
+    }
+  },
+  "products": {
+    "title": "Our Collection",
+    "filter": {
+      "category": "Category",
+      "size": "Size",
+      "color": "Color",
+      "priceRange": "Price Range",
+      "availability": "Availability"
+    },
+    "card": {
+      "rentFrom": "Rent from",
+      "perDay": "/day",
+      "viewDetails": "View Details",
+      "outOfStock": "Out of Stock"
+    },
+    "detail": {
+      "title": "Product Detail",
+      "description": "Description",
+      "selectSize": "Select Size",
+      "selectDates": "Select Rental Dates",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "addToCart": "Add to Cart",
+      "totalRental": "Total Rental",
+      "days": "days",
+      "backToProducts": "Back to Products"
+    }
+  }
+}

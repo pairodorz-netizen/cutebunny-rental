@@ -1,0 +1,141 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "加载中...",
+    "error": "发生错误",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "search": "搜索",
+    "filter": "筛选",
+    "reset": "重置",
+    "confirm": "确认",
+    "back": "返回",
+    "next": "下一步",
+    "previous": "上一步",
+    "yes": "是",
+    "no": "否",
+    "close": "关闭",
+    "submit": "提交",
+    "noResults": "未找到结果",
+    "actions": "操作",
+    "status": "状态",
+    "date": "日期",
+    "total": "总计",
+    "language": "语言",
+    "english": "英语",
+    "thai": "泰语",
+    "chinese": "中文"
+  },
+  "nav": {
+    "home": "首页",
+    "products": "商品",
+    "about": "关于",
+    "contact": "联系",
+    "cart": "购物车",
+    "account": "账户",
+    "login": "登录",
+    "logout": "退出",
+    "register": "注册"
+  },
+  "home": {
+    "hero": {
+      "title": "租赁精美礼服",
+      "subtitle": "为每个场合提供优质礼服租赁服务",
+      "cta": "浏览系列"
+    },
+    "featured": {
+      "title": "精选礼服",
+      "viewAll": "查看全部"
+    },
+    "categories": {
+      "title": "按类别选购"
+    }
+  },
+  "products": {
+    "title": "我们的系列",
+    "filter": {
+      "category": "类别",
+      "size": "尺码",
+      "color": "颜色",
+      "priceRange": "价格范围",
+      "availability": "库存状态"
+    },
+    "card": {
+      "rentFrom": "租金起",
+      "perDay": "/天",
+      "viewDetails": "查看详情",
+      "outOfStock": "缺货"
+    },
+    "detail": {
+      "description": "描述",
+      "selectSize": "选择尺码",
+      "selectDates": "选择租赁日期",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "addToCart": "加入购物车",
+      "totalRental": "租金总计",
+      "days": "天"
+    }
+  },
+  "admin": {
+    "login": {
+      "title": "管理员登录",
+      "email": "邮箱",
+      "password": "密码",
+      "submit": "登录",
+      "forgotPassword": "忘记密码？",
+      "error": "邮箱或密码无效"
+    },
+    "sidebar": {
+      "dashboard": "仪表盘",
+      "orders": "订单",
+      "products": "商品",
+      "customers": "客户",
+      "calendar": "日历",
+      "finance": "财务",
+      "settings": "设置"
+    },
+    "dashboard": {
+      "title": "仪表盘",
+      "totalOrders": "总订单",
+      "totalRevenue": "总收入",
+      "activeRentals": "活跃租赁",
+      "newCustomers": "新客户"
+    },
+    "orders": {
+      "title": "订单",
+      "orderNumber": "订单号",
+      "customer": "客户",
+      "status": "状态",
+      "total": "总计",
+      "date": "日期"
+    },
+    "products": {
+      "title": "商品",
+      "addProduct": "添加商品",
+      "name": "名称",
+      "category": "类别",
+      "price": "价格",
+      "stock": "库存"
+    },
+    "customers": {
+      "title": "客户",
+      "name": "姓名",
+      "email": "邮箱",
+      "orders": "订单",
+      "joined": "注册日期"
+    },
+    "calendar": {
+      "title": "日历"
+    },
+    "finance": {
+      "title": "财务"
+    },
+    "settings": {
+      "title": "设置"
+    }
+  }
+}

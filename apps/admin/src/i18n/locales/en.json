@@ -1,0 +1,73 @@
+{
+  "common": {
+    "appName": "CuteBunny Admin",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "language": "Language",
+    "english": "English",
+    "thai": "Thai",
+    "chinese": "Chinese"
+  },
+  "login": {
+    "title": "Admin Login",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign In",
+    "forgotPassword": "Forgot Password?",
+    "error": "Invalid email or password"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "orders": "Orders",
+    "products": "Products",
+    "customers": "Customers",
+    "calendar": "Calendar",
+    "finance": "Finance",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "totalOrders": "Total Orders",
+    "totalRevenue": "Total Revenue",
+    "activeRentals": "Active Rentals",
+    "newCustomers": "New Customers"
+  },
+  "orders": {
+    "title": "Orders",
+    "orderNumber": "Order #",
+    "customer": "Customer",
+    "status": "Status",
+    "total": "Total",
+    "date": "Date"
+  },
+  "products": {
+    "title": "Products",
+    "addProduct": "Add Product",
+    "name": "Name",
+    "category": "Category",
+    "price": "Price",
+    "stock": "Stock"
+  },
+  "customers": {
+    "title": "Customers",
+    "name": "Name",
+    "email": "Email",
+    "orders": "Orders",
+    "joined": "Joined"
+  },
+  "calendar": {
+    "title": "Calendar"
+  },
+  "finance": {
+    "title": "Finance"
+  },
+  "settings": {
+    "title": "Settings"
+  }
+}

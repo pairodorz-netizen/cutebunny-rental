@@ -1,0 +1,60 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "กำลังโหลด...",
+    "language": "ภาษา",
+    "english": "อังกฤษ",
+    "thai": "ไทย",
+    "chinese": "จีน"
+  },
+  "nav": {
+    "home": "หน้าแรก",
+    "products": "สินค้า",
+    "about": "เกี่ยวกับ",
+    "contact": "ติดต่อ",
+    "cart": "ตะกร้า",
+    "account": "บัญชี"
+  },
+  "home": {
+    "hero": {
+      "title": "เช่าชุดสวยๆ",
+      "subtitle": "บริการเช่าชุดพรีเมียมสำหรับทุกโอกาส",
+      "cta": "ดูคอลเลกชัน"
+    },
+    "featured": {
+      "title": "ชุดแนะนำ",
+      "viewAll": "ดูทั้งหมด"
+    },
+    "categories": {
+      "title": "เลือกตามหมวดหมู่"
+    }
+  },
+  "products": {
+    "title": "คอลเลกชันของเรา",
+    "filter": {
+      "category": "หมวดหมู่",
+      "size": "ขนาด",
+      "color": "สี",
+      "priceRange": "ช่วงราคา",
+      "availability": "สถานะสินค้า"
+    },
+    "card": {
+      "rentFrom": "เช่าเริ่มต้น",
+      "perDay": "/วัน",
+      "viewDetails": "ดูรายละเอียด",
+      "outOfStock": "สินค้าหมด"
+    },
+    "detail": {
+      "title": "รายละเอียดสินค้า",
+      "description": "รายละเอียด",
+      "selectSize": "เลือกขนาด",
+      "selectDates": "เลือกวันเช่า",
+      "startDate": "วันเริ่มต้น",
+      "endDate": "วันสิ้นสุด",
+      "addToCart": "เพิ่มลงตะกร้า",
+      "totalRental": "ค่าเช่ารวม",
+      "days": "วัน",
+      "backToProducts": "กลับไปหน้าสินค้า"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "加载中...",
+    "language": "语言",
+    "english": "英语",
+    "thai": "泰语",
+    "chinese": "中文"
+  },
+  "nav": {
+    "home": "首页",
+    "products": "商品",
+    "about": "关于",
+    "contact": "联系",
+    "cart": "购物车",
+    "account": "账户"
+  },
+  "home": {
+    "hero": {
+      "title": "租赁精美礼服",
+      "subtitle": "为每个场合提供优质礼服租赁服务",
+      "cta": "浏览系列"
+    },
+    "featured": {
+      "title": "精选礼服",
+      "viewAll": "查看全部"
+    },
+    "categories": {
+      "title": "按类别选购"
+    }
+  },
+  "products": {
+    "title": "我们的系列",
+    "filter": {
+      "category": "类别",
+      "size": "尺码",
+      "color": "颜色",
+      "priceRange": "价格范围",
+      "availability": "库存状态"
+    },
+    "card": {
+      "rentFrom": "租金起",
+      "perDay": "/天",
+      "viewDetails": "查看详情",
+      "outOfStock": "缺货"
+    },
+    "detail": {
+      "title": "商品详情",
+      "description": "描述",
+      "selectSize": "选择尺码",
+      "selectDates": "选择租赁日期",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "addToCart": "加入购物车",
+      "totalRental": "租金总计",
+      "days": "天",
+      "backToProducts": "返回商品列表"
+    }
+  }
+}
