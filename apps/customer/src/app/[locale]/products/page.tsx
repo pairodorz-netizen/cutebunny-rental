@@ -15,7 +15,7 @@ export default function ProductsPage() {
   const locale = useLocale();
   const [page, setPage] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedColor, _setSelectedColor] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const params: Record<string, string> = {
