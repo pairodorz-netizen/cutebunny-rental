@@ -1,16 +1,25 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { PrismaClient } from '@prisma/client';
+import { getDb } from './lib/db';
+import { requireAuth } from './middleware/auth';
+import products from './routes/products';
+import cart from './routes/cart';
+import orders from './routes/orders';
+import shipping from './routes/shipping';
+import adminAuth from './routes/admin/auth';
+import adminDashboard from './routes/admin/dashboard';
+import adminOrders from './routes/admin/orders';
+import adminProducts from './routes/admin/products';
+import adminCalendar from './routes/admin/calendar';
+import adminCustomers from './routes/admin/customers';
+import adminShipping from './routes/admin/shipping';
+import adminFinance from './routes/admin/finance';
 
-type Bindings = {
-  ENVIRONMENT: string;
-  DATABASE_URL: string;
-};
-
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono();
 
 app.use('*', cors());
 
+// ─── Public routes ─────────────────────────────────────────────────────
 app.get('/', (c) => {
   return c.json({
     name: 'CuteBunny Rental API',
@@ -32,12 +41,9 @@ app.get('/health', async (c) => {
   };
 
   try {
-    const prisma = new PrismaClient({
-      datasourceUrl: c.env.DATABASE_URL,
-    });
-    await prisma.$queryRaw`SELECT 1`;
+    const db = getDb();
+    await db.$queryRaw`SELECT 1`;
     result.database = 'connected';
-    await prisma.$disconnect();
   } catch (err) {
     result.status = 'degraded';
     result.database = 'error';
@@ -47,4 +53,32 @@ app.get('/health', async (c) => {
   return c.json(result);
 });
 
+// ─── Customer Storefront APIs (v1) ─────────────────────────────────────
+app.route('/api/v1/products', products);
+app.route('/api/v1/cart', cart);
+app.route('/api/v1/orders', orders);
+app.route('/api/v1/shipping', shipping);
+
+// ─── Admin APIs (v1) ───────────────────────────────────────────────────
+// Auth (public, rate-limited)
+app.route('/api/v1/admin/auth', adminAuth);
+
+// Protected admin routes
+app.use('/api/v1/admin/dashboard/*', requireAuth);
+app.use('/api/v1/admin/orders/*', requireAuth);
+app.use('/api/v1/admin/products/*', requireAuth);
+app.use('/api/v1/admin/calendar/*', requireAuth);
+app.use('/api/v1/admin/customers/*', requireAuth);
+app.use('/api/v1/admin/shipping/*', requireAuth);
+app.use('/api/v1/admin/finance/*', requireAuth);
+
+app.route('/api/v1/admin/dashboard', adminDashboard);
+app.route('/api/v1/admin/orders', adminOrders);
+app.route('/api/v1/admin/products', adminProducts);
+app.route('/api/v1/admin/calendar', adminCalendar);
+app.route('/api/v1/admin/customers', adminCustomers);
+app.route('/api/v1/admin/shipping', adminShipping);
+app.route('/api/v1/admin/finance', adminFinance);
+
 export default app;
+export type AppType = typeof app;
