@@ -69,6 +69,7 @@ adminProducts.get('/', async (c) => {
     product_status: p.productStatus,
     sold_at: p.soldAt?.toISOString() ?? null,
     variable_cost: p.variableCost,
+    extra_day_rate: p.extraDayRate ?? 0,
     created_at: p.createdAt.toISOString(),
   }));
 
@@ -427,6 +428,7 @@ adminProducts.post('/', async (c) => {
     rental_price_1day: z.number().int().min(0),
     rental_price_3day: z.number().int().min(0),
     rental_price_5day: z.number().int().min(0),
+    extra_day_rate: z.number().int().min(0).optional(),
     retail_price: z.number().int().min(0).optional(),
     variable_cost: z.number().int().min(0).optional(),
     cost_price: z.number().int().min(0).optional(),
@@ -471,6 +473,7 @@ adminProducts.post('/', async (c) => {
       rentalPrice1Day: parsed.data.rental_price_1day,
       rentalPrice3Day: parsed.data.rental_price_3day,
       rentalPrice5Day: parsed.data.rental_price_5day,
+      extraDayRate: parsed.data.extra_day_rate ?? 0,
       retailPrice: parsed.data.retail_price ?? 0,
       variableCost: parsed.data.variable_cost ?? 100,
       costPrice: parsed.data.cost_price ?? 0,
@@ -537,6 +540,7 @@ adminProducts.patch('/:id', async (c) => {
     rental_price_1day: z.number().int().min(0).optional(),
     rental_price_3day: z.number().int().min(0).optional(),
     rental_price_5day: z.number().int().min(0).optional(),
+    extra_day_rate: z.number().int().min(0).optional(),
     retail_price: z.number().int().min(0).optional(),
     variable_cost: z.number().int().min(0).optional(),
     cost_price: z.number().int().min(0).optional(),
@@ -571,6 +575,7 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;
   if (parsed.data.rental_price_3day !== undefined) updateData.rentalPrice3Day = parsed.data.rental_price_3day;
   if (parsed.data.rental_price_5day !== undefined) updateData.rentalPrice5Day = parsed.data.rental_price_5day;
+  if (parsed.data.extra_day_rate !== undefined) updateData.extraDayRate = parsed.data.extra_day_rate;
   if (parsed.data.retail_price !== undefined) updateData.retailPrice = parsed.data.retail_price;
   if (parsed.data.variable_cost !== undefined) updateData.variableCost = parsed.data.variable_cost;
   if (parsed.data.deposit !== undefined) updateData.deposit = parsed.data.deposit;
@@ -700,6 +705,7 @@ adminProducts.get('/:id/detail', async (c) => {
     retail_price: product.retailPrice,
     cost_price: product.costPrice,
     variable_cost: product.variableCost,
+    extra_day_rate: product.extraDayRate ?? 0,
     deposit: product.deposit,
     selling_price: product.sellingPrice,
     product_status: product.productStatus,
@@ -1044,6 +1050,101 @@ adminProducts.delete('/:id', async (c) => {
   } catch { /* audit failure should not block */ }
 
   return success(c, { id, deleted: true });
+});
+
+// GET /api/v1/admin/products/:id/calendar — Per-unit calendar for admin
+adminProducts.get('/:id/calendar', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const yearStr = c.req.query('year');
+  const monthStr = c.req.query('month');
+  const unitFilter = c.req.query('unit_id') || undefined;
+
+  const schema = z.object({
+    year: z.coerce.number().int().min(2024).max(2030),
+    month: z.coerce.number().int().min(1).max(12),
+  });
+
+  const parsed = schema.safeParse({ year: yearStr, month: monthStr });
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid year or month', parsed.error.flatten());
+  }
+
+  const product = await db.product.findUnique({ where: { id }, select: { id: true } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  const { getMonthAvailabilityPerUnit } = await import('../../lib/availability');
+  const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, unitFilter);
+
+  // Also fetch inventory units metadata
+  const inventoryUnits = await db.inventoryUnit.findMany({
+    where: { productId: id },
+    orderBy: { unitIndex: 'asc' },
+    select: { id: true, unitIndex: true, label: true, size: true, color: true, status: true },
+  }).catch(() => []);
+
+  return success(c, {
+    product_id: id,
+    year: parsed.data.year,
+    month: parsed.data.month,
+    inventory_units: inventoryUnits.map((u) => ({
+      id: u.id,
+      unit_index: u.unitIndex,
+      label: u.label ?? `Unit ${u.unitIndex}`,
+      size: u.size,
+      color: u.color,
+      status: u.status,
+    })),
+    calendars: units,
+  });
+});
+
+// POST /api/v1/admin/products/:id/inventory-units — Create inventory units for product
+adminProducts.post('/:id/inventory-units', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+
+  const product = await db.product.findUnique({ where: { id }, select: { id: true, stockQuantity: true } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  const bodySchema = z.object({
+    units: z.array(z.object({
+      unit_index: z.number().int().min(1),
+      label: z.string().optional(),
+      size: z.string().optional(),
+      color: z.string().optional(),
+    })).min(1),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid units data', parsed.error.flatten());
+  }
+
+  const created = [];
+  for (const unit of parsed.data.units) {
+    try {
+      const u = await db.inventoryUnit.create({
+        data: {
+          productId: id,
+          unitIndex: unit.unit_index,
+          label: unit.label ?? `Unit ${unit.unit_index}`,
+          size: unit.size ?? null,
+          color: unit.color ?? null,
+        },
+      });
+      created.push(u);
+    } catch {
+      // Skip duplicates
+    }
+  }
+
+  return success(c, { created: created.length, units: created });
 });
 
 export default adminProducts;

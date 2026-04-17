@@ -204,6 +204,7 @@
     "namePlaceholder": "商品名称",
     "buyingCost": "采购成本",
     "variableCost": "可变成本",
+    "extraDayRate": "额外天费率",
     "retailPrice": "零售价",
     "sellingPrice": "售价",
     "profitLoss": "盈亏",

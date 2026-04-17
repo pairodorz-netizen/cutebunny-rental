@@ -75,6 +75,7 @@ products.get('/', async (c) => {
       '3day': p.rentalPrice3Day,
       '5day': p.rentalPrice5Day,
     },
+    extra_day_rate: p.extraDayRate ?? 0,
     deposit: p.deposit,
     is_popular: (p.rentalCount ?? 0) > 10,
     currency: p.currency,
@@ -103,6 +104,7 @@ products.get('/', async (c) => {
         '3day': cs.rentalPrice3Day,
         '5day': cs.rentalPrice5Day,
       },
+      extra_day_rate: cs.extraDayRate ?? 0,
       deposit: 0,
       is_popular: (cs.rentalCount ?? 0) > 10,
       currency: 'THB',
@@ -171,6 +173,7 @@ products.get('/:id', async (c) => {
         '3day': product.rentalPrice3Day,
         '5day': product.rentalPrice5Day,
       },
+      extra_day_rate: product.extraDayRate ?? 0,
       ref_price: product.retailPrice,
       deposit: product.deposit,
       is_popular: (product.rentalCount ?? 0) > 10,
@@ -230,6 +233,7 @@ products.get('/:id', async (c) => {
         '3day': comboSet.rentalPrice3Day,
         '5day': comboSet.rentalPrice5Day,
       },
+      extra_day_rate: comboSet.extraDayRate ?? 0,
       ref_price: 0,
       deposit: 0,
       is_popular: (comboSet.rentalCount ?? 0) > 10,
@@ -256,11 +260,14 @@ products.get('/:id', async (c) => {
 });
 
 // C03: GET /api/v1/products/:id/calendar — Availability calendar
+// Supports size & color query params to filter by inventory unit variant
 products.get('/:id/calendar', async (c) => {
   const db = getDb();
   const id = c.req.param('id');
   const yearStr = c.req.query('year');
   const monthStr = c.req.query('month');
+  const sizeFilter = c.req.query('size') || undefined;
+  const colorFilter = c.req.query('color') || undefined;
 
   const schema = z.object({
     year: z.coerce.number().int().min(2024).max(2030),
@@ -272,11 +279,13 @@ products.get('/:id/calendar', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid year or month', parsed.error.flatten());
   }
 
+  const filters = (sizeFilter || colorFilter) ? { size: sizeFilter, color: colorFilter } : undefined;
+
   // Check if it's a regular product
   const product = await db.product.findUnique({ where: { id }, select: { id: true } });
 
   if (product) {
-    const days = await getMonthAvailability(db, id, parsed.data.year, parsed.data.month);
+    const days = await getMonthAvailability(db, id, parsed.data.year, parsed.data.month, filters);
     return success(c, {
       product_id: id,
       year: parsed.data.year,
@@ -299,10 +308,10 @@ products.get('/:id/calendar', async (c) => {
       return error(c, 404, 'NOT_FOUND', 'Product not found');
     }
 
-    // Get availability for each component product
+    // Get availability for each component product (with filters)
     const componentDays = await Promise.all(
       comboSet.items.map((item) =>
-        getMonthAvailability(db, item.productId, parsed.data.year, parsed.data.month)
+        getMonthAvailability(db, item.productId, parsed.data.year, parsed.data.month, filters)
       )
     );
 
@@ -314,7 +323,6 @@ products.get('/:id/calendar', async (c) => {
       return {
         date: day.date,
         status: allAvailable ? day.status : (
-          // Pick the most restrictive status from components
           componentDays.find((cd) => cd[idx]?.status !== 'available')?.[idx]?.status ?? 'booked'
         ),
       };

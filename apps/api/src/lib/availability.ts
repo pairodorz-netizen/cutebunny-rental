@@ -5,15 +5,43 @@ export interface DayAvailability {
   status: SlotStatus;
 }
 
+export interface DayAvailabilityMultiUnit {
+  date: string;
+  status: SlotStatus;
+  available_units: number;
+  total_units: number;
+}
+
+/**
+ * Get month availability for a single product (legacy single-unit or aggregated multi-unit).
+ * A day is "available" if ANY unit is free on that day.
+ */
 export async function getMonthAvailability(
   db: PrismaClient,
   productId: string,
   year: number,
-  month: number
+  month: number,
+  filters?: { size?: string; color?: string }
 ): Promise<DayAvailability[]> {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0); // last day of month
 
+  // Check if product has inventory units
+  const unitWhere: Record<string, unknown> = { productId };
+  if (filters?.size) unitWhere.size = filters.size;
+  if (filters?.color) unitWhere.color = filters.color;
+
+  const units = await db.inventoryUnit.findMany({
+    where: unitWhere,
+    select: { id: true },
+  }).catch(() => []);
+
+  if (units.length > 0) {
+    // Multi-unit: check per-unit availability
+    return getMonthAvailabilityMultiUnit(db, productId, year, month, units.map(u => u.id));
+  }
+
+  // Fallback: single-unit legacy behavior
   const slots = await db.availabilityCalendar.findMany({
     where: {
       productId,
@@ -40,6 +68,126 @@ export async function getMonthAvailability(
   }
 
   return result;
+}
+
+/**
+ * Multi-unit availability: a day is available if at least one unit is free.
+ */
+async function getMonthAvailabilityMultiUnit(
+  db: PrismaClient,
+  productId: string,
+  year: number,
+  month: number,
+  unitIds: string[]
+): Promise<DayAvailability[]> {
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0);
+
+  // Get all slots for this product in the month
+  const slots = await db.availabilityCalendar.findMany({
+    where: {
+      productId,
+      calendarDate: { gte: startDate, lte: endDate },
+    },
+    orderBy: { calendarDate: 'asc' },
+  });
+
+  // Group booked slots by date → set of unitIds that are booked
+  const bookedByDate = new Map<string, Set<string>>();
+  const statusByDate = new Map<string, SlotStatus>();
+  for (const slot of slots) {
+    const dateStr = slot.calendarDate.toISOString().split('T')[0];
+    if (slot.slotStatus !== 'available') {
+      if (!bookedByDate.has(dateStr)) bookedByDate.set(dateStr, new Set());
+      if (slot.unitId) {
+        bookedByDate.get(dateStr)!.add(slot.unitId);
+      } else {
+        // Legacy slot without unit — counts as one booking
+        bookedByDate.get(dateStr)!.add('__legacy__');
+      }
+      // Keep most restrictive status
+      if (!statusByDate.has(dateStr)) statusByDate.set(dateStr, slot.slotStatus);
+    }
+  }
+
+  const result: DayAvailability[] = [];
+  const daysInMonth = endDate.getDate();
+  const totalUnits = unitIds.length;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const bookedUnits = bookedByDate.get(dateStr)?.size ?? 0;
+    const availableUnits = totalUnits - bookedUnits;
+
+    result.push({
+      date: dateStr,
+      status: availableUnits > 0 ? 'available' : (statusByDate.get(dateStr) ?? 'booked'),
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Get per-unit availability for admin calendar view.
+ */
+export async function getMonthAvailabilityPerUnit(
+  db: PrismaClient,
+  productId: string,
+  year: number,
+  month: number,
+  unitId?: string
+): Promise<{ unit_id: string | null; unit_label: string; days: DayAvailability[] }[]> {
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0);
+
+  const units = await db.inventoryUnit.findMany({
+    where: unitId ? { id: unitId, productId } : { productId },
+    orderBy: { unitIndex: 'asc' },
+  }).catch(() => []);
+
+  if (units.length === 0) {
+    // Single-unit legacy product
+    const days = await getMonthAvailability(db, productId, year, month);
+    return [{ unit_id: null, unit_label: 'Default', days }];
+  }
+
+  const slots = await db.availabilityCalendar.findMany({
+    where: {
+      productId,
+      calendarDate: { gte: startDate, lte: endDate },
+    },
+    orderBy: { calendarDate: 'asc' },
+  });
+
+  // Group slots by unitId
+  const slotsByUnit = new Map<string, Map<string, SlotStatus>>();
+  for (const slot of slots) {
+    const uid = slot.unitId ?? '__legacy__';
+    if (!slotsByUnit.has(uid)) slotsByUnit.set(uid, new Map());
+    slotsByUnit.get(uid)!.set(slot.calendarDate.toISOString().split('T')[0], slot.slotStatus);
+  }
+
+  const daysInMonth = endDate.getDate();
+
+  return units
+    .filter(u => !unitId || u.id === unitId)
+    .map((unit) => {
+      const unitSlots = slotsByUnit.get(unit.id) ?? new Map();
+      const days: DayAvailability[] = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        days.push({
+          date: dateStr,
+          status: unitSlots.get(dateStr) ?? 'available',
+        });
+      }
+      return {
+        unit_id: unit.id,
+        unit_label: unit.label ?? `Unit ${unit.unitIndex}`,
+        days,
+      };
+    });
 }
 
 export async function checkAvailability(

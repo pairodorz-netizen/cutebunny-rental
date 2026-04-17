@@ -190,6 +190,7 @@ export interface AdminProduct {
   product_status: string;
   sold_at: string | null;
   variable_cost: number;
+  extra_day_rate: number;
   created_at: string;
 }
 
@@ -210,6 +211,7 @@ export interface AdminProductDetail {
   retail_price: number;
   cost_price: number;
   variable_cost: number;
+  extra_day_rate: number;
   deposit: number;
   selling_price: number;
   product_status: string;
@@ -253,6 +255,7 @@ export interface AdminComboSet {
   size: string[];
   rental_prices: { '1day': number; '3day': number; '5day': number };
   variable_cost: number;
+  extra_day_rate: number;
   available: boolean;
   rental_count: number;
   items: Array<{

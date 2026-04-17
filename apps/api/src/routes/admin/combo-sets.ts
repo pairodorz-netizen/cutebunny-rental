@@ -61,6 +61,7 @@ adminComboSets.get('/', async (c) => {
       '5day': cs.rentalPrice5Day,
     },
     variable_cost: cs.variableCost,
+    extra_day_rate: cs.extraDayRate ?? 0,
     available: cs.available,
     rental_count: cs.rentalCount,
     items: cs.items.map((item) => ({
@@ -129,6 +130,7 @@ adminComboSets.get('/:id', async (c) => {
       '5day': cs.rentalPrice5Day,
     },
     variable_cost: cs.variableCost,
+    extra_day_rate: cs.extraDayRate ?? 0,
     available: cs.available,
     rental_count: cs.rentalCount,
     items: cs.items.map((item) => ({
@@ -156,6 +158,7 @@ const createComboSchema = z.object({
   rental_price_1day: z.number().int().min(0),
   rental_price_3day: z.number().int().min(0),
   rental_price_5day: z.number().int().min(0),
+  extra_day_rate: z.number().int().min(0).default(0),
   variable_cost: z.number().int().min(0).default(0),
   thumbnail_url: z.string().url().optional(),
   items: z.array(z.object({
@@ -199,6 +202,7 @@ adminComboSets.post('/', async (c) => {
       rentalPrice1Day: parsed.data.rental_price_1day,
       rentalPrice3Day: parsed.data.rental_price_3day,
       rentalPrice5Day: parsed.data.rental_price_5day,
+      extraDayRate: parsed.data.extra_day_rate ?? 0,
       variableCost: parsed.data.variable_cost,
       thumbnailUrl: parsed.data.thumbnail_url ?? null,
       items: {
@@ -242,6 +246,7 @@ const updateComboSchema = z.object({
   rental_price_1day: z.number().int().min(0).optional(),
   rental_price_3day: z.number().int().min(0).optional(),
   rental_price_5day: z.number().int().min(0).optional(),
+  extra_day_rate: z.number().int().min(0).optional(),
   variable_cost: z.number().int().min(0).optional(),
   thumbnail_url: z.string().url().nullable().optional(),
   available: z.boolean().optional(),
@@ -285,6 +290,7 @@ adminComboSets.patch('/:id', async (c) => {
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;
   if (parsed.data.rental_price_3day !== undefined) updateData.rentalPrice3Day = parsed.data.rental_price_3day;
   if (parsed.data.rental_price_5day !== undefined) updateData.rentalPrice5Day = parsed.data.rental_price_5day;
+  if (parsed.data.extra_day_rate !== undefined) updateData.extraDayRate = parsed.data.extra_day_rate;
   if (parsed.data.variable_cost !== undefined) updateData.variableCost = parsed.data.variable_cost;
   if (parsed.data.thumbnail_url !== undefined) updateData.thumbnailUrl = parsed.data.thumbnail_url;
   if (parsed.data.available !== undefined) updateData.available = parsed.data.available;

@@ -2,36 +2,31 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-
-const STATUS_COLORS: Record<string, string> = {
-  available: 'bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer',
-  booked: 'bg-gray-200 text-gray-500',
-  cleaning: 'bg-yellow-100 text-yellow-700',
-  blocked_repair: 'bg-orange-100 text-orange-700',
-  late_return: 'bg-red-100 text-red-700',
-  tentative: 'bg-blue-100 text-blue-600',
-};
 
 const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 interface AvailabilityCalendarProps {
   productId: string;
-  onSelectDate?: (date: string) => void;
-  selectedDate?: string | null;
+  onSelectRange?: (startDate: string, endDate: string, days: number) => void;
+  selectedSize?: string | null;
+  selectedColor?: string | null;
 }
 
-export function AvailabilityCalendar({ productId, onSelectDate, selectedDate }: AvailabilityCalendarProps) {
+export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor }: AvailabilityCalendarProps) {
   const t = useTranslations('calendar');
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [clickCount, setClickCount] = useState(0);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['calendar', productId, year, month],
-    queryFn: () => api.products.calendar(productId, year, month),
+    queryKey: ['calendar', productId, year, month, selectedSize, selectedColor],
+    queryFn: () => api.products.calendar(productId, year, month, selectedSize ?? undefined, selectedColor ?? undefined),
   });
 
   const days = data?.data?.days ?? [];
@@ -39,22 +34,60 @@ export function AvailabilityCalendar({ productId, onSelectDate, selectedDate }: 
   const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
 
   function prevMonth() {
-    if (month === 1) {
-      setYear(year - 1);
-      setMonth(12);
-    } else {
-      setMonth(month - 1);
-    }
+    if (month === 1) { setYear(year - 1); setMonth(12); }
+    else setMonth(month - 1);
   }
 
   function nextMonth() {
-    if (month === 12) {
-      setYear(year + 1);
-      setMonth(1);
-    } else {
-      setMonth(month + 1);
-    }
+    if (month === 12) { setYear(year + 1); setMonth(1); }
+    else setMonth(month + 1);
   }
+
+  // Map all non-available statuses to "booked" for customer view (Task 3)
+  function getCustomerStatus(status: string): 'available' | 'booked' {
+    return status === 'available' ? 'available' : 'booked';
+  }
+
+  function isInRange(dateStr: string): boolean {
+    if (!rangeStart || !rangeEnd) return false;
+    return dateStr >= rangeStart && dateStr <= rangeEnd;
+  }
+
+  const handleDayClick = useCallback((dateStr: string, status: string) => {
+    if (getCustomerStatus(status) !== 'available') return;
+
+    const newClickCount = clickCount + 1;
+
+    if (newClickCount === 1) {
+      // First click = start date
+      setRangeStart(dateStr);
+      setRangeEnd(null);
+      setClickCount(1);
+    } else if (newClickCount === 2 && rangeStart) {
+      // Second click = end date
+      let start = rangeStart;
+      let end = dateStr;
+      // Ensure start <= end
+      if (end < start) {
+        [start, end] = [end, start];
+        setRangeStart(start);
+      }
+      setRangeEnd(end);
+      setClickCount(2);
+
+      // Calculate days and notify parent
+      const startD = new Date(start);
+      const endD = new Date(end);
+      const diffMs = endD.getTime() - startD.getTime();
+      const totalDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+      onSelectRange?.(start, end, totalDays);
+    } else {
+      // Third click = reset, new start date
+      setRangeStart(dateStr);
+      setRangeEnd(null);
+      setClickCount(1);
+    }
+  }, [clickCount, rangeStart, onSelectRange]);
 
   return (
     <div className="rounded-lg border p-4">
@@ -89,15 +122,31 @@ export function AvailabilityCalendar({ productId, onSelectDate, selectedDate }: 
           ))}
           {days.map((day) => {
             const dayNum = parseInt(day.date.split('-')[2], 10);
-            const colorClass = STATUS_COLORS[day.status] ?? 'bg-gray-50';
-            const isSelected = selectedDate === day.date;
+            const customerStatus = getCustomerStatus(day.status);
+            const isAvailable = customerStatus === 'available';
+            const isStart = rangeStart === day.date;
+            const isEnd = rangeEnd === day.date;
+            const inRange = isInRange(day.date);
+
+            let colorClass = '';
+            if (isStart || isEnd) {
+              colorClass = 'bg-primary text-white';
+            } else if (inRange && isAvailable) {
+              colorClass = 'bg-primary/20 text-primary';
+            } else if (inRange && !isAvailable) {
+              colorClass = 'bg-red-100 text-red-600 line-through';
+            } else if (isAvailable) {
+              colorClass = 'bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer';
+            } else {
+              colorClass = 'bg-gray-200 text-gray-500';
+            }
 
             return (
               <button
                 key={day.date}
-                className={`p-1.5 rounded text-xs ${colorClass} ${isSelected ? 'ring-2 ring-primary' : ''}`}
-                onClick={() => day.status === 'available' && onSelectDate?.(day.date)}
-                disabled={day.status !== 'available'}
+                className={`p-1.5 rounded text-xs ${colorClass}`}
+                onClick={() => handleDayClick(day.date, day.status)}
+                disabled={!isAvailable && !isStart && !isEnd}
               >
                 {dayNum}
               </button>
@@ -106,6 +155,18 @@ export function AvailabilityCalendar({ productId, onSelectDate, selectedDate }: 
         </div>
       )}
 
+      {/* Range info */}
+      {rangeStart && (
+        <div className="mt-3 text-xs text-muted-foreground text-center">
+          {rangeEnd ? (
+            <span>{rangeStart} → {rangeEnd}</span>
+          ) : (
+            <span>{t('selectEndDate')}</span>
+          )}
+        </div>
+      )}
+
+      {/* Legend: only Available (green) and Booked (gray) */}
       <div className="flex flex-wrap gap-3 mt-4 text-xs">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-green-100 border border-green-300" />
@@ -114,10 +175,6 @@ export function AvailabilityCalendar({ productId, onSelectDate, selectedDate }: 
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded bg-gray-200 border border-gray-300" />
           <span>{t('booked')}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-yellow-100 border border-yellow-300" />
-          <span>{t('cleaning')}</span>
         </div>
       </div>
     </div>

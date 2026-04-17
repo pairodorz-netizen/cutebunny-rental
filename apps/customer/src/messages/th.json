@@ -70,7 +70,8 @@
       "retailPrice": "ราคาขายปลีก",
       "timesRented": "ครั้งที่เช่า",
       "relatedProducts": "สินค้าที่คุณอาจชอบ",
-      "includedItems": "สินค้าในชุด"
+      "includedItems": "สินค้าในชุด",
+      "extraDayNote": "วันเพิ่มเติม: {rate} บาท/วัน หลังจาก 5 วัน"
     }
   },
   "calendar": {
@@ -79,7 +80,8 @@
     "next": "เดือนถัดไป",
     "available": "ว่าง",
     "booked": "จองแล้ว",
-    "cleaning": "ทำความสะอาด"
+    "cleaning": "ทำความสะอาด",
+    "selectEndDate": "คลิกวันอื่นเพื่อเลือกวันสิ้นสุด"
   },
   "cart": {
     "title": "ตะกร้าสินค้า",

@@ -70,7 +70,8 @@
       "retailPrice": "Retail price",
       "timesRented": "times rented",
       "relatedProducts": "You May Also Like",
-      "includedItems": "Included Items"
+      "includedItems": "Included Items",
+      "extraDayNote": "Extra day: {rate} THB/day after 5 days"
     }
   },
   "calendar": {
@@ -79,7 +80,8 @@
     "next": "Next",
     "available": "Available",
     "booked": "Booked",
-    "cleaning": "Cleaning"
+    "cleaning": "Cleaning",
+    "selectEndDate": "Click another date to set end date"
   },
   "cart": {
     "title": "Shopping Cart",

@@ -204,6 +204,7 @@
     "namePlaceholder": "Product name",
     "buyingCost": "Buying Cost",
     "variableCost": "Variable Cost",
+    "extraDayRate": "Extra Day Rate",
     "retailPrice": "Retail Price",
     "sellingPrice": "Selling Price",
     "profitLoss": "Profit/Loss",

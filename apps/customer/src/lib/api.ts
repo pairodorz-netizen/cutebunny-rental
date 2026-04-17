@@ -35,6 +35,7 @@ export interface ProductDetail extends ProductListItem {
   description: string;
   images: Array<{ id: string; url: string; alt_text: string | null }>;
   ref_price: number;
+  extra_day_rate: number;
   related_skus: Array<{ id: string; sku: string; name: string; thumbnail: string | null; price_1day: number }>;
   combo_items?: Array<{
     id: string;
@@ -134,8 +135,12 @@ export const api = {
     },
     detail: (id: string, locale: string) =>
       request<{ data: ProductDetail }>(`/api/v1/products/${id}?locale=${locale}`),
-    calendar: (id: string, year: number, month: number) =>
-      request<{ data: { product_id: string; year: number; month: number; days: CalendarDay[] } }>(`/api/v1/products/${id}/calendar?year=${year}&month=${month}`),
+    calendar: (id: string, year: number, month: number, size?: string, color?: string) => {
+      const params = new URLSearchParams({ year: String(year), month: String(month) });
+      if (size) params.set('size', size);
+      if (color) params.set('color', color);
+      return request<{ data: { product_id: string; year: number; month: number; days: CalendarDay[] } }>(`/api/v1/products/${id}/calendar?${params}`);
+    },
   },
   cart: {
     create: (items: Array<{ product_id: string; rental_days: number; rental_start: string }>) =>

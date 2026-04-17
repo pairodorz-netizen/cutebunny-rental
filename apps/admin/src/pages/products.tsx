@@ -551,6 +551,7 @@ function EditProductPanel({
   const [price5, setPrice5] = useState(String(product.rental_prices['5day']));
   const [costPrice, setCostPrice] = useState(String(product.cost_price));
   const [variableCost, setVariableCost] = useState(String(product.variable_cost));
+  const [extraDayRate, setExtraDayRate] = useState(String(product.extra_day_rate ?? 0));
   const [retailPrice, setRetailPrice] = useState(String(product.retail_price));
 
   // Mark as Sold state
@@ -579,6 +580,7 @@ function EditProductPanel({
       rental_price_5day: Number(price5),
       cost_price: Number(costPrice),
       variable_cost: Number(variableCost),
+      extra_day_rate: Number(extraDayRate),
       retail_price: Number(retailPrice),
     });
   }
@@ -644,7 +646,7 @@ function EditProductPanel({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs font-medium text-muted-foreground">{t('products.buyingCost')}</label>
               <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="h-8 text-sm" />
@@ -652,6 +654,10 @@ function EditProductPanel({
             <div>
               <label className="text-xs font-medium text-muted-foreground">{t('products.variableCost')}</label>
               <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} className="h-8 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">{t('products.extraDayRate')}</label>
+              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} className="h-8 text-sm" placeholder="0" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">{t('products.retailPrice')}</label>
@@ -751,6 +757,7 @@ function ProductForm({
   const [price5, setPrice5] = useState(product ? String(product.rental_prices['5day']) : '');
   const [costPrice, setCostPrice] = useState(product ? String(product.cost_price) : '');
   const [variableCost, setVariableCost] = useState(product ? String(product.variable_cost) : '100');
+  const [extraDayRate, setExtraDayRate] = useState(product ? String(product.extra_day_rate ?? 0) : '0');
   const [retailPrice, setRetailPrice] = useState(product ? String(product.retail_price) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
   const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; name: string }>>([]);
@@ -799,6 +806,7 @@ function ProductForm({
       rental_price_5day: Number(price5),
       cost_price: Number(costPrice) || 0,
       variable_cost: Number(variableCost) || 100,
+      extra_day_rate: Number(extraDayRate) || 0,
       retail_price: Number(retailPrice) || 0,
     };
     if (allUrls.length > 0) body.image_urls = allUrls;
@@ -877,7 +885,7 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">{t('products.buyingCost')}</label>
             <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
@@ -885,6 +893,10 @@ function ProductForm({
           <div>
             <label className="text-sm font-medium">{t('products.variableCost')}</label>
             <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} placeholder="100" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('products.extraDayRate')}</label>
+            <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.retailPrice')}</label>
@@ -1021,6 +1033,7 @@ function ComboSetForm({
   const [price3, setPrice3] = useState(comboSet ? String(comboSet.rental_prices['3day']) : '');
   const [price5, setPrice5] = useState(comboSet ? String(comboSet.rental_prices['5day']) : '');
   const [variableCost, setVariableCost] = useState(comboSet ? String(comboSet.variable_cost) : '0');
+  const [extraDayRate, setExtraDayRate] = useState(comboSet ? String(comboSet.extra_day_rate ?? 0) : '0');
   const [thumbnailUrl, setThumbnailUrl] = useState(comboSet?.thumbnail ?? '');
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const comboFileInputRef = useRef<HTMLInputElement>(null);
@@ -1070,6 +1083,7 @@ function ComboSetForm({
       rental_price_3day: Number(price3),
       rental_price_5day: Number(price5),
       variable_cost: Number(variableCost) || 0,
+      extra_day_rate: Number(extraDayRate) || 0,
       thumbnail_url: thumbnailUrl || undefined,
       items: validItems,
     };
@@ -1138,9 +1152,15 @@ function ComboSetForm({
           </div>
         </div>
 
-        <div>
-          <label className="text-sm font-medium">{t('products.variableCost')}</label>
-          <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium">{t('products.variableCost')}</label>
+            <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('products.extraDayRate')}</label>
+            <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
+          </div>
         </div>
 
         {/* Thumbnail Upload */}

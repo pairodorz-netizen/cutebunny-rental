@@ -70,7 +70,8 @@
       "retailPrice": "零售价",
       "timesRented": "次租赁",
       "relatedProducts": "您可能还喜欢",
-      "includedItems": "套装包含"
+      "includedItems": "套装包含",
+      "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）"
     }
   },
   "calendar": {
@@ -79,7 +80,8 @@
     "next": "下个月",
     "available": "可用",
     "booked": "已预订",
-    "cleaning": "清洁中"
+    "cleaning": "清洁中",
+    "selectEndDate": "点击另一个日期设为结束日期"
   },
   "cart": {
     "title": "购物车",

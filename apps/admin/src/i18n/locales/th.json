@@ -204,6 +204,7 @@
     "namePlaceholder": "ชื่อสินค้า",
     "buyingCost": "ต้นทุนซื้อ",
     "variableCost": "ต้นทุนผันแปร",
+    "extraDayRate": "ค่าเช่าวันเพิ่ม",
     "retailPrice": "ราคาขายปลีก",
     "sellingPrice": "ราคาขาย",
     "profitLoss": "กำไร/ขาดทุน",

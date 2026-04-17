@@ -155,6 +155,7 @@ model Product {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
+  extraDayRate    Int             @default(0) @map("extra_day_rate")
   costPrice       Int             @default(0) @map("cost_price")
   sellingPrice    Int             @default(0) @map("selling_price")
   productStatus   String          @default("active") @map("product_status")
@@ -166,6 +167,7 @@ model Product {
   availabilitySlots   AvailabilityCalendar[]
   orderItems          OrderItem[]
   comboSetItems       ComboSetItem[]
+  inventoryUnits      InventoryUnit[]
 
   @@map("products")
 }
@@ -202,12 +204,14 @@ model AvailabilityCalendar {
   calendarDate DateTime   @map("calendar_date") @db.Date
   slotStatus   SlotStatus @default(available) @map("slot_status")
   orderId      String?    @map("order_id") @db.Uuid
+  unitId       String?    @map("unit_id") @db.Uuid
   note         String?
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  order   Order?  @relation(fields: [orderId], references: [id])
+  product Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?         @relation(fields: [orderId], references: [id])
+  unit    InventoryUnit? @relation(fields: [unitId], references: [id])
 
   @@unique([productId, calendarDate], name: "product_date_unique")
   @@map("availability_calendar")
@@ -443,6 +447,7 @@ model ComboSet {
   rentalPrice3Day Int      @default(0) @map("rental_price_3day")
   rentalPrice5Day Int      @default(0) @map("rental_price_5day")
   variableCost    Int      @default(0) @map("variable_cost")
+  extraDayRate    Int      @default(0) @map("extra_day_rate")
   available       Boolean  @default(true)
   rentalCount     Int      @default(0) @map("rental_count")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -465,4 +470,21 @@ model ComboSetItem {
   product  Product  @relation(fields: [productId], references: [id])
 
   @@map("combo_set_items")
+}
+
+model InventoryUnit {
+  id        String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId String                  @map("product_id") @db.Uuid
+  unitIndex Int                     @map("unit_index")
+  label     String?
+  size      String?
+  color     String?
+  status    InventoryPhysicalStatus @default(available)
+  createdAt DateTime                @default(now()) @map("created_at")
+
+  product Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  slots   AvailabilityCalendar[]
+
+  @@unique([productId, unitIndex], name: "product_unit_unique")
+  @@map("inventory_units")
 }

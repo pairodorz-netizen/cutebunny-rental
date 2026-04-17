@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,32 @@ const RENTAL_TIERS = [
   { days: 5, key: '5day' as const },
 ];
 
+/**
+ * Calculate rental price based on number of days.
+ * - 1, 3, or 5 days: use preset price
+ * - 2 or 4 days: interpolate between presets
+ * - >5 days: price_5day + extra_day_rate * (days - 5)
+ */
+function calculateRentalPrice(
+  days: number,
+  prices: { '1day': number; '3day': number; '5day': number },
+  extraDayRate: number
+): number {
+  if (days <= 0) return 0;
+  if (days === 1) return prices['1day'];
+  if (days === 3) return prices['3day'];
+  if (days === 5) return prices['5day'];
+  if (days === 2) return Math.round((prices['1day'] + prices['3day']) / 2);
+  if (days === 4) return Math.round((prices['3day'] + prices['5day']) / 2);
+  // days > 5: 5-day price + extra rate per additional day
+  if (extraDayRate > 0) {
+    return prices['5day'] + extraDayRate * (days - 5);
+  }
+  // Fallback if no extra day rate: linear from 5-day price
+  const perDay = Math.round(prices['5day'] / 5);
+  return prices['5day'] + perDay * (days - 5);
+}
+
 export default function ProductDetailPage() {
   const t = useTranslations('products.detail');
   const locale = useLocale();
@@ -24,9 +50,13 @@ export default function ProductDetailPage() {
   const addItem = useCartStore((s) => s.addItem);
 
   const [selectedRentalDays, setSelectedRentalDays] = useState(3);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
+  const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
+  const [customDays, setCustomDays] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [added, setAdded] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product', productId, locale],
@@ -35,6 +65,54 @@ export default function ProductDetailPage() {
   });
 
   const product = data?.data;
+
+  // The actual rental days — from calendar range or preset buttons
+  const actualDays = customDays ?? selectedRentalDays;
+
+  const rentalPrice = useMemo(() => {
+    if (!product) return 0;
+    return calculateRentalPrice(
+      actualDays,
+      product.rental_prices ?? { '1day': 0, '3day': 0, '5day': 0 },
+      product.extra_day_rate ?? 0
+    );
+  }, [product, actualDays]);
+
+  const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
+
+  function handleRangeSelect(startDate: string, endDate: string, days: number) {
+    setSelectedStartDate(startDate);
+    setSelectedEndDate(endDate);
+    setCustomDays(days);
+    // If matches a preset, also highlight that preset
+    if (days === 1 || days === 3 || days === 5) {
+      setSelectedRentalDays(days);
+    }
+  }
+
+  function handlePresetClick(days: number) {
+    setSelectedRentalDays(days);
+    setCustomDays(null);
+    // Clear range selection since preset overrides
+    setSelectedEndDate(null);
+  }
+
+  function handleAddToCart() {
+    if (!selectedStartDate || !product) return;
+    addItem({
+      product_id: product.id,
+      product_name: product.name,
+      thumbnail: product.images?.[0]?.url ?? product.thumbnail ?? null,
+      rental_days: actualDays,
+      rental_start: selectedStartDate,
+      price_per_day: pricePerDay,
+      subtotal: rentalPrice,
+      deposit: product.deposit ?? 0,
+      size: selectedSize ?? product.size?.[0] ?? 'ONE',
+    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  }
 
   if (isLoading) {
     return (
@@ -62,31 +140,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  const rentalPrice =
-    selectedRentalDays === 1
-      ? (product.rental_prices?.['1day'] ?? 0)
-      : selectedRentalDays === 3
-        ? (product.rental_prices?.['3day'] ?? 0)
-        : (product.rental_prices?.['5day'] ?? 0);
-
-  const pricePerDay = Math.round(rentalPrice / selectedRentalDays);
-
-  function handleAddToCart() {
-    if (!selectedDate || !product) return;
-    addItem({
-      product_id: product.id,
-      product_name: product.name,
-      thumbnail: product.images?.[0]?.url ?? product.thumbnail ?? null,
-      rental_days: selectedRentalDays,
-      rental_start: selectedDate,
-      price_per_day: pricePerDay,
-      subtotal: rentalPrice,
-      deposit: product.deposit ?? 0,
-      size: product.size?.[0] ?? 'ONE',
-    });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
-  }
+  const hasExtraDayRate = (product.extra_day_rate ?? 0) > 0;
 
   return (
     <div className="container py-8">
@@ -179,9 +233,9 @@ export default function ProductDetailPage() {
               {RENTAL_TIERS.map((tier) => (
                 <button
                   key={tier.days}
-                  onClick={() => setSelectedRentalDays(tier.days)}
+                  onClick={() => handlePresetClick(tier.days)}
                   className={`rounded-lg border p-3 text-center transition-colors ${
-                    selectedRentalDays === tier.days
+                    selectedRentalDays === tier.days && customDays === null
                       ? 'border-primary bg-primary/5'
                       : 'hover:border-primary/50'
                   }`}
@@ -196,18 +250,31 @@ export default function ProductDetailPage() {
                 </button>
               ))}
             </div>
+            {hasExtraDayRate && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {t('extraDayNote', { rate: (product.extra_day_rate ?? 0).toLocaleString() })}
+              </p>
+            )}
           </div>
 
-          {/* Size & Color */}
+          {/* Size & Color filters — clicking refetches calendar */}
           <div className="flex gap-8">
             {(product.size?.length ?? 0) > 0 && (
               <div>
                 <h3 className="font-semibold mb-2">{t('selectSize')}</h3>
                 <div className="flex gap-2">
                   {product.size.map((s) => (
-                    <span key={s} className="border rounded-md px-3 py-1 text-sm">
+                    <button
+                      key={s}
+                      onClick={() => setSelectedSize(selectedSize === s ? null : s)}
+                      className={`border rounded-md px-3 py-1 text-sm transition-colors ${
+                        selectedSize === s
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'hover:border-primary/50'
+                      }`}
+                    >
                       {s}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -217,9 +284,17 @@ export default function ProductDetailPage() {
                 <h3 className="font-semibold mb-2">{t('color')}</h3>
                 <div className="flex gap-2">
                   {product.color.map((c) => (
-                    <span key={c} className="border rounded-md px-3 py-1 text-sm capitalize">
+                    <button
+                      key={c}
+                      onClick={() => setSelectedColor(selectedColor === c ? null : c)}
+                      className={`border rounded-md px-3 py-1 text-sm capitalize transition-colors ${
+                        selectedColor === c
+                          ? 'border-primary bg-primary/10 text-primary font-medium'
+                          : 'hover:border-primary/50'
+                      }`}
+                    >
                       {c}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -240,23 +315,31 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* Calendar */}
+          {/* Calendar — date range selection */}
           <AvailabilityCalendar
             productId={productId}
-            onSelectDate={setSelectedDate}
-            selectedDate={selectedDate}
+            onSelectRange={handleRangeSelect}
+            selectedSize={selectedSize}
+            selectedColor={selectedColor}
           />
 
-          {/* Add to Cart */}
+          {/* Add to Cart — shows calculated total */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
             <div>
               <span className="text-sm text-muted-foreground">{t('totalRental')}</span>
               <p className="text-2xl font-bold">{rentalPrice.toLocaleString()} THB</p>
               <span className="text-xs text-muted-foreground">
-                {selectedRentalDays} {t('days')} {selectedDate ? `• ${selectedDate}` : ''}
+                {actualDays} {t('days')}
+                {selectedStartDate ? ` • ${selectedStartDate}` : ''}
+                {selectedEndDate ? ` → ${selectedEndDate}` : ''}
               </span>
+              {customDays && customDays > 5 && hasExtraDayRate && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  ({(product.rental_prices?.['5day'] ?? 0).toLocaleString()} + {(product.extra_day_rate ?? 0) * (customDays - 5)} extra)
+                </p>
+              )}
             </div>
-            <Button size="lg" onClick={handleAddToCart} disabled={!selectedDate}>
+            <Button size="lg" onClick={handleAddToCart} disabled={!selectedStartDate}>
               {added ? t('added') : t('addToCart')}
             </Button>
           </div>
