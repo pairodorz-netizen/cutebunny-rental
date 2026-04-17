@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, ChevronLeft, X } from 'lucide-react';
+import { Search, ChevronLeft, X, Printer, AlertTriangle, DollarSign } from 'lucide-react';
 
 const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready'];
 
@@ -30,9 +31,17 @@ const STATUS_COLORS: Record<string, string> = {
 
 const AFTER_SALES_TYPES = ['cancel', 'late_fee', 'damage_fee', 'force_buy', 'partial_refund'];
 
+const CARRIERS = [
+  { code: 'kerry', name: 'Kerry Express' },
+  { code: 'thailand_post', name: 'Thailand Post' },
+  { code: 'flash', name: 'Flash Express' },
+  { code: 'jt', name: 'J&T Express' },
+];
+
 export function OrdersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -43,6 +52,7 @@ export function OrdersPage() {
   const [newStatus, setNewStatus] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [statusNote, setStatusNote] = useState('');
+  const [selectedCarrier, setSelectedCarrier] = useState('');
 
   // Slip verify modal
   const [showSlipModal, setShowSlipModal] = useState(false);
@@ -71,16 +81,45 @@ export function OrdersPage() {
     enabled: !!selectedOrderId,
   });
 
+  // Late fee auto-calc query
+  const { data: lateFeeData } = useQuery({
+    queryKey: ['late-fee', selectedOrderId],
+    queryFn: () => adminApi.orders.lateFee(selectedOrderId!),
+    enabled: !!selectedOrderId && showAfterSalesModal && afterSalesType === 'late_fee',
+  });
+
+  const { data: profitData } = useQuery({
+    queryKey: ['order-profit', selectedOrderId],
+    queryFn: () => adminApi.orders.profit(selectedOrderId!),
+    enabled: !!selectedOrderId,
+  });
+
+  const carrierMutation = useMutation({
+    mutationFn: (body: { carrier_code: string; tracking_number?: string }) =>
+      adminApi.shipping.setCarrier(selectedOrderId!, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail', selectedOrderId] });
+    },
+  });
+
   const statusMutation = useMutation({
     mutationFn: (body: { to_status: string; tracking_number?: string; note?: string }) =>
       adminApi.orders.updateStatus(selectedOrderId!, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail', selectedOrderId] });
+      // If transitioning to shipped and carrier selected, save carrier
+      if (newStatus === 'shipped' && selectedCarrier) {
+        carrierMutation.mutate({
+          carrier_code: selectedCarrier,
+          tracking_number: trackingNumber || undefined,
+        });
+      }
       setShowStatusModal(false);
       setNewStatus('');
       setTrackingNumber('');
       setStatusNote('');
+      setSelectedCarrier('');
     },
   });
 
@@ -139,6 +178,11 @@ export function OrdersPage() {
                 {STATUS_TRANSITIONS[orderDetail.status]?.length > 0 && (
                   <Button size="sm" onClick={() => setShowStatusModal(true)}>
                     {t('orders.changeStatus')}
+                  </Button>
+                )}
+                {(orderDetail.status === 'paid_locked' || orderDetail.status === 'shipped') && (
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/orders/${selectedOrderId}/shipping-label`)}>
+                    <Printer className="h-4 w-4 mr-1" /> {t('shipping.printLabel')}
                   </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={() => setShowAfterSalesModal(true)}>
@@ -266,6 +310,67 @@ export function OrdersPage() {
                 </div>
               </div>
             </div>
+
+            {/* Profit Breakdown (M06) */}
+            {profitData?.data && (
+              <div className="rounded-lg border">
+                <div className="p-4 border-b flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                  <h3 className="font-semibold">{t('finance.profitBreakdown')}</h3>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('finance.rentalPrice')}</p>
+                      <p className="text-sm font-semibold">{profitData.data.rental_price.toLocaleString()} THB</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('finance.grossRevenue')}</p>
+                      <p className="text-sm font-semibold text-green-600">{profitData.data.gross_revenue.toLocaleString()} THB</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('finance.totalExpenses')}</p>
+                      <p className="text-sm font-semibold text-red-600">{profitData.data.total_expenses.toLocaleString()} THB</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{t('finance.netProfit')}</p>
+                      <p className={`text-sm font-semibold ${profitData.data.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {profitData.data.net_profit.toLocaleString()} THB
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+                    <div>
+                      <span className="text-xs text-muted-foreground">{t('finance.lateFee')}</span>
+                      <p className="font-medium">{profitData.data.late_fee > 0 ? `${profitData.data.late_fee.toLocaleString()} THB` : '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">{t('finance.damageFee')}</span>
+                      <p className="font-medium">{profitData.data.damage_fee > 0 ? `${profitData.data.damage_fee.toLocaleString()} THB` : '-'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">{t('finance.profitMargin')}</span>
+                      <p className={`font-medium ${profitData.data.profit_margin >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {profitData.data.profit_margin.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                  {profitData.data.expenses.length > 0 && (
+                    <div className="border-t pt-3">
+                      <p className="text-xs text-muted-foreground mb-2">{t('finance.expenses')}</p>
+                      <div className="space-y-1">
+                        {profitData.data.expenses.map((exp, idx) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>{exp.category.replace(/_/g, ' ')}</span>
+                            <span className="text-red-600">{exp.amount.toLocaleString()} THB</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
 
@@ -292,10 +397,25 @@ export function OrdersPage() {
                   </select>
                 </div>
                 {newStatus === 'shipped' && (
-                  <div>
-                    <label className="text-sm font-medium">{t('orders.trackingNumber')}</label>
-                    <Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} />
-                  </div>
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">{t('shipping.carrier')}</label>
+                      <select
+                        value={selectedCarrier}
+                        onChange={(e) => setSelectedCarrier(e.target.value)}
+                        className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">{t('shipping.selectCarrier')}</option>
+                        {CARRIERS.map((c) => (
+                          <option key={c.code} value={c.code}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">{t('orders.trackingNumber')}</label>
+                      <Input value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} placeholder="e.g. TH12345678901" />
+                    </div>
+                  </>
                 )}
                 <div>
                   <label className="text-sm font-medium">{t('orders.note')}</label>
@@ -374,7 +494,10 @@ export function OrdersPage() {
                   <label className="text-sm font-medium">{t('orders.eventType')}</label>
                   <select
                     value={afterSalesType}
-                    onChange={(e) => setAfterSalesType(e.target.value)}
+                    onChange={(e) => {
+                      setAfterSalesType(e.target.value);
+                      setAfterSalesAmount('');
+                    }}
                     className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="">{t('orders.selectType')}</option>
@@ -383,6 +506,48 @@ export function OrdersPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Late fee auto-calculation hint */}
+                {afterSalesType === 'late_fee' && lateFeeData?.data && (
+                  <div className={`rounded-lg p-3 text-sm ${lateFeeData.data.is_overdue ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                    {lateFeeData.data.is_overdue ? (
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-medium text-red-700">{t('orders.overdueAlert')}</p>
+                          <p className="text-red-600">{t('orders.daysLate')}: {lateFeeData.data.days_late}</p>
+                          <p className="text-red-600">{t('orders.feePerDay')}: {lateFeeData.data.fee_per_day.toLocaleString()} THB</p>
+                          <p className="font-bold text-red-700">{t('orders.suggestedFee')}: {lateFeeData.data.total_late_fee.toLocaleString()} THB</p>
+                          <p className="text-red-600">{t('orders.depositRemaining')}: {lateFeeData.data.deposit_remaining.toLocaleString()} THB</p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() => setAfterSalesAmount(String(lateFeeData.data.total_late_fee))}
+                          >
+                            {t('orders.applyFee')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-green-700">{t('orders.notOverdue')}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Force-buy warning */}
+                {afterSalesType === 'force_buy' && (
+                  <div className="rounded-lg p-3 text-sm bg-amber-50 border border-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium text-amber-700">{t('orders.forceBuyWarning')}</p>
+                        <p className="text-amber-600">{t('orders.forceBuyDesc')}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="text-sm font-medium">{t('orders.amount')}</label>
                   <Input type="number" value={afterSalesAmount} onChange={(e) => setAfterSalesAmount(e.target.value)} />
@@ -472,8 +637,8 @@ export function OrdersPage() {
                 >
                   <td className="p-4 font-mono text-sm">{order.order_number}</td>
                   <td className="p-4 text-sm">
-                    <div>{order.customer_name}</div>
-                    <div className="text-xs text-muted-foreground">{order.customer_phone}</div>
+                    <div>{order.customer.name}</div>
+                    <div className="text-xs text-muted-foreground">{order.customer.phone}</div>
                   </td>
                   <td className="p-4">
                     <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[order.status] ?? 'bg-gray-100'}`}>

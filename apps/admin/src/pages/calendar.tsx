@@ -33,20 +33,18 @@ export function CalendarPage() {
     queryFn: () => adminApi.calendar.list({ date_from: startDate, date_to: endDate }),
   });
 
-  const entries = data?.data ?? [];
+  const products = data?.data ?? [];
   const currentMonth = new Date(startDate);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Get all unique product names from entries
-  const productMap = new Map<string, string>();
-  entries.forEach((entry) => {
-    entry.products.forEach((p) => {
-      if (!productMap.has(p.product_id)) {
-        productMap.set(p.product_id, p.name);
-      }
-    });
-  });
-  const productList = Array.from(productMap.entries());
+  // Generate all dates in the month
+  const dates: string[] = [];
+  const d = new Date(startDate);
+  const endD = new Date(endDate);
+  while (d <= endD) {
+    dates.push(d.toISOString().split('T')[0]);
+    d.setDate(d.getDate() + 1);
+  }
 
   function prevMonth() {
     const d = new Date(startDate);
@@ -88,7 +86,7 @@ export function CalendarPage() {
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           {t('common.loading')}
         </div>
-      ) : entries.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           {t('calendar.noData')}
         </div>
@@ -98,33 +96,35 @@ export function CalendarPage() {
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-2 sticky left-0 bg-muted/50 min-w-[150px]">{t('products.name')}</th>
-                {entries.map((entry) => (
-                  <th key={entry.date} className="text-center p-2 min-w-[32px]">
-                    {new Date(entry.date).getDate()}
+                {dates.map((date) => (
+                  <th key={date} className="text-center p-2 min-w-[32px]">
+                    {new Date(date + 'T00:00:00').getDate()}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {productList.map(([productId, productName]) => (
-                <tr key={productId} className="border-b">
-                  <td className="p-2 sticky left-0 bg-background font-medium truncate max-w-[150px]" title={productName}>
-                    {productName}
-                  </td>
-                  {entries.map((entry) => {
-                    const productEntry = entry.products.find((p) => p.product_id === productId);
-                    const status = productEntry?.status ?? 'available';
-                    const color = STATUS_COLORS[status] ?? 'bg-gray-50';
-                    return (
-                      <td key={entry.date} className="p-1 text-center">
-                        <div className={`w-6 h-6 rounded mx-auto flex items-center justify-center ${color}`} title={`${productName}: ${status}`}>
-                          {status !== 'available' ? status[0].toUpperCase() : ''}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
+              {products.map((product) => {
+                const slotMap = new Map(product.slots.map((s) => [s.date, s.status]));
+                return (
+                  <tr key={product.id} className="border-b">
+                    <td className="p-2 sticky left-0 bg-background font-medium truncate max-w-[150px]" title={`${product.sku} - ${product.name}`}>
+                      {product.name}
+                    </td>
+                    {dates.map((date) => {
+                      const status = slotMap.get(date) ?? 'available';
+                      const color = STATUS_COLORS[status] ?? 'bg-gray-50';
+                      return (
+                        <td key={date} className="p-1 text-center">
+                          <div className={`w-6 h-6 rounded mx-auto flex items-center justify-center ${color}`} title={`${product.name}: ${status}`}>
+                            {status !== 'available' ? status[0].toUpperCase() : ''}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

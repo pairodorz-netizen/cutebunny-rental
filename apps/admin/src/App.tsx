@@ -9,6 +9,8 @@ import { CustomersPage } from '@/pages/customers';
 import { CalendarPage } from '@/pages/calendar';
 import { FinancePage } from '@/pages/finance';
 import { SettingsPage } from '@/pages/settings';
+import { ShippingLabelPage } from '@/pages/shipping-label';
+import { ShippingPage } from '@/pages/shipping';
 
 const queryClient = new QueryClient();
 
@@ -25,7 +27,9 @@ function App() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/finance" element={<FinancePage />} />
+            <Route path="/shipping" element={<ShippingPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/orders/:id/shipping-label" element={<ShippingLabelPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

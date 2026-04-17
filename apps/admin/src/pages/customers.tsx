@@ -100,7 +100,7 @@ export function CustomersPage() {
                 <p className="text-xs text-muted-foreground">{t('customers.totalPayment')}</p>
               </div>
               <div className="rounded-lg border p-4 text-center">
-                <p className="text-2xl font-bold">{customer.orders?.length ?? 0}</p>
+                <p className="text-2xl font-bold">{customer.rental_history?.length ?? 0}</p>
                 <p className="text-xs text-muted-foreground">{t('customers.orders')}</p>
               </div>
             </div>
@@ -114,13 +114,11 @@ export function CustomersPage() {
                 <div className="divide-y">
                   {customer.documents.map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between p-3">
-                      <span className="text-sm">{doc.doc_type}</span>
+                      <span className="text-sm">{doc.type}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        doc.status === 'verified' ? 'bg-green-100 text-green-700' :
-                        doc.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
+                        doc.verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                       }`}>
-                        {doc.status}
+                        {doc.verified ? 'verified' : 'pending'}
                       </span>
                     </div>
                   ))}
@@ -129,7 +127,7 @@ export function CustomersPage() {
             )}
 
             {/* Rental History */}
-            {customer.orders && customer.orders.length > 0 && (
+            {customer.rental_history && customer.rental_history.length > 0 && (
               <div className="rounded-lg border">
                 <div className="p-4 border-b">
                   <h3 className="font-semibold">{t('customers.rentalHistory')}</h3>
@@ -140,17 +138,19 @@ export function CustomersPage() {
                       <th className="text-left p-3">{t('orders.orderNumber')}</th>
                       <th className="text-left p-3">{t('orders.status')}</th>
                       <th className="text-right p-3">{t('orders.total')}</th>
+                      <th className="text-left p-3">{t('orders.rentalPeriod')}</th>
                       <th className="text-left p-3">{t('orders.date')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {customer.orders.map((order) => (
+                    {customer.rental_history.map((order) => (
                       <tr key={order.id} className="border-b text-sm">
                         <td className="p-3 font-mono">{order.order_number}</td>
                         <td className="p-3">
                           <span className="text-xs px-2 py-0.5 rounded-full bg-muted">{order.status}</span>
                         </td>
                         <td className="p-3 text-right">{order.total_amount.toLocaleString()} THB</td>
+                        <td className="p-3 text-muted-foreground text-xs">{order.rental_period.start} ~ {order.rental_period.end}</td>
                         <td className="p-3 text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}

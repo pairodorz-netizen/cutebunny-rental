@@ -34,14 +34,14 @@ export function LoginPage() {
       <div className="absolute top-4 right-4">
         <LocaleSwitcher />
       </div>
-      <div className="w-full max-w-sm space-y-6 p-8">
+      <div className="w-full max-w-sm space-y-6 p-8 rounded-lg border bg-card shadow-sm">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-primary">CuteBunny</h1>
           <p className="text-muted-foreground">{t('login.title')}</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
+            <label htmlFor="email" className="text-sm font-medium text-foreground">
               {t('login.email')}
             </label>
             <Input
@@ -54,7 +54,7 @@ export function LoginPage() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
+            <label htmlFor="password" className="text-sm font-medium text-foreground">
               {t('login.password')}
             </label>
             <Input

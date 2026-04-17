@@ -38,24 +38,61 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return json;
 }
 
+async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Do NOT set Content-Type — browser sets multipart/form-data boundary automatically
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+
+  if (res.status === 401) {
+    localStorage.removeItem('auth-storage');
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
+  const json = await res.json();
+  if (!res.ok) {
+    throw new Error(json.error?.message || `API error: ${res.status}`);
+  }
+  return json;
+}
+
 export interface DashboardStats {
   orders_today: number;
   orders_pending_payment: number;
   orders_shipped: number;
   overdue_returns: number;
   revenue_this_month: number;
-  top_products: Array<{ id: string; name: string; rental_count: number }>;
-  low_stock_alert: Array<{ id: string; name: string; available_count: number }>;
+  total_customers: number;
+  total_orders: number;
+  top_products: Array<{ id: string; sku: string; name: string; rental_count: number; thumbnail: string | null }>;
+  low_stock_alert: Array<{ id: string; sku: string; name: string; stock: number }>;
 }
 
 export interface AdminOrder {
   id: string;
   order_number: string;
   status: string;
-  customer_name: string;
-  customer_phone: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  items: Array<{
+    product_name: string;
+    size: string;
+    quantity: number;
+    item_status: string;
+  }>;
   total_amount: number;
-  item_count: number;
+  payment_status: string;
+  rental_period: {
+    start: string;
+    end: string;
+  };
   created_at: string;
 }
 
@@ -110,13 +147,18 @@ export interface AdminProduct {
   name: string;
   name_i18n: Record<string, string>;
   category: string;
-  brand_name: string | null;
+  brand: string | null;
+  thumbnail: string | null;
   size: string[];
   color: string[];
-  price_1day: number;
-  price_3day: number;
-  price_5day: number;
+  rental_prices: {
+    '1day': number;
+    '3day': number;
+    '5day': number;
+  };
+  retail_price: number;
   deposit: number;
+  stock: number;
   rental_count: number;
   available: boolean;
   created_at: string;
@@ -135,40 +177,173 @@ export interface AdminCustomer {
 }
 
 export interface AdminCustomerDetail extends AdminCustomer {
+  first_name: string;
+  last_name: string;
+  avatar_url: string | null;
   address: Record<string, unknown>;
   tags: string[];
-  documents: Array<{ id: string; doc_type: string; status: string }>;
-  orders: Array<{
+  locale: string;
+  documents: Array<{ id: string; type: string; verified: boolean; uploaded_at: string }>;
+  rental_history: Array<{
     id: string;
     order_number: string;
+    status: string;
+    total_amount: number;
+    rental_period: { start: string; end: string };
+    created_at: string;
+  }>;
+}
+
+export interface CalendarProduct {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  thumbnail: string | null;
+  slots: Array<{ date: string; status: string; order_id: string | null }>;
+}
+
+export interface FinanceReport {
+  period: { year: number; month: number | null; start: string; end: string };
+  summary: {
+    total_revenue: number;
+    total_expenses: number;
+    gross_margin: number;
+    gross_margin_pct: number;
+  };
+  revenue_breakdown: Record<string, number>;
+  expense_breakdown: Record<string, number>;
+  grouped_by: string;
+  groups: Array<{
+    key: string;
+    revenue: number;
+    expenses: number;
+    orders: number;
+  }>;
+}
+
+export interface DashboardOverview {
+  total_products: number;
+  total_orders: number;
+  orders_by_status: Record<string, number>;
+  total_revenue: number;
+  total_active_rentals: number;
+  products_available: number;
+  products_rented: number;
+  products_cleaning: number;
+  recent_orders: Array<{
+    id: string;
+    order_number: string;
+    customer_name: string;
+    product_name: string;
     status: string;
     total_amount: number;
     created_at: string;
   }>;
 }
 
-export interface CalendarEntry {
-  date: string;
-  products: Array<{ product_id: string; name: string; status: string }>;
+export interface FinanceCategory {
+  id: string;
+  name: string;
+  type: 'REVENUE' | 'EXPENSE';
+  description: string | null;
+  created_at: string;
 }
 
-export interface FinanceReport {
-  period: { year: number; month: number };
-  group_by: string;
-  groups: Array<{
-    key: string;
-    label: string;
-    revenue: number;
-    expenses: number;
-    gross_margin: number;
-    gross_margin_pct: number;
+export interface FinanceTransaction {
+  id: string;
+  order_id: string | null;
+  order_number: string | null;
+  product_id: string | null;
+  product_name: string | null;
+  product_sku: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  category_type: string | null;
+  tx_type: string;
+  amount: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface BulkImportResult {
+  total: number;
+  created?: number;
+  updated?: number;
+  creates?: number;
+  updates?: number;
+  preview?: Array<{ row: number; name: string; category: string; size?: string[]; color?: string[]; price_1day: number; deposit?: number; action: 'create' | 'update' }>;
+  results?: Array<{ row: number; action: string; id: string; name: string }>;
+}
+
+export interface ProductROI {
+  product_id: string;
+  product_name: string;
+  sku: string;
+  purchase_cost: number;
+  total_revenue: number;
+  total_expenses: number;
+  net_profit: number;
+  roi: number;
+  total_rentals: number;
+  revenue_per_rental: number;
+  break_even_rentals: number;
+  cost_history: Array<{ date: string; type: string; amount: number; note: string | null }>;
+}
+
+export interface ProductMetrics {
+  product_id: string;
+  product_name: string;
+  rental_count: number;
+  occupancy_rate: number;
+  average_rental_duration: number;
+  last_rented_date: string | null;
+  trend: 'up' | 'down' | 'stable';
+  monthly_breakdown: Array<{ month: string; rental_count: number; revenue: number }>;
+}
+
+export interface FinanceSummary {
+  periods: Array<{
+    period_label: string;
+    total_revenue: number;
+    total_expenses: number;
+    net_profit: number;
+    order_count: number;
   }>;
   totals: {
-    revenue: number;
-    expenses: number;
-    gross_margin: number;
-    gross_margin_pct: number;
+    total_revenue: number;
+    total_expenses: number;
+    net_profit: number;
+    total_orders: number;
   };
+  by_category: Array<{ category_name: string; category_type: string; total: number }>;
+  top_products: Array<{ product_id: string; product_name: string; revenue: number; rental_count: number }>;
+  categories: Array<{ id: string; name: string; type: string }>;
+}
+
+export interface OrderProfit {
+  order_id: string;
+  order_number: string;
+  customer_name: string;
+  items: Array<{
+    product_name: string;
+    sku: string;
+    size: string;
+    subtotal: number;
+    late_fee: number;
+    damage_fee: number;
+  }>;
+  rental_price: number;
+  late_fee: number;
+  damage_fee: number;
+  gross_revenue: number;
+  expenses: Array<{ category: string; amount: number }>;
+  total_expenses: number;
+  net_profit: number;
+  profit_margin: number;
+  deposit: number;
+  delivery_fee: number;
 }
 
 export interface ShippingZone {
@@ -176,6 +351,60 @@ export interface ShippingZone {
   zone_name: string;
   base_fee: number;
   provinces: Array<{ province_code: string; addon_fee: number }>;
+}
+
+export interface ShippingCarrier {
+  code: string;
+  name: string;
+  tracking_url: string;
+}
+
+export interface ShippingLabelData {
+  order_number: string;
+  order_id: string;
+  status: string;
+  sender: {
+    name: string;
+    phone: string;
+    address: string;
+  };
+  recipient: {
+    name: string;
+    phone: string;
+    address: string;
+    subdistrict: string;
+    district: string;
+    province: string;
+    postal_code: string;
+  };
+  items: Array<{ name: string; size: string; quantity: number }>;
+  rental_period: { start: string; end: string };
+  tracking_number: string | null;
+  carrier: { code: string; name: string; tracking_url: string | null } | null;
+  qr_data: string;
+}
+
+export interface LateFeeInfo {
+  order_id: string;
+  rental_end_date: string;
+  current_date: string;
+  days_late: number;
+  fee_per_day: number;
+  total_late_fee: number;
+  is_overdue: boolean;
+  deposit_total: number;
+  deposit_remaining: number;
+}
+
+export interface OverdueOrder {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  rental_end_date: string;
+  days_late: number;
+  estimated_late_fee: number;
+  deposit: number;
 }
 
 export const adminApi = {
@@ -188,6 +417,7 @@ export const adminApi = {
   },
   dashboard: {
     stats: () => request<{ data: DashboardStats }>('/api/v1/admin/dashboard/stats'),
+    overview: () => request<{ data: DashboardOverview }>('/api/v1/admin/dashboard/overview'),
   },
   orders: {
     list: (params: Record<string, string>) => {
@@ -212,7 +442,13 @@ export const adminApi = {
         body: JSON.stringify(body),
       }),
     shippingLabel: (id: string) =>
-      request<{ data: unknown }>(`/api/v1/admin/orders/${id}/shipping-label`),
+      request<{ data: ShippingLabelData }>(`/api/v1/admin/shipping/orders/${id}/shipping-label`),
+    lateFee: (id: string) =>
+      request<{ data: LateFeeInfo }>(`/api/v1/admin/orders/${id}/late-fee`),
+    overdueList: () =>
+      request<{ data: OverdueOrder[] }>(`/api/v1/admin/orders/overdue/list`),
+    profit: (id: string) =>
+      request<{ data: OrderProfit }>(`/api/v1/admin/orders/${id}/profit`),
   },
   products: {
     list: (params: Record<string, string>) => {
@@ -231,11 +467,28 @@ export const adminApi = {
       }),
     delete: (id: string) =>
       request<{ data: { message: string } }>(`/api/v1/admin/products/${id}`, { method: 'DELETE' }),
+    roi: (id: string) =>
+      request<{ data: ProductROI }>(`/api/v1/admin/products/${id}/roi`),
+    roiSummary: () =>
+      request<{ data: ProductROI[] }>('/api/v1/admin/products/roi/summary'),
+    metrics: (id: string) =>
+      request<{ data: ProductMetrics }>(`/api/v1/admin/products/${id}/metrics`),
+    popularity: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{ data: Array<{ id: string; sku: string; name: string; category: string; brand: string | null; thumbnail: string | null; rental_count: number; rental_price_1day: number; cost_price: number; available: boolean }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/products/popularity?${qs}`);
+    },
+    templateUrl: () => `${API_BASE}/api/v1/admin/products/template`,
+    exportUrl: () => `${API_BASE}/api/v1/admin/products/export`,
+    bulkImport: (csvData: string, dryRun: boolean) =>
+      request<{ data: BulkImportResult }>('/api/v1/admin/products/import', {
+        method: 'POST',
+        body: JSON.stringify({ csv_data: csvData, dry_run: dryRun }),
+      }),
   },
   calendar: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
-      return request<{ data: CalendarEntry[] }>(`/api/v1/admin/calendar?${qs}`);
+      return request<{ data: CalendarProduct[] }>(`/api/v1/admin/calendar?${qs}`);
     },
   },
   customers: {
@@ -248,11 +501,116 @@ export const adminApi = {
   },
   shipping: {
     zones: () => request<{ data: ShippingZone[] }>('/api/v1/admin/shipping/zones'),
+    carriers: () => request<{ data: ShippingCarrier[] }>('/api/v1/admin/shipping/carriers'),
+    setCarrier: (orderId: string, body: { carrier_code: string; tracking_number?: string }) =>
+      request<{ data: { carrier_code: string; carrier_name: string; tracking_number: string | null } }>(`/api/v1/admin/shipping/orders/${orderId}/carrier`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    updateZone: (zoneId: string, body: { zone_name?: string; base_fee?: number }) =>
+      request<{ data: { id: string; zone_name: string; base_fee: number } }>(`/api/v1/admin/shipping/zones/${zoneId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    updateProvince: (provinceId: string, body: { addon_fee: number }) =>
+      request<{ data: { id: string; province_code: string; province_name: string; addon_fee: number } }>(`/api/v1/admin/shipping/provinces/${provinceId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    addProvince: (zoneId: string, body: { province_code: string; province_name: string; addon_fee: number }) =>
+      request<{ data: { id: string; province_code: string; province_name: string; addon_fee: number } }>(`/api/v1/admin/shipping/zones/${zoneId}/provinces`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    deleteProvince: (provinceId: string) =>
+      request<{ data: { deleted: boolean } }>(`/api/v1/admin/shipping/provinces/${provinceId}`, {
+        method: 'DELETE',
+      }),
   },
   finance: {
     report: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: FinanceReport }>(`/api/v1/admin/finance/report?${qs}`);
     },
+    categories: () =>
+      request<{ data: FinanceCategory[] }>('/api/v1/admin/finance/categories'),
+    createCategory: (body: { name: string; type: string; description?: string }) =>
+      request<{ data: FinanceCategory }>('/api/v1/admin/finance/categories', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateCategory: (id: string, body: Record<string, unknown>) =>
+      request<{ data: FinanceCategory }>(`/api/v1/admin/finance/categories/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    transactions: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{ data: { data: FinanceTransaction[]; meta: { page: number; per_page: number; total: number; total_pages: number } } }>(`/api/v1/admin/finance/transactions?${qs}`);
+    },
+    createTransaction: (body: Record<string, unknown>) =>
+      request<{ data: { id: string } }>('/api/v1/admin/finance/transactions', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    summary: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{ data: FinanceSummary }>(`/api/v1/admin/finance/summary?${qs}`);
+    },
+    exportCsv: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return `${API_BASE}/api/v1/admin/finance/summary/export?${qs}`;
+    },
+  },
+  settings: {
+    config: () => request<{ data: Array<{ id: string; key: string; value: string; label: string | null; group: string }> }>('/api/v1/admin/settings/config'),
+    updateConfig: (key: string, body: { value: string }) =>
+      request<{ data: { id: string; key: string; value: string; label: string | null; group: string } }>(`/api/v1/admin/settings/config/${key}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    createConfig: (body: { key: string; value: string; label?: string; group?: string }) =>
+      request<{ data: { id: string; key: string; value: string; label: string | null; group: string } }>('/api/v1/admin/settings/config', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    users: () => request<{ data: Array<{ id: string; email: string; name: string | null; role: string; lastLoginAt: string | null; createdAt: string }> }>('/api/v1/admin/settings/users'),
+    createUser: (body: { email: string; password: string; name?: string; role?: string }) =>
+      request<{ data: { id: string; email: string; name: string | null; role: string; createdAt: string } }>('/api/v1/admin/settings/users', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateUser: (id: string, body: Record<string, unknown>) =>
+      request<{ data: { id: string; email: string; name: string | null; role: string; createdAt: string } }>(`/api/v1/admin/settings/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    deleteUser: (id: string) =>
+      request<{ data: { deleted: boolean } }>(`/api/v1/admin/settings/users/${id}`, { method: 'DELETE' }),
+    auditLog: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{ data: Array<{ id: string; admin_email: string; admin_name: string; action: string; resource: string; resource_id: string | null; details: Record<string, unknown> | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/audit-log?${qs}`);
+    },
+    notifications: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{ data: Array<{ id: string; order_id: string | null; customer_id: string | null; channel: string; recipient: string; subject: string | null; body: string; status: string; error_message: string | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/notifications?${qs}`);
+    },
+    sendNotification: (body: { channel: string; recipient: string; subject?: string; body: string; order_id?: string; customer_id?: string }) =>
+      request<{ data: { id: string } }>('/api/v1/admin/settings/notifications/send', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  },
+  images: {
+    upload: (productId: string, file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('product_id', productId);
+      return uploadFile<{ data: { id: string; url: string; alt_text: string; sort_order: number } }>('/api/v1/admin/images/upload', formData);
+    },
+    list: (productId: string) =>
+      request<{ data: Array<{ id: string; url: string; alt_text: string; sort_order: number }> }>(`/api/v1/admin/images/${productId}`),
+    delete: (imageId: string) =>
+      request<{ data: { deleted: boolean } }>(`/api/v1/admin/images/${imageId}`, { method: 'DELETE' }),
   },
 };
