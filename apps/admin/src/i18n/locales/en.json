@@ -12,7 +12,9 @@
     "language": "Language",
     "english": "English",
     "thai": "Thai",
-    "chinese": "Chinese"
+    "chinese": "Chinese",
+    "error": "Something went wrong",
+    "close": "Close"
   },
   "login": {
     "title": "Admin Login",

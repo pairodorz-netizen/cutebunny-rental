@@ -12,7 +12,9 @@
     "language": "语言",
     "english": "英语",
     "thai": "泰语",
-    "chinese": "中文"
+    "chinese": "中文",
+    "error": "出现错误",
+    "close": "关闭"
   },
   "login": {
     "title": "管理员登录",
