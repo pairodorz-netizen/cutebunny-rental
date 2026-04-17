@@ -110,7 +110,11 @@
     "placing": "Placing order...",
     "checkoutError": "Failed to place order. Please try again.",
     "useCredit": "Use credit balance ({balance} THB available)",
-    "creditDiscount": "Credit applied"
+    "creditDiscount": "Credit applied",
+    "creditBalanceLabel": "Your credit balance",
+    "lookingUpCredit": "Looking up account...",
+    "returningCustomer": "Welcome back! Your info has been auto-filled.",
+    "newCustomer": "New customer"
   },
   "orderStatus": {
     "title": "Order Status",

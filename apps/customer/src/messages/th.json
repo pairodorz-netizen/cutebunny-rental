@@ -110,7 +110,11 @@
     "placing": "กำลังสั่งซื้อ...",
     "checkoutError": "ไม่สามารถสั่งซื้อได้ กรุณาลองใหม่",
     "useCredit": "ใช้เครดิต ({balance} บาท)",
-    "creditDiscount": "เครดิตที่ใช้"
+    "creditDiscount": "เครดิตที่ใช้",
+    "creditBalanceLabel": "ยอมเครดิตของคุณ",
+    "lookingUpCredit": "กำลังค้นหาบัญชี...",
+    "returningCustomer": "ยินดีต้อนรับกลับ! ข้อมูลถูกกรอกให้อัตโนมัติ",
+    "newCustomer": "ลูกค้าใหม่"
   },
   "orderStatus": {
     "title": "สถานะคำสั่งซื้อ",

@@ -110,7 +110,11 @@
     "placing": "正在提交...",
     "checkoutError": "下单失败，请重试。",
     "useCredit": "使用信用额度（可用 {balance} 泰铢）",
-    "creditDiscount": "信用抵扣"
+    "creditDiscount": "信用抵扣",
+    "creditBalanceLabel": "您的信用余额",
+    "lookingUpCredit": "正在查找账户...",
+    "returningCustomer": "欢迎回来！信息已自动填入。",
+    "newCustomer": "新客户"
   },
   "orderStatus": {
     "title": "订单状态",

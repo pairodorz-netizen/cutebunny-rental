@@ -41,31 +41,40 @@ export default function CartPage() {
   const [creditToUse, setCreditToUse] = useState(0);
   const [useCredit, setUseCredit] = useState(false);
   const [creditLookedUp, setCreditLookedUp] = useState(false);
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [customerFound, setCustomerFound] = useState(false);
 
   const totals = getTotal();
 
-  // Look up customer credit when email changes (debounced)
+  // Look up customer credit when email is entered
   const lookupCredit = useCallback(async (emailValue: string) => {
     if (!emailValue || !emailValue.includes('@')) {
       setCreditBalance(0);
       setCreditLookedUp(false);
+      setCustomerFound(false);
       return;
     }
+    setCreditLoading(true);
     try {
       const result = await api.orders.customerLookup(emailValue);
       if (result.data.found) {
         setCreditBalance(result.data.credit_balance);
+        setCustomerFound(true);
         setCreditLookedUp(true);
         // Auto-fill name and phone if available and fields are empty
         if (result.data.name && !name) setName(result.data.name);
         if (result.data.phone && !phone) setPhone(result.data.phone);
       } else {
         setCreditBalance(0);
+        setCustomerFound(false);
         setCreditLookedUp(true);
       }
     } catch {
       setCreditBalance(0);
+      setCustomerFound(false);
       setCreditLookedUp(true);
+    } finally {
+      setCreditLoading(false);
     }
   }, [name, phone]);
 
@@ -195,6 +204,15 @@ export default function CartPage() {
                 className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 required
               />
+              {creditLoading && (
+                <p className="text-xs text-muted-foreground mt-1">{t('lookingUpCredit')}</p>
+              )}
+              {creditLookedUp && customerFound && (
+                <p className="text-xs text-green-600 mt-1">{t('returningCustomer')}</p>
+              )}
+              {creditLookedUp && !customerFound && email.includes('@') && (
+                <p className="text-xs text-muted-foreground mt-1">{t('newCustomer')}</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium">{t('fullName')}</label>
@@ -275,44 +293,54 @@ export default function CartPage() {
                   <span>{shippingFee.toLocaleString()} THB</span>
                 </div>
 
-                {/* Credit Balance Section */}
-                {creditLookedUp && creditBalance > 0 && (
+                {/* Credit Balance Section — always visible after lookup */}
+                {creditLookedUp && (
                   <div className="border-t pt-2 mt-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={useCredit}
-                          onChange={(e) => {
-                            setUseCredit(e.target.checked);
-                            if (e.target.checked) setCreditToUse(maxCreditUsable);
-                          }}
-                          className="rounded border-input"
-                        />
-                        <span>{t('useCredit', { balance: creditBalance.toLocaleString() })}</span>
-                      </label>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{t('creditBalanceLabel')}</span>
+                      <span className={creditBalance > 0 ? 'font-semibold text-green-600' : 'text-muted-foreground'}>
+                        {creditBalance.toLocaleString()} THB
+                      </span>
                     </div>
-                    {useCredit && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <input
-                          type="number"
-                          value={creditToUse}
-                          onChange={(e) => {
-                            const val = Math.min(Math.max(0, parseInt(e.target.value) || 0), maxCreditUsable);
-                            setCreditToUse(val);
-                          }}
-                          className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
-                          min={0}
-                          max={maxCreditUsable}
-                        />
-                        <span className="text-xs text-muted-foreground">/ {maxCreditUsable.toLocaleString()} THB max</span>
-                      </div>
-                    )}
-                    {useCredit && creditToUse > 0 && (
-                      <div className="flex justify-between text-sm text-green-600 mt-1">
-                        <span>{t('creditDiscount')}</span>
-                        <span>-{creditToUse.toLocaleString()} THB</span>
-                      </div>
+                    {creditBalance > 0 && (
+                      <>
+                        <div className="flex items-center justify-between text-sm mt-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={useCredit}
+                              onChange={(e) => {
+                                setUseCredit(e.target.checked);
+                                if (e.target.checked) setCreditToUse(maxCreditUsable);
+                              }}
+                              className="rounded border-input"
+                            />
+                            <span>{t('useCredit', { balance: creditBalance.toLocaleString() })}</span>
+                          </label>
+                        </div>
+                        {useCredit && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <input
+                              type="number"
+                              value={creditToUse}
+                              onChange={(e) => {
+                                const val = Math.min(Math.max(0, parseInt(e.target.value) || 0), maxCreditUsable);
+                                setCreditToUse(val);
+                              }}
+                              className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                              min={0}
+                              max={maxCreditUsable}
+                            />
+                            <span className="text-xs text-muted-foreground">/ {maxCreditUsable.toLocaleString()} THB max</span>
+                          </div>
+                        )}
+                        {useCredit && creditToUse > 0 && (
+                          <div className="flex justify-between text-sm text-green-600 mt-1">
+                            <span>{t('creditDiscount')}</span>
+                            <span>-{creditToUse.toLocaleString()} THB</span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
