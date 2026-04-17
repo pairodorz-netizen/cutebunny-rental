@@ -249,7 +249,30 @@
     "rentalDays": "Days",
     "noRentals": "No rental history yet",
     "created": "created",
-    "updated": "updated"
+    "updated": "updated",
+    "delete": "Delete",
+    "deleteTitle": "Delete Product",
+    "deleteConfirmMessage": "Are you sure you want to delete this product? This action will soft-delete the product — it will be hidden from listings but its history will be preserved."
+  },
+  "stock": {
+    "title": "Stock Management",
+    "onHand": "On Hand",
+    "addStock": "Add Stock",
+    "quantity": "Quantity",
+    "unitCost": "Unit Cost",
+    "totalCost": "Total Cost",
+    "note": "Note",
+    "notePlaceholder": "e.g. New batch from supplier",
+    "date": "Date",
+    "logType": "Type",
+    "noLogs": "No stock history yet",
+    "invalidQuantity": "Please enter a valid quantity (minimum 1)",
+    "type_purchase": "Purchase",
+    "type_adjust": "Adjustment",
+    "type_loss": "Loss",
+    "type_return_stock": "Return",
+    "type_rental_out": "Rental Out",
+    "type_rental_in": "Rental In"
   },
   "customers": {
     "title": "Customers",

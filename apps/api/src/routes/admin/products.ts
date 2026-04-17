@@ -17,7 +17,13 @@ adminProducts.get('/', async (c) => {
   const search = c.req.query('search');
   const category = c.req.query('category');
 
+  const includeDeleted = c.req.query('includeDeleted') === 'true';
   const where: Prisma.ProductWhereInput = {};
+
+  // By default, exclude soft-deleted products
+  if (!includeDeleted) {
+    where.deletedAt = null;
+  }
 
   if (search) {
     where.OR = [
@@ -62,12 +68,15 @@ adminProducts.get('/', async (c) => {
     retail_price: p.retailPrice,
     deposit: p.deposit,
     stock: p.stockQuantity,
+    stock_on_hand: p.stockOnHand,
+    low_stock_threshold: p.lowStockThreshold,
     rental_count: p.rentalCount,
     available: p.available,
     cost_price: p.costPrice,
     selling_price: p.sellingPrice,
     product_status: p.productStatus,
     sold_at: p.soldAt?.toISOString() ?? null,
+    deleted_at: p.deletedAt?.toISOString() ?? null,
     variable_cost: p.variableCost,
     extra_day_rate: p.extraDayRate ?? 0,
     created_at: p.createdAt.toISOString(),
@@ -711,8 +720,11 @@ adminProducts.get('/:id/detail', async (c) => {
     product_status: product.productStatus,
     sold_at: product.soldAt?.toISOString() ?? null,
     stock: product.stockQuantity,
+    stock_on_hand: product.stockOnHand,
+    low_stock_threshold: product.lowStockThreshold,
     rental_count: product.rentalCount,
     available: product.available,
+    deleted_at: product.deletedAt?.toISOString() ?? null,
     rental_history: product.orderItems.map((oi) => ({
       order_id: oi.order.id,
       order_number: oi.order.orderNumber,
@@ -1019,9 +1031,31 @@ adminProducts.delete('/:id', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Product not found');
   }
 
+  if (product.deletedAt) {
+    return error(c, 400, 'ALREADY_DELETED', 'Product is already deleted');
+  }
+
+  // Check for active rentals (orders that are not finished/cancelled/returned)
+  const activeRentals = await db.orderItem.count({
+    where: {
+      productId: id,
+      order: {
+        status: { in: ['unpaid', 'paid_locked', 'shipped'] },
+      },
+    },
+  });
+
+  if (activeRentals > 0) {
+    return error(c, 409, 'ACTIVE_RENTALS', `Cannot delete product with ${activeRentals} active rental(s). Complete or cancel them first.`);
+  }
+
+  // Soft delete: set deletedAt + mark unavailable
   await db.product.update({
     where: { id },
-    data: { available: false },
+    data: {
+      deletedAt: new Date(),
+      available: false,
+    },
   });
 
   // Audit log via inventory status
@@ -1145,6 +1179,166 @@ adminProducts.post('/:id/inventory-units', async (c) => {
   }
 
   return success(c, { created: created.length, units: created });
+});
+
+// ─── Stock Management ─────────────────────────────────────────────────────
+
+// POST /api/v1/admin/products/:id/stock — Add stock (transactional)
+adminProducts.post('/:id/stock', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const admin = getAdmin(c);
+
+  const bodySchema = z.object({
+    quantity: z.number().int().min(1),
+    unit_cost: z.number().int().min(0).default(0),
+    note: z.string().optional(),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid stock data', parsed.error.flatten());
+  }
+
+  const product = await db.product.findUnique({ where: { id } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  if (product.deletedAt) {
+    return error(c, 400, 'PRODUCT_DELETED', 'Cannot add stock to a deleted product');
+  }
+
+  const { quantity, unit_cost, note } = parsed.data;
+  const totalCost = quantity * unit_cost;
+
+  // Atomic: update stock + create log in transaction
+  const [updatedProduct, stockLog] = await db.$transaction([
+    db.product.update({
+      where: { id },
+      data: { stockOnHand: { increment: quantity } },
+    }),
+    db.productStockLog.create({
+      data: {
+        productId: id,
+        type: 'purchase',
+        quantity,
+        unitCost: unit_cost,
+        totalCost,
+        note: note ?? null,
+        createdBy: admin.sub,
+      },
+    }),
+  ]);
+
+  return created(c, {
+    stock_on_hand: updatedProduct.stockOnHand,
+    log_id: stockLog.id,
+    quantity,
+    unit_cost,
+    total_cost: totalCost,
+  });
+});
+
+// GET /api/v1/admin/products/:id/stock-logs — Paginated stock history
+adminProducts.get('/:id/stock-logs', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10));
+  const perPage = Math.min(50, Math.max(1, parseInt(c.req.query('per_page') ?? '20', 10)));
+
+  const product = await db.product.findUnique({ where: { id }, select: { id: true } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  const [logs, total] = await Promise.all([
+    db.productStockLog.findMany({
+      where: { productId: id },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * perPage,
+      take: perPage,
+    }),
+    db.productStockLog.count({ where: { productId: id } }),
+  ]);
+
+  const data = logs.map((l) => ({
+    id: l.id,
+    type: l.type,
+    quantity: l.quantity,
+    unit_cost: l.unitCost,
+    total_cost: l.totalCost,
+    note: l.note,
+    created_by: l.createdBy,
+    created_at: l.createdAt.toISOString(),
+  }));
+
+  return success(c, data, {
+    page,
+    per_page: perPage,
+    total,
+    total_pages: Math.ceil(total / perPage),
+  });
+});
+
+// PATCH /api/v1/admin/products/:id/stock/adjust — Adjust stock quantity
+adminProducts.patch('/:id/stock/adjust', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const admin = getAdmin(c);
+
+  const bodySchema = z.object({
+    new_qty: z.number().int().min(0),
+    reason: z.string().min(1),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid adjustment data', parsed.error.flatten());
+  }
+
+  const product = await db.product.findUnique({ where: { id } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  if (product.deletedAt) {
+    return error(c, 400, 'PRODUCT_DELETED', 'Cannot adjust stock for a deleted product');
+  }
+
+  const { new_qty, reason } = parsed.data;
+  const diff = new_qty - product.stockOnHand;
+
+  if (diff === 0) {
+    return success(c, { stock_on_hand: product.stockOnHand, message: 'No change' });
+  }
+
+  const logType = diff > 0 ? 'adjust' : 'loss';
+
+  const [updatedProduct, stockLog] = await db.$transaction([
+    db.product.update({
+      where: { id },
+      data: { stockOnHand: new_qty },
+    }),
+    db.productStockLog.create({
+      data: {
+        productId: id,
+        type: logType,
+        quantity: diff,
+        note: reason,
+        createdBy: admin.sub,
+      },
+    }),
+  ]);
+
+  return success(c, {
+    previous_qty: product.stockOnHand,
+    new_qty: updatedProduct.stockOnHand,
+    adjustment: diff,
+    log_id: stockLog.id,
+  });
 });
 
 export default adminProducts;

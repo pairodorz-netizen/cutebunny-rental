@@ -113,6 +113,15 @@ enum AdminRole {
   staff
 }
 
+enum StockLogType {
+  purchase
+  adjust
+  loss
+  return_stock
+  rental_out
+  rental_in
+}
+
 // ─── MODELS ──────────────────────────────────────────────────────────────────
 
 model Brand {
@@ -161,6 +170,10 @@ model Product {
   productStatus   String          @default("active") @map("product_status")
   soldAt          DateTime?       @map("sold_at")
 
+  stockOnHand       Int             @default(0) @map("stock_on_hand")
+  deletedAt         DateTime?       @map("deleted_at")
+  lowStockThreshold Int             @default(1) @map("low_stock_threshold")
+
   brand               Brand?               @relation(fields: [brandId], references: [id])
   images              ProductImage[]
   inventoryStatusLogs InventoryStatusLog[]
@@ -168,6 +181,7 @@ model Product {
   orderItems          OrderItem[]
   comboSetItems       ComboSetItem[]
   inventoryUnits      InventoryUnit[]
+  stockLogs           ProductStockLog[]
 
   @@map("products")
 }
@@ -488,4 +502,21 @@ model InventoryUnit {
 
   @@unique([productId, unitIndex], name: "product_unit_unique")
   @@map("inventory_units")
+}
+
+model ProductStockLog {
+  id        String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId String       @map("product_id") @db.Uuid
+  type      StockLogType
+  quantity  Int          // signed: positive = in, negative = out
+  unitCost  Int          @default(0) @map("unit_cost")
+  totalCost Int          @default(0) @map("total_cost")
+  note      String?
+  createdBy String?      @map("created_by") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt(sort: Desc)], name: "stock_log_product_date")
+  @@map("product_stock_logs")
 }

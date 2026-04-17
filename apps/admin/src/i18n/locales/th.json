@@ -249,7 +249,30 @@
     "rentalDays": "จำนวนวัน",
     "noRentals": "ยังไม่มีประวัติการเช่า",
     "created": "สร้างแล้ว",
-    "updated": "อัปเดตแล้ว"
+    "updated": "อัปเดตแล้ว",
+    "delete": "ลบ",
+    "deleteTitle": "ลบสินค้า",
+    "deleteConfirmMessage": "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกซ่อนจากรายการแต่ประวัติจะยังคงอยู่"
+  },
+  "stock": {
+    "title": "จัดการสต็อก",
+    "onHand": "คงเหลือ",
+    "addStock": "เพิ่มสต็อก",
+    "quantity": "จำนวน",
+    "unitCost": "ต้นทุนต่อหน่วย",
+    "totalCost": "ต้นทุนรวม",
+    "note": "หมายเหตุ",
+    "notePlaceholder": "เช่น ล็อตใหม่จากซัพพลายเออร์",
+    "date": "วันที่",
+    "logType": "ประเภท",
+    "noLogs": "ยังไม่มีประวัติสต็อก",
+    "invalidQuantity": "กรุณาใส่จำนวนที่ถูกต้อง (ขั้นต่ำ 1)",
+    "type_purchase": "ซื้อเข้า",
+    "type_adjust": "ปรับปรุง",
+    "type_loss": "สูญหาย",
+    "type_return_stock": "คืนสต็อก",
+    "type_rental_out": "ส่งเช่า",
+    "type_rental_in": "รับคืน"
   },
   "customers": {
     "title": "ลูกค้า",

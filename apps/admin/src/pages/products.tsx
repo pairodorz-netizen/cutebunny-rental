@@ -91,8 +91,21 @@ export function ProductsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-combo-sets'] }),
   });
 
-  function handleDelete(id: string) {
-    if (window.confirm(t('products.confirmDelete'))) deleteMutation.mutate(id);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function handleDeleteRequest(id: string) {
+    setDeleteError(null);
+    setDeleteTargetId(id);
+  }
+
+  function handleDeleteConfirm() {
+    if (!deleteTargetId) return;
+    setDeleteError(null);
+    deleteMutation.mutate(deleteTargetId, {
+      onSuccess: () => setDeleteTargetId(null),
+      onError: (err: Error) => setDeleteError(err.message),
+    });
   }
 
   function handleDeleteCombo(id: string) {
@@ -237,7 +250,7 @@ export function ProductsPage() {
             isLoading={isLoading}
             onEdit={openEditPage}
             onRowClick={(p) => navigate(`/products/${p.id}`)}
-            onDelete={handleDelete}
+            onDelete={handleDeleteRequest}
           />
         )}
 
@@ -271,6 +284,35 @@ export function ProductsPage() {
         )}
       </div>
 
+      {/* Delete Product Confirmation Modal */}
+      {deleteTargetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">{t('products.deleteTitle')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t('products.deleteConfirmMessage')}</p>
+            {deleteError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                <AlertCircle className="inline h-4 w-4 mr-1" />
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDeleteTargetId(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteConfirm}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                {t('products.delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -303,6 +345,7 @@ function CurrentProductsTable({
             <th className="text-left p-2 text-xs font-medium">{t('products.name')}</th>
             <th className="text-left p-2 text-xs font-medium">{t('products.colors')}</th>
             <th className="text-left p-2 text-xs font-medium">{t('products.sizes')}</th>
+            <th className="text-center p-2 text-xs font-medium">{t('products.stock')}</th>
             <th className="text-right p-2 text-xs font-medium">1D</th>
             <th className="text-right p-2 text-xs font-medium">3D</th>
             <th className="text-right p-2 text-xs font-medium">5D</th>
@@ -314,9 +357,9 @@ function CurrentProductsTable({
         </thead>
         <tbody className="divide-y">
           {isLoading ? (
-            <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">{t('common.loading')}</td></tr>
+            <tr><td colSpan={14} className="p-8 text-center text-muted-foreground">{t('common.loading')}</td></tr>
           ) : products.length === 0 ? (
-            <tr><td colSpan={13} className="p-8 text-center text-muted-foreground">{t('products.empty')}</td></tr>
+            <tr><td colSpan={14} className="p-8 text-center text-muted-foreground">{t('products.empty')}</td></tr>
           ) : products.map((p) => {
             const totalRevenue = p.rental_count * p.rental_prices['1day'];
             const pl = totalRevenue - p.cost_price;
@@ -340,6 +383,7 @@ function CurrentProductsTable({
                 <td className="p-2 text-sm font-medium">{p.name}</td>
                 <td className="p-2 text-xs">{p.color?.join(', ') || '-'}</td>
                 <td className="p-2 text-xs">{p.size?.join(', ') || '-'}</td>
+                <td className={`p-2 text-xs text-center font-medium ${p.stock_on_hand <= p.low_stock_threshold ? 'text-red-600' : 'text-foreground'}`}>{p.stock_on_hand}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['1day'].toLocaleString()}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['3day'].toLocaleString()}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['5day'].toLocaleString()}</td>
@@ -350,13 +394,20 @@ function CurrentProductsTable({
                     {pl >= 0 ? '+' : ''}{pl.toLocaleString()}
                   </span>
                 </td>
-                <td className="p-2 text-right">
+                <td className="p-2 text-right flex gap-1 justify-end">
                   <button
                     onClick={(e) => { e.stopPropagation(); onEdit(p); }}
                     className="p-1 hover:bg-muted rounded"
                     title={t('common.edit')}
                   >
                     <Settings className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
+                    className="p-1 hover:bg-red-50 rounded"
+                    title={t('products.delete')}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" />
                   </button>
                 </td>
               </tr>
