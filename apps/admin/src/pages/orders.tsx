@@ -3,22 +3,37 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
-import type { AdminOrder } from '@/lib/api';
+import type { AdminOrder, AdminProduct } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign } from 'lucide-react';
+import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
-const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready'];
+const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
 
-const STATUS_TRANSITIONS: Record<string, string[]> = {
+const FORWARD_TRANSITIONS: Record<string, string[]> = {
   unpaid: ['paid_locked'],
   paid_locked: ['shipped'],
   shipped: ['returned'],
   returned: ['cleaning'],
-  cleaning: ['repair', 'ready'],
-  repair: ['ready'],
-  ready: [],
+  cleaning: ['repair', 'finished'],
+  repair: ['finished'],
+  finished: [],
 };
+
+const BACKWARD_TRANSITIONS: Record<string, string[]> = {
+  unpaid: [],
+  paid_locked: ['unpaid'],
+  shipped: ['paid_locked'],
+  returned: ['shipped'],
+  cleaning: ['returned'],
+  repair: ['cleaning'],
+  finished: ['cleaning', 'repair'],
+};
+
+const ALL_TRANSITIONS: Record<string, string[]> = {};
+for (const s of ORDER_STATUSES) {
+  ALL_TRANSITIONS[s] = [...(FORWARD_TRANSITIONS[s] ?? []), ...(BACKWARD_TRANSITIONS[s] ?? [])];
+}
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: 'bg-yellow-100 text-yellow-800',
@@ -27,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
   returned: 'bg-orange-100 text-orange-800',
   cleaning: 'bg-cyan-100 text-cyan-800',
   repair: 'bg-red-100 text-red-800',
-  ready: 'bg-green-100 text-green-800',
+  finished: 'bg-green-100 text-green-800',
 };
 
 const STATUS_TAB_COLORS: Record<string, string> = {
@@ -37,7 +52,7 @@ const STATUS_TAB_COLORS: Record<string, string> = {
   returned: 'bg-orange-500',
   cleaning: 'bg-cyan-500',
   repair: 'bg-red-500',
-  ready: 'bg-green-500',
+  finished: 'bg-green-500',
 };
 
 const AFTER_SALES_TYPES = ['cancel', 'late_fee', 'damage_fee', 'force_buy', 'partial_refund'];
@@ -134,6 +149,16 @@ export function OrdersPage() {
   const [selectedSlipId, setSelectedSlipId] = useState('');
   const [slipVerified, setSlipVerified] = useState(true);
   const [slipNote, setSlipNote] = useState('');
+
+  // Add item state
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [addItemSearch, setAddItemSearch] = useState('');
+  const [addItemProductId, setAddItemProductId] = useState('');
+  const [addItemSize, setAddItemSize] = useState('');
+  const [addItemSubtotal, setAddItemSubtotal] = useState('');
+
+  // Revenue impact tracking
+  const [revenueImpacts, setRevenueImpacts] = useState<Array<{ label: string; amount: number; type: 'refund' | 'additional' }>>([]);
 
   // After-sales modal
   const [showAfterSalesModal, setShowAfterSalesModal] = useState(false);
@@ -250,7 +275,46 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
       setEditOrderId(null);
+    },
+  });
+
+  // Product search for add item
+  const debouncedAddItemSearch = useDebounce(addItemSearch, 300);
+  const { data: productSearchData } = useQuery({
+    queryKey: ['product-search', debouncedAddItemSearch],
+    queryFn: () => adminApi.products.list({ search: debouncedAddItemSearch, per_page: '10' }),
+    enabled: showAddItem && debouncedAddItemSearch.length >= 1,
+  });
+
+  const addItemMutation = useMutation({
+    mutationFn: ({ orderId, body }: { orderId: string; body: { product_id: string; size: string; quantity?: number; subtotal: number } }) =>
+      adminApi.orders.addItem(orderId, body),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      const item = result.data.item;
+      setEditItems((prev) => [...prev, { id: item.id, subtotal: item.subtotal, late_fee: 0, damage_fee: 0 }]);
+      setRevenueImpacts((prev) => [...prev, { label: item.product_name, amount: result.data.additional_charge, type: 'additional' }]);
+      setShowAddItem(false);
+      setAddItemSearch('');
+      setAddItemProductId('');
+      setAddItemSize('');
+      setAddItemSubtotal('');
+    },
+  });
+
+  const removeItemMutation = useMutation({
+    mutationFn: ({ orderId, itemId }: { orderId: string; itemId: string }) =>
+      adminApi.orders.removeItem(orderId, itemId),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      setEditItems((prev) => prev.filter((i) => i.id !== result.data.item_id));
+      setRevenueImpacts((prev) => [...prev, { label: result.data.product_name, amount: result.data.refund_amount, type: 'refund' }]);
     },
   });
 
@@ -269,6 +333,8 @@ export function OrdersPage() {
       late_fee: item.late_fee,
       damage_fee: item.damage_fee,
     })));
+    setRevenueImpacts([]);
+    setShowAddItem(false);
   }, []);
 
   // Open status modal
@@ -495,7 +561,7 @@ export function OrdersPage() {
                       </div>
                       {/* Quick action buttons in expanded view */}
                       <div className="flex gap-2 mt-3">
-                        {STATUS_TRANSITIONS[order.status]?.length > 0 && (
+                        {ALL_TRANSITIONS[order.status]?.length > 0 && (
                           <Button size="sm" className="h-6 text-xs" onClick={() => openStatusModal(order.id, order.status)}>
                             {t('orders.changeStatus')}
                           </Button>
@@ -570,7 +636,18 @@ export function OrdersPage() {
                       <div key={item.id} className="border rounded-lg p-3 space-y-2">
                         <div className="flex items-center gap-2">
                           {originalItem && <Thumbnail src={originalItem.thumbnail} size={32} />}
-                          <span className="text-xs font-medium truncate">{originalItem?.product_name ?? item.id}</span>
+                          <span className="text-xs font-medium truncate flex-1">{originalItem?.product_name ?? item.id}</span>
+                          <button
+                            className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-500"
+                            title={t('orders.removeItem')}
+                            onClick={() => {
+                              if (editOrderId && confirm(t('orders.confirmRemoveItem'))) {
+                                removeItemMutation.mutate({ orderId: editOrderId, itemId: item.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           <div>
@@ -617,13 +694,116 @@ export function OrdersPage() {
                     );
                   })}
                 </div>
+
+                {/* Add Item */}
+                {!showAddItem ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-2 h-7 text-xs border-dashed"
+                    onClick={() => setShowAddItem(true)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> {t('orders.addItem')}
+                  </Button>
+                ) : (
+                  <div className="mt-2 border rounded-lg p-3 space-y-2 bg-muted/20">
+                    <Input
+                      placeholder={t('orders.searchProducts')}
+                      value={addItemSearch}
+                      onChange={(e) => setAddItemSearch(e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                    {productSearchData?.data && productSearchData.data.length > 0 && (
+                      <div className="max-h-32 overflow-y-auto border rounded bg-background">
+                        {productSearchData.data.map((p: AdminProduct) => (
+                          <button
+                            key={p.id}
+                            className={`w-full text-left px-2 py-1.5 text-xs hover:bg-muted/50 flex items-center gap-2 ${addItemProductId === p.id ? 'bg-primary/10' : ''}`}
+                            onClick={() => { setAddItemProductId(p.id); setAddItemSearch(p.name); setAddItemSize(p.size[0] ?? ''); }}
+                          >
+                            <Thumbnail src={p.thumbnail} size={24} />
+                            <div className="truncate">
+                              <span className="font-medium">{p.name}</span>
+                              <span className="text-muted-foreground ml-1">{p.sku}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {addItemProductId && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-muted-foreground">{t('orders.size')}</label>
+                          <Input
+                            value={addItemSize}
+                            onChange={(e) => setAddItemSize(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground">{t('orders.priceSubtotal')}</label>
+                          <Input
+                            type="number"
+                            value={addItemSubtotal}
+                            onChange={(e) => setAddItemSubtotal(e.target.value)}
+                            className="h-7 text-xs"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => { setShowAddItem(false); setAddItemSearch(''); setAddItemProductId(''); setAddItemSize(''); setAddItemSubtotal(''); }}
+                      >
+                        {t('common.cancel')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                        disabled={!addItemProductId || !addItemSize || !addItemSubtotal || addItemMutation.isPending}
+                        onClick={() => {
+                          if (editOrderId && addItemProductId && addItemSize && addItemSubtotal) {
+                            addItemMutation.mutate({
+                              orderId: editOrderId,
+                              body: { product_id: addItemProductId, size: addItemSize, subtotal: Number(addItemSubtotal) },
+                            });
+                          }
+                        }}
+                      >
+                        {addItemMutation.isPending ? t('common.loading') : t('orders.addItem')}
+                      </Button>
+                    </div>
+                    {addItemMutation.isError && (
+                      <p className="text-xs text-destructive">{(addItemMutation.error as Error).message}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Revenue Impact Summary */}
+                {revenueImpacts.length > 0 && (
+                  <div className="mt-3 border rounded-lg p-2 space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground">{t('orders.revenueImpact')}</label>
+                    {revenueImpacts.map((impact, i) => (
+                      <div key={i} className={`text-xs flex justify-between ${impact.type === 'refund' ? 'text-red-600' : 'text-green-600'}`}>
+                        <span>{impact.label}</span>
+                        <span className="font-medium">
+                          {impact.type === 'refund' ? `${t('orders.refund')}: -${impact.amount.toLocaleString()}` : `${t('orders.additionalCharge')}: +${impact.amount.toLocaleString()}`} THB
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               {/* Status Change (inline in edit panel) */}
-              {orderDetail && editOrderId === orderDetail.id && STATUS_TRANSITIONS[orderDetail.status]?.length > 0 && (
+              {orderDetail && editOrderId === orderDetail.id && ALL_TRANSITIONS[orderDetail.status]?.length > 0 && (
                 <div className="border-t pt-4">
                   <label className="text-xs font-medium text-muted-foreground">{t('orders.changeStatus')}</label>
                   <div className="flex gap-2 mt-1 flex-wrap">
-                    {(STATUS_TRANSITIONS[orderDetail.status] ?? []).map((s) => (
+                    {(FORWARD_TRANSITIONS[orderDetail.status] ?? []).map((s) => (
                       <Button
                         key={s}
                         size="sm"
@@ -632,6 +812,17 @@ export function OrdersPage() {
                         onClick={() => openStatusModal(editOrderId, orderDetail.status)}
                       >
                         → {t(`orders.statusLabel.${s}`)}
+                      </Button>
+                    ))}
+                    {(BACKWARD_TRANSITIONS[orderDetail.status] ?? []).map((s) => (
+                      <Button
+                        key={s}
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-muted-foreground border border-dashed"
+                        onClick={() => openStatusModal(editOrderId, orderDetail.status)}
+                      >
+                        <Undo2 className="h-3 w-3 mr-1" /> {t('orders.backwardTransition')} {t(`orders.statusLabel.${s}`)}
                       </Button>
                     ))}
                   </div>
@@ -698,6 +889,44 @@ export function OrdersPage() {
                   <Printer className="h-3 w-3 mr-1" /> {t('shipping.printLabel')}
                 </Button>
               )}
+              {/* Audit Log */}
+              {orderDetail && editOrderId === orderDetail.id && (
+                <div className="border-t pt-4">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                    <History className="h-3.5 w-3.5" /> {t('orders.auditLog')}
+                  </label>
+                  {(orderDetail.audit_logs ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">{t('orders.noAuditLogs')}</p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {(orderDetail.audit_logs ?? []).map((log) => (
+                        <div key={log.id} className="text-xs border rounded p-2 bg-muted/10">
+                          <div className="flex justify-between">
+                            <span className="font-medium">{log.admin_name}</span>
+                            <span className="text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                          </div>
+                          <div className="text-muted-foreground mt-0.5">
+                            {log.action}
+                            {log.details && typeof log.details === 'object' && (
+                              <span className="ml-1">
+                                {Object.entries(log.details as Record<string, unknown>)
+                                  .filter(([k]) => k !== 'changes')
+                                  .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+                                  .join(', ')}
+                                {(() => {
+                                  const d = log.details as Record<string, unknown>;
+                                  return d.changes && Array.isArray(d.changes) ? <span> — {(d.changes as string[]).join('; ')}</span> : null;
+                                })()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Save/Cancel */}
               <div className="flex gap-2 pt-2">
                 <Button variant="outline" className="flex-1 h-8 text-xs" onClick={() => setEditOrderId(null)}>
@@ -756,9 +985,16 @@ export function OrdersPage() {
                   className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
                   <option value="">{t('orders.selectStatus')}</option>
-                  {(STATUS_TRANSITIONS[statusModalCurrentStatus] ?? []).map((s) => (
+                  {(FORWARD_TRANSITIONS[statusModalCurrentStatus] ?? []).map((s) => (
                     <option key={s} value={s}>{t(`orders.statusLabel.${s}`)}</option>
                   ))}
+                  {(BACKWARD_TRANSITIONS[statusModalCurrentStatus] ?? []).length > 0 && (
+                    <optgroup label={`── ${t('orders.backwardTransition')} ──`}>
+                      {(BACKWARD_TRANSITIONS[statusModalCurrentStatus] ?? []).map((s) => (
+                        <option key={s} value={s}>↩ {t(`orders.statusLabel.${s}`)}</option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </div>
               {newStatus === 'shipped' && (

@@ -45,7 +45,7 @@ enum OrderStatus {
   returned
   cleaning
   repair
-  ready
+  finished
 }
 
 enum OrderItemStatus {
@@ -266,6 +266,7 @@ model Order {
   availabilitySlots  AvailabilityCalendar[]
   afterSalesEvents   AfterSalesEvent[]
   financeTransactions FinanceTransaction[]
+  auditLogs          AuditLog[]
 
   @@map("orders")
 }
@@ -400,5 +401,23 @@ model AdminUser {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
+  auditLogs AuditLog[]
+
   @@map("admin_users")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId    String?  @map("order_id") @db.Uuid
+  adminId    String   @map("admin_id") @db.Uuid
+  action     String
+  resource   String?
+  resourceId String?  @map("resource_id")
+  details    Json?    @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  admin AdminUser @relation(fields: [adminId], references: [id])
+
+  @@map("audit_logs")
 }

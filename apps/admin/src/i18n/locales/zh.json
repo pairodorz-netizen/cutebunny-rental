@@ -107,7 +107,7 @@
       "returned": "已退回",
       "cleaning": "清洁中",
       "repair": "维修中",
-      "ready": "就绪"
+      "finished": "完成"
     },
     "rentalPeriod": "租赁期间",
     "afterSalesType": {
@@ -129,7 +129,20 @@
     "editOrder": "编辑订单",
     "address": "地址",
     "addressPlaceholder": "输入地址",
-    "quantity": "数量"
+    "quantity": "数量",
+    "auditLog": "审计日志",
+    "noAuditLogs": "暂无变更记录",
+    "addItem": "添加商品",
+    "removeItem": "移除商品",
+    "selectProduct": "选择商品",
+    "searchProducts": "搜索商品...",
+    "refund": "退款",
+    "additionalCharge": "额外费用",
+    "revenueImpact": "收入影响",
+    "backwardTransition": "回退到",
+    "confirmRemoveItem": "确定从订单中移除此商品？",
+    "size": "尺码",
+    "priceSubtotal": "价格"
   },
   "products": {
     "title": "商品",

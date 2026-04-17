@@ -592,7 +592,7 @@ adminProducts.get('/:id/roi', async (c) => {
 
   const purchaseCost = product.costPrice;
   const completedOrders = product.orderItems.filter((oi) =>
-    ['returned', 'cleaning', 'repair', 'ready'].includes(oi.order.status)
+    ['returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
   );
   const totalRentals = completedOrders.length;
 
@@ -665,7 +665,7 @@ adminProducts.get('/roi/summary', async (c) => {
   const roiData = products.map((product) => {
     const purchaseCost = product.costPrice;
     const completedOrders = product.orderItems.filter((oi) =>
-      ['returned', 'cleaning', 'repair', 'ready'].includes(oi.order.status)
+      ['returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
     );
     const totalRentals = completedOrders.length;
 
@@ -732,7 +732,7 @@ adminProducts.get('/:id/metrics', async (c) => {
   }
 
   const completedItems = product.orderItems.filter((oi) =>
-    ['returned', 'cleaning', 'repair', 'ready', 'shipped'].includes(oi.order.status)
+    ['returned', 'cleaning', 'repair', 'finished', 'shipped'].includes(oi.order.status)
   );
 
   const rentalCount = completedItems.length;

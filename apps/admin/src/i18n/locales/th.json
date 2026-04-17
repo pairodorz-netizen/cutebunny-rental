@@ -107,7 +107,7 @@
       "returned": "คืนแล้ว",
       "cleaning": "ทำความสะอาด",
       "repair": "ซ่อมแซม",
-      "ready": "พร้อม"
+      "finished": "เสร็จสิ้น"
     },
     "rentalPeriod": "ระยะเวลาเช่า",
     "afterSalesType": {
@@ -129,7 +129,20 @@
     "editOrder": "แก้ไขคำสั่งซื้อ",
     "address": "ที่อยู่",
     "addressPlaceholder": "กรอกที่อยู่",
-    "quantity": "จำนวน"
+    "quantity": "จำนวน",
+    "auditLog": "บันทึกการเปลี่ยนแปลง",
+    "noAuditLogs": "ยังไม่มีบันทึกการเปลี่ยนแปลง",
+    "addItem": "เพิ่มสินค้า",
+    "removeItem": "ลบสินค้า",
+    "selectProduct": "เลือกสินค้า",
+    "searchProducts": "ค้นหาสินค้า...",
+    "refund": "คืนเงิน",
+    "additionalCharge": "ค่าใช้จ่ายเพิ่มเติม",
+    "revenueImpact": "ผลกระทบรายได้",
+    "backwardTransition": "ย้อนกลับเป็น",
+    "confirmRemoveItem": "ลบสินค้านี้ออกจากคำสั่งซื้อ?",
+    "size": "ขนาด",
+    "priceSubtotal": "ราคา"
   },
   "products": {
     "title": "สินค้า",

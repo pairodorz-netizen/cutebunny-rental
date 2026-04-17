@@ -114,8 +114,11 @@ export interface AdminOrderDetail {
   customer: {
     id: string;
     name: string;
+    first_name: string;
+    last_name: string;
     phone: string;
     email: string;
+    address: Record<string, unknown> | null;
   };
   items: Array<{
     id: string;
@@ -147,6 +150,18 @@ export interface AdminOrderDetail {
     created_at: string;
   }>;
   shipping: Record<string, unknown>;
+  rental_period: {
+    start: string;
+    end: string;
+  };
+  audit_logs: Array<{
+    id: string;
+    action: string;
+    resource: string | null;
+    details: Record<string, unknown> | null;
+    admin_name: string;
+    created_at: string;
+  }>;
   created_at: string;
 }
 
@@ -462,6 +477,15 @@ export const adminApi = {
       request<{ data: { id: string; changes: string[] } }>(`/api/v1/admin/orders/${id}/edit`, {
         method: 'PATCH',
         body: JSON.stringify(body),
+      }),
+    addItem: (id: string, body: { product_id: string; size: string; quantity?: number; subtotal: number }) =>
+      request<{ data: { item: { id: string; product_name: string; sku: string; size: string; quantity: number; subtotal: number; thumbnail: string | null }; order_total: number; additional_charge: number } }>(`/api/v1/admin/orders/${id}/items`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    removeItem: (id: string, itemId: string) =>
+      request<{ data: { deleted: boolean; item_id: string; product_name: string; refund_amount: number; order_total: number } }>(`/api/v1/admin/orders/${id}/items/${itemId}`, {
+        method: 'DELETE',
       }),
   },
   products: {

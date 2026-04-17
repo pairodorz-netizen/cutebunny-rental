@@ -107,7 +107,7 @@
       "returned": "Returned",
       "cleaning": "Cleaning",
       "repair": "Repair",
-      "ready": "Ready"
+      "finished": "Finished"
     },
     "rentalPeriod": "Rental Period",
     "afterSalesType": {
@@ -129,7 +129,20 @@
     "editOrder": "Edit Order",
     "address": "Address",
     "addressPlaceholder": "Enter address or JSON",
-    "quantity": "Qty"
+    "quantity": "Qty",
+    "auditLog": "Audit Log",
+    "noAuditLogs": "No changes recorded yet",
+    "addItem": "Add Item",
+    "removeItem": "Remove Item",
+    "selectProduct": "Select product",
+    "searchProducts": "Search products...",
+    "refund": "Refund",
+    "additionalCharge": "Additional charge",
+    "revenueImpact": "Revenue Impact",
+    "backwardTransition": "Revert to",
+    "confirmRemoveItem": "Remove this item from the order?",
+    "size": "Size",
+    "priceSubtotal": "Price"
   },
   "products": {
     "title": "Products",

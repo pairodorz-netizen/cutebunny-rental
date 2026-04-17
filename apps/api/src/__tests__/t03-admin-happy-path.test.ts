@@ -234,7 +234,7 @@ describe('T03: Admin Happy Path E2E', () => {
       { from: 'paid_locked', to: 'shipped', extra: { tracking_number: 'TRK-12345' } },
       { from: 'shipped', to: 'returned' },
       { from: 'returned', to: 'cleaning' },
-      { from: 'cleaning', to: 'ready' },
+      { from: 'cleaning', to: 'finished' },
     ];
 
     for (const { from, to, extra } of transitions) {
@@ -286,12 +286,12 @@ describe('T03: Admin Happy Path E2E', () => {
 
       // repair → ready
       mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'repair' });
-      mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'ready' });
+      mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'finished' });
 
       res = await app.request('/api/v1/admin/orders/00000000-0000-0000-0000-000000000006/status', {
         method: 'PATCH',
         headers: authHeaders(token),
-        body: JSON.stringify({ to_status: 'ready', note: 'Repair complete' }),
+        body: JSON.stringify({ to_status: 'finished', note: 'Repair complete' }),
       });
       expect(res.status).toBe(200);
     });
@@ -583,7 +583,7 @@ describe('T03: Admin Happy Path E2E', () => {
           {
             id: 'order-1',
             orderNumber: 'ORD-240601',
-            status: 'ready',
+            status: 'finished',
             totalAmount: 6600,
             rentalStartDate: new Date('2026-07-01'),
             rentalEndDate: new Date('2026-07-03'),

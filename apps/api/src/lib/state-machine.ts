@@ -2,16 +2,37 @@ import type { OrderStatus } from '@prisma/client';
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   unpaid: ['paid_locked'],
+  paid_locked: ['shipped', 'unpaid'],
+  shipped: ['returned', 'paid_locked'],
+  returned: ['cleaning', 'shipped'],
+  cleaning: ['repair', 'finished', 'returned'],
+  repair: ['finished', 'cleaning'],
+  finished: ['cleaning', 'repair'],
+};
+
+// Forward transitions (normal flow)
+const FORWARD_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  unpaid: ['paid_locked'],
   paid_locked: ['shipped'],
   shipped: ['returned'],
   returned: ['cleaning'],
-  cleaning: ['repair', 'ready'],
-  repair: ['ready'],
-  ready: [],
+  cleaning: ['repair', 'finished'],
+  repair: ['finished'],
+  finished: [],
 };
 
 export function getAllowedTransitions(currentStatus: OrderStatus): OrderStatus[] {
   return ORDER_TRANSITIONS[currentStatus] ?? [];
+}
+
+export function getForwardTransitions(currentStatus: OrderStatus): OrderStatus[] {
+  return FORWARD_TRANSITIONS[currentStatus] ?? [];
+}
+
+export function getBackwardTransitions(currentStatus: OrderStatus): OrderStatus[] {
+  const all = ORDER_TRANSITIONS[currentStatus] ?? [];
+  const forward = FORWARD_TRANSITIONS[currentStatus] ?? [];
+  return all.filter((s) => !forward.includes(s));
 }
 
 export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {

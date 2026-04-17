@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
-import { success, error } from '../../lib/response';
+import { success, error, created } from '../../lib/response';
 import { isValidTransition, getAllowedTransitions, getTransitionError } from '../../lib/state-machine';
 import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
@@ -175,6 +175,12 @@ adminOrders.get('/:id', async (c) => {
       statusLogs: {
         orderBy: { createdAt: 'desc' },
       },
+      auditLogs: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          admin: { select: { id: true, name: true, email: true } },
+        },
+      },
     },
   });
 
@@ -193,8 +199,11 @@ adminOrders.get('/:id', async (c) => {
     customer: {
       id: order.customer.id,
       name: `${order.customer.firstName} ${order.customer.lastName}`,
+      first_name: order.customer.firstName,
+      last_name: order.customer.lastName,
       phone: order.customer.phone,
       email: order.customer.email,
+      address: order.customer.address,
     },
     items: order.items.map((item) => {
       const rentalDays = Math.ceil(
@@ -236,6 +245,14 @@ adminOrders.get('/:id', async (c) => {
       start: order.rentalStartDate.toISOString().split('T')[0],
       end: order.rentalEndDate.toISOString().split('T')[0],
     },
+    audit_logs: (order.auditLogs ?? []).map((log) => ({
+      id: log.id,
+      action: log.action,
+      resource: log.resource,
+      details: log.details,
+      admin_name: log.admin?.name ?? log.admin?.email ?? log.adminId,
+      created_at: log.createdAt.toISOString(),
+    })),
     created_at: order.createdAt.toISOString(),
   };
 
@@ -252,7 +269,7 @@ const editOrderSchema = z.object({
     late_fee: z.number().int().min(0).optional(),
     damage_fee: z.number().int().min(0).optional(),
   })).optional(),
-  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready']).optional(),
+  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished']).optional(),
 });
 
 adminOrders.patch('/:id/edit', async (c) => {
@@ -352,6 +369,143 @@ adminOrders.patch('/:id/edit', async (c) => {
   return success(c, { id: orderId, changes });
 });
 
+// POST /api/v1/admin/orders/:id/items — Add item to order
+const addItemSchema = z.object({
+  product_id: z.string().uuid(),
+  size: z.string(),
+  quantity: z.number().int().min(1).default(1),
+  subtotal: z.number().int().min(0),
+});
+
+adminOrders.post('/:id/items', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+  const admin = getAdmin(c);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = addItemSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid item data', parsed.error.flatten());
+  }
+
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const product = await db.product.findUnique({
+    where: { id: parsed.data.product_id },
+    select: { id: true, name: true, sku: true, rentalPrice1Day: true, thumbnailUrl: true },
+  });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  const newItem = await db.orderItem.create({
+    data: {
+      orderId,
+      productId: product.id,
+      productName: product.name,
+      size: parsed.data.size,
+      quantity: parsed.data.quantity,
+      rentalPricePerDay: product.rentalPrice1Day,
+      subtotal: parsed.data.subtotal,
+    },
+  });
+
+  // Recalculate order totals
+  const allItems = await db.orderItem.findMany({ where: { orderId } });
+  const newSubtotal = allItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const newTotal = newSubtotal + order.deposit + order.deliveryFee - order.discount - order.creditApplied;
+  await db.order.update({
+    where: { id: orderId },
+    data: { subtotal: newSubtotal, totalAmount: newTotal },
+  });
+
+  // Audit log
+  try {
+    await db.auditLog.create({
+      data: {
+        orderId,
+        adminId: admin.sub,
+        action: 'ADD_ITEM',
+        resource: 'order_item',
+        resourceId: newItem.id,
+        details: { product_name: product.name, sku: product.sku, size: parsed.data.size, subtotal: parsed.data.subtotal },
+      },
+    });
+  } catch { /* audit failure should not block */ }
+
+  return created(c, {
+    item: {
+      id: newItem.id,
+      product_name: newItem.productName,
+      sku: product.sku,
+      size: newItem.size,
+      quantity: newItem.quantity,
+      subtotal: newItem.subtotal,
+      thumbnail: product.thumbnailUrl,
+    },
+    order_total: newTotal,
+    additional_charge: parsed.data.subtotal,
+  });
+});
+
+// DELETE /api/v1/admin/orders/:id/items/:itemId — Remove item from order
+adminOrders.delete('/:id/items/:itemId', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+  const itemId = c.req.param('itemId');
+  const admin = getAdmin(c);
+
+  const order = await db.order.findUnique({ where: { id: orderId } });
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const item = await db.orderItem.findFirst({
+    where: { id: itemId, orderId },
+  });
+  if (!item) {
+    return error(c, 404, 'NOT_FOUND', 'Order item not found');
+  }
+
+  const refundAmount = item.subtotal;
+
+  await db.orderItem.delete({ where: { id: itemId } });
+
+  // Recalculate order totals
+  const remainingItems = await db.orderItem.findMany({ where: { orderId } });
+  const newSubtotal = remainingItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const newTotal = newSubtotal + order.deposit + order.deliveryFee - order.discount - order.creditApplied;
+  await db.order.update({
+    where: { id: orderId },
+    data: { subtotal: newSubtotal, totalAmount: newTotal },
+  });
+
+  // Audit log
+  try {
+    await db.auditLog.create({
+      data: {
+        orderId,
+        adminId: admin.sub,
+        action: 'REMOVE_ITEM',
+        resource: 'order_item',
+        resourceId: itemId,
+        details: { product_name: item.productName, size: item.size, subtotal: item.subtotal, refund: refundAmount },
+      },
+    });
+  } catch { /* audit failure should not block */ }
+
+  return success(c, {
+    deleted: true,
+    item_id: itemId,
+    product_name: item.productName,
+    refund_amount: refundAmount,
+    order_total: newTotal,
+  });
+});
+
 // A14: PATCH /api/v1/admin/orders/:id/status — Status transition
 adminOrders.patch('/:id/status', async (c) => {
   const db = getDb();
@@ -359,7 +513,7 @@ adminOrders.patch('/:id/status', async (c) => {
   const admin = getAdmin(c);
 
   const bodySchema = z.object({
-    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready']),
+    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished']),
     tracking_number: z.string().optional(),
     note: z.string().optional(),
   });
@@ -412,7 +566,7 @@ adminOrders.patch('/:id/status', async (c) => {
 
   // Auto-create finance transactions for key status transitions (non-blocking)
   try {
-    if (toStatus === 'ready' && db.orderItem?.aggregate) {
+    if (toStatus === 'finished' && db.orderItem?.aggregate) {
       const totalLateFee = await db.orderItem.aggregate({
         where: { orderId },
         _sum: { lateFee: true, damageFee: true },

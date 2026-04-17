@@ -24,11 +24,11 @@ describe('Order State Machine', () => {
     });
 
     it('allows cleaning → ready', () => {
-      expect(isValidTransition('cleaning', 'ready')).toBe(true);
+      expect(isValidTransition('cleaning', 'finished')).toBe(true);
     });
 
     it('allows repair → ready', () => {
-      expect(isValidTransition('repair', 'ready')).toBe(true);
+      expect(isValidTransition('repair', 'finished')).toBe(true);
     });
 
     it('rejects unpaid → shipped (skipping paid_locked)', () => {
@@ -36,11 +36,11 @@ describe('Order State Machine', () => {
     });
 
     it('rejects shipped → ready (skipping returned/cleaning)', () => {
-      expect(isValidTransition('shipped', 'ready')).toBe(false);
+      expect(isValidTransition('shipped', 'finished')).toBe(false);
     });
 
     it('rejects ready → unpaid (backward transition)', () => {
-      expect(isValidTransition('ready', 'unpaid')).toBe(false);
+      expect(isValidTransition('finished', 'unpaid')).toBe(false);
     });
 
     it('rejects paid_locked → returned (skipping shipped)', () => {
@@ -70,21 +70,21 @@ describe('Order State Machine', () => {
     });
 
     it('returns [repair, ready] for cleaning', () => {
-      expect(getAllowedTransitions('cleaning')).toEqual(['repair', 'ready']);
+      expect(getAllowedTransitions('cleaning')).toEqual(['repair', 'finished']);
     });
 
     it('returns [ready] for repair', () => {
-      expect(getAllowedTransitions('repair')).toEqual(['ready']);
+      expect(getAllowedTransitions('repair')).toEqual(['finished']);
     });
 
     it('returns [] for ready (terminal state)', () => {
-      expect(getAllowedTransitions('ready')).toEqual([]);
+      expect(getAllowedTransitions('finished')).toEqual([]);
     });
   });
 
   describe('getTransitionError', () => {
     it('returns terminal state message for ready', () => {
-      const msg = getTransitionError('ready', 'unpaid');
+      const msg = getTransitionError('finished', 'unpaid');
       expect(msg).toContain('terminal state');
     });
 

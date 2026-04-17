@@ -311,13 +311,13 @@ describe('T01: API Contract Tests', () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ to_status: 'ready' }),
+        body: JSON.stringify({ to_status: 'finished' }),
       });
       expect(res.status).toBe(422);
     });
 
     it('rejects backward transition ready → unpaid', async () => {
-      mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'ready' });
+      mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'finished' });
 
       const { createToken } = await import('../middleware/auth');
       const token = await createToken('00000000-0000-0000-0000-000000000099', 'admin@test.com', 'superadmin');
