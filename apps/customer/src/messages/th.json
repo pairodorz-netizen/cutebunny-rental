@@ -108,7 +108,9 @@
     "orderSummary": "สรุปคำสั่งซื้อ",
     "placeOrder": "สั่งซื้อ",
     "placing": "กำลังสั่งซื้อ...",
-    "checkoutError": "ไม่สามารถสั่งซื้อได้ กรุณาลองใหม่"
+    "checkoutError": "ไม่สามารถสั่งซื้อได้ กรุณาลองใหม่",
+    "useCredit": "ใช้เครดิต ({balance} บาท)",
+    "creditDiscount": "เครดิตที่ใช้"
   },
   "orderStatus": {
     "title": "สถานะคำสั่งซื้อ",

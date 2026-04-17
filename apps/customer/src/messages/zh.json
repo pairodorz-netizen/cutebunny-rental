@@ -108,7 +108,9 @@
     "orderSummary": "订单摘要",
     "placeOrder": "提交订单",
     "placing": "正在提交...",
-    "checkoutError": "下单失败，请重试。"
+    "checkoutError": "下单失败，请重试。",
+    "useCredit": "使用信用额度（可用 {balance} 泰铢）",
+    "creditDiscount": "信用抵扣"
   },
   "orderStatus": {
     "title": "订单状态",

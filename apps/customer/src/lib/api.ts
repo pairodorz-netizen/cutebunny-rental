@@ -154,11 +154,14 @@ export const api = {
       cart_token: string;
       customer: { name: string; phone: string; email: string };
       shipping_address: { province_code: string; line1: string; city?: string; postal_code?: string };
+      credit_applied?: number;
     }) =>
       request<{ data: OrderResponse }>('/api/v1/orders', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    customerLookup: (email: string) =>
+      request<{ data: { found: boolean; name?: string; phone?: string; credit_balance: number } }>(`/api/v1/orders/customer/lookup?email=${encodeURIComponent(email)}`),
     detail: (token: string) =>
       request<{ data: OrderDetail }>(`/api/v1/orders/${token}`),
     uploadSlip: (token: string, formData: FormData) =>

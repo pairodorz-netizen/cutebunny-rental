@@ -711,24 +711,78 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
     },
   });
 
-  // If verified, transition order to paid_locked
-  if (parsed.data.verified) {
-    const order = await db.order.findUnique({ where: { id: orderId } });
-    if (order && order.status === 'unpaid') {
-      await db.order.update({
-        where: { id: orderId },
-        data: { status: 'paid_locked' },
-      });
+  let orderStatusChanged: string | undefined;
+  let paymentMessage: string | undefined;
+  let creditAdded = 0;
 
-      await db.orderStatusLog.create({
-        data: {
-          orderId,
-          fromStatus: 'unpaid',
-          toStatus: 'paid_locked',
-          note: `Payment slip verified by admin`,
-          changedBy: admin.sub,
-        },
+  if (parsed.data.verified) {
+    const order = await db.order.findUnique({
+      where: { id: orderId },
+      include: { customer: true },
+    });
+
+    if (order) {
+      // Sum all verified slip amounts (including this one just verified)
+      const allSlips = await db.paymentSlip.findMany({
+        where: { orderId, verificationStatus: 'verified' },
       });
+      const totalVerified = allSlips.reduce((sum, s) => sum + s.declaredAmount, 0);
+
+      if (totalVerified >= order.totalAmount) {
+        // Sufficient payment — mark as paid
+        if (order.status === 'unpaid') {
+          await db.order.update({
+            where: { id: orderId },
+            data: { status: 'paid_locked' },
+          });
+          await db.orderStatusLog.create({
+            data: {
+              orderId,
+              fromStatus: 'unpaid',
+              toStatus: 'paid_locked',
+              note: `Payment verified. Total verified: ${totalVerified} THB`,
+              changedBy: admin.sub,
+            },
+          });
+          orderStatusChanged = 'paid_locked';
+        }
+
+        // Create rental_revenue finance transaction
+        try {
+          await db.financeTransaction.create({
+            data: {
+              orderId,
+              txType: 'rental_revenue',
+              amount: order.totalAmount,
+              note: `Payment verified for order ${order.orderNumber}`,
+              createdBy: admin.sub,
+            },
+          });
+        } catch { /* non-blocking */ }
+
+        // Handle overpayment — add excess to customer credit
+        const excess = totalVerified - order.totalAmount;
+        if (excess > 0 && order.customerId) {
+          creditAdded = excess;
+          try {
+            await db.customer.update({
+              where: { id: order.customerId },
+              data: { creditBalance: { increment: excess } },
+            });
+            await db.financeTransaction.create({
+              data: {
+                orderId,
+                txType: 'deposit_received',
+                amount: excess,
+                note: `Overpayment credit: ${excess} THB added to customer balance`,
+                createdBy: admin.sub,
+              },
+            });
+          } catch { /* non-blocking */ }
+        }
+      } else {
+        paymentMessage = `Insufficient payment. Total verified: ${totalVerified} THB / Required: ${order.totalAmount} THB`;
+      }
     }
   }
 
@@ -742,7 +796,7 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
           action: parsed.data.verified ? 'VERIFY' : 'REJECT',
           resource: 'payment_slip',
           resourceId: slip.id,
-          details: { order_id: orderId, slip_id: slip.id, verified: parsed.data.verified, note: parsed.data.note },
+          details: { order_id: orderId, slip_id: slip.id, verified: parsed.data.verified, note: parsed.data.note, credit_added: creditAdded },
         },
       });
     }
@@ -751,8 +805,57 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
   return success(c, {
     slip_id: slip.id,
     verification_status: newStatus,
-    order_status: parsed.data.verified ? 'paid_locked' : undefined,
+    order_status: orderStatusChanged,
+    payment_message: paymentMessage,
+    credit_added: creditAdded,
   });
+});
+
+// PATCH /api/v1/admin/orders/:id/payment-slips/:slipId — Edit slip declared amount
+adminOrders.patch('/:id/payment-slips/:slipId', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+  const slipId = c.req.param('slipId');
+  const admin = getAdmin(c);
+
+  const bodySchema = z.object({
+    declared_amount: z.number().int().min(0),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid data', parsed.error.flatten());
+  }
+
+  const slip = await db.paymentSlip.findFirst({
+    where: { id: slipId, orderId },
+  });
+
+  if (!slip) {
+    return error(c, 404, 'NOT_FOUND', 'Payment slip not found');
+  }
+
+  await db.paymentSlip.update({
+    where: { id: slipId },
+    data: { declaredAmount: parsed.data.declared_amount },
+  });
+
+  // Audit log
+  try {
+    await db.auditLog.create({
+      data: {
+        orderId,
+        adminId: admin.sub,
+        action: 'EDIT',
+        resource: 'payment_slip',
+        resourceId: slipId,
+        details: { old_amount: slip.declaredAmount, new_amount: parsed.data.declared_amount },
+      },
+    });
+  } catch { /* non-blocking */ }
+
+  return success(c, { slip_id: slipId, declared_amount: parsed.data.declared_amount });
 });
 
 // Late fee configuration (THB per day)

@@ -108,7 +108,9 @@
     "orderSummary": "Order Summary",
     "placeOrder": "Place Order",
     "placing": "Placing order...",
-    "checkoutError": "Failed to place order. Please try again."
+    "checkoutError": "Failed to place order. Please try again.",
+    "useCredit": "Use credit balance ({balance} THB available)",
+    "creditDiscount": "Credit applied"
   },
   "orderStatus": {
     "title": "Order Status",

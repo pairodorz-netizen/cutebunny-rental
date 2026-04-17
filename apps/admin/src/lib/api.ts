@@ -540,8 +540,13 @@ export const adminApi = {
         body: JSON.stringify(body),
       }),
     verifySlip: (id: string, body: { slip_id: string; verified: boolean; note?: string }) =>
-      request<{ data: unknown }>(`/api/v1/admin/orders/${id}/payment-slip/verify`, {
+      request<{ data: { slip_id: string; verification_status: string; order_status?: string; payment_message?: string; credit_added?: number } }>(`/api/v1/admin/orders/${id}/payment-slip/verify`, {
         method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateSlipAmount: (id: string, slipId: string, body: { declared_amount: number }) =>
+      request<{ data: { slip_id: string; declared_amount: number } }>(`/api/v1/admin/orders/${id}/payment-slips/${slipId}`, {
+        method: 'PATCH',
         body: JSON.stringify(body),
       }),
     afterSales: (id: string, body: { event_type: string; amount: number; note?: string }) =>

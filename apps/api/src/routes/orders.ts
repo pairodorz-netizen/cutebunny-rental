@@ -34,6 +34,7 @@ orders.post('/', async (c) => {
       city: z.string().optional(),
       postal_code: z.string().optional(),
     }),
+    credit_applied: z.number().int().min(0).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -86,7 +87,15 @@ orders.post('/', async (c) => {
 
   const subtotal = cartData.items.reduce((sum, i) => sum + i.subtotal, 0);
   const totalDeposit = cartData.items.reduce((sum, i) => sum + i.deposit, 0);
-  const totalAmount = subtotal + totalDeposit + deliveryFee;
+
+  // Handle credit application
+  let creditApplied = 0;
+  if (parsed.data.credit_applied && parsed.data.credit_applied > 0) {
+    const maxCredit = Math.min(parsed.data.credit_applied, customer.creditBalance, subtotal + totalDeposit + deliveryFee);
+    creditApplied = maxCredit;
+  }
+
+  const totalAmount = subtotal + totalDeposit + deliveryFee - creditApplied;
 
   // Determine rental date range from cart items
   const startDates = cartData.items.map((i) => new Date(i.rental_start));
@@ -114,6 +123,7 @@ orders.post('/', async (c) => {
       subtotal,
       deposit: totalDeposit,
       deliveryFee,
+      creditApplied,
       totalAmount,
       shippingSnapshot: {
         name: parsed.data.customer.name,
@@ -181,6 +191,14 @@ orders.post('/', async (c) => {
     },
   });
 
+  // Deduct credit from customer balance
+  if (creditApplied > 0) {
+    await db.customer.update({
+      where: { id: customer.id },
+      data: { creditBalance: { decrement: creditApplied } },
+    });
+  }
+
   // Remove cart
   getCartStore().delete(parsed.data.cart_token);
 
@@ -199,8 +217,41 @@ orders.post('/', async (c) => {
       subtotal,
       deposit: totalDeposit,
       delivery_fee: deliveryFee,
+      credit_applied: creditApplied,
       total: totalAmount,
     },
+  });
+});
+
+// GET /api/v1/orders/customer/lookup?email=xxx — Look up customer by email for credit balance
+orders.get('/customer/lookup', async (c) => {
+  const db = getDb();
+  const email = c.req.query('email');
+
+  if (!email) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Email query parameter is required');
+  }
+
+  const customer = await db.customer.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      creditBalance: true,
+    },
+  });
+
+  if (!customer) {
+    return success(c, { found: false, credit_balance: 0 });
+  }
+
+  return success(c, {
+    found: true,
+    name: `${customer.firstName} ${customer.lastName}`,
+    phone: customer.phone,
+    credit_balance: customer.creditBalance,
   });
 });
 
@@ -247,14 +298,37 @@ orders.post('/:order_token/payment-slip', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Valid declared_amount is required');
   }
 
-  // Generate storage key (in production, upload to R2/S3)
+  // Upload to Supabase Storage
   const ext = isJpeg ? 'jpg' : 'png';
   const storageKey = `payments/${order.orderNumber}/slip-${Date.now()}.${ext}`;
+
+  let imageUrl = storageKey; // fallback if Supabase not configured
+
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseUrl = (c.env as Record<string, string>)?.SUPABASE_URL;
+    const supabaseKey = (c.env as Record<string, string>)?.SUPABASE_SERVICE_ROLE_KEY;
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(storageKey, buffer, {
+          contentType: isJpeg ? 'image/jpeg' : 'image/png',
+          upsert: false,
+        });
+      if (!uploadError && uploadData) {
+        const { data: urlData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(uploadData.path);
+        imageUrl = urlData.publicUrl;
+      }
+    }
+  } catch { /* Supabase upload failed — use storageKey as fallback */ }
 
   const slip = await db.paymentSlip.create({
     data: {
       orderId: order.id,
-      storageKey,
+      storageKey: imageUrl,
       declaredAmount,
       bankName: bankName ?? null,
       verificationStatus: 'pending',
@@ -263,7 +337,7 @@ orders.post('/:order_token/payment-slip', async (c) => {
 
   return created(c, {
     id: slip.id,
-    storage_key: storageKey,
+    storage_key: imageUrl,
     declared_amount: declaredAmount,
     bank_name: bankName,
     verification_status: 'pending',

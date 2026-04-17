@@ -99,6 +99,183 @@ function Thumbnail({ src, size = 32 }: { src: string | null; size?: number }) {
   );
 }
 
+function ExpandedPaymentSlips({ orderId, orderStatus, onVerified }: { orderId: string; orderStatus: string; onVerified: () => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [editingSlipId, setEditingSlipId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState('');
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+
+  const { data: detailData } = useQuery({
+    queryKey: ['admin-order-detail', orderId],
+    queryFn: () => adminApi.orders.detail(orderId),
+    enabled: !!orderId,
+  });
+
+  const slips = detailData?.data?.payment_slips ?? [];
+
+  const verifyMutation = useMutation({
+    mutationFn: ({ slipId, verified }: { slipId: string; verified: boolean }) =>
+      adminApi.orders.verifySlip(orderId, { slip_id: slipId, verified }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail', orderId] });
+      onVerified();
+      if (result.data?.payment_message) {
+        setVerifyMessage(result.data.payment_message);
+      } else if (result.data?.credit_added && result.data.credit_added > 0) {
+        setVerifyMessage(`Payment verified. ${result.data.credit_added} THB added to customer credit.`);
+      } else {
+        setVerifyMessage(null);
+      }
+    },
+  });
+
+  const amountMutation = useMutation({
+    mutationFn: ({ slipId, amount }: { slipId: string; amount: number }) =>
+      adminApi.orders.updateSlipAmount(orderId, slipId, { declared_amount: amount }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-order-detail', orderId] });
+      setEditingSlipId(null);
+    },
+  });
+
+  if (slips.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <label className="text-xs font-semibold text-foreground mb-2 block">{t('orders.paymentSlips')}</label>
+      {verifyMessage && (
+        <div className="mb-2 p-2 rounded text-xs bg-yellow-50 text-yellow-800 border border-yellow-200">
+          {verifyMessage}
+          <button className="ml-2 underline" onClick={() => setVerifyMessage(null)}>dismiss</button>
+        </div>
+      )}
+      <div className="space-y-2">
+        {slips.map((slip) => {
+          const isRejected = slip.verification_status === 'rejected';
+          const isVerified = slip.verification_status === 'verified';
+          const isPending = slip.verification_status === 'pending';
+          const hasImage = slip.storage_key && (slip.storage_key.startsWith('http') || slip.storage_key.startsWith('/'));
+
+          return (
+            <div
+              key={slip.id}
+              className={`flex items-center gap-3 text-xs border rounded p-2 ${isRejected ? 'border-red-300 bg-red-50/50' : ''}`}
+            >
+              {/* Slip image thumbnail */}
+              {hasImage ? (
+                <button onClick={() => setFullImageUrl(slip.storage_key)} className="shrink-0">
+                  <img
+                    src={slip.storage_key}
+                    alt="Payment slip"
+                    className="w-10 h-10 rounded object-cover border hover:opacity-80"
+                  />
+                </button>
+              ) : (
+                <div className="w-10 h-10 rounded bg-muted flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                  Slip
+                </div>
+              )}
+
+              {/* Amount (inline editable) */}
+              <div className="flex-1 min-w-0">
+                {editingSlipId === slip.id ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      className="w-24 h-6 border rounded px-1 text-xs"
+                      autoFocus
+                    />
+                    <span className="text-muted-foreground">THB</span>
+                    <button
+                      onClick={() => {
+                        const val = parseInt(editAmount, 10);
+                        if (val >= 0) amountMutation.mutate({ slipId: slip.id, amount: val });
+                      }}
+                      className="text-green-600 hover:text-green-800 font-semibold"
+                    >
+                      Save
+                    </button>
+                    <button onClick={() => setEditingSlipId(null)} className="text-muted-foreground hover:text-foreground">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <button
+                      onClick={() => { setEditingSlipId(slip.id); setEditAmount(String(slip.declared_amount)); }}
+                      className="font-medium hover:underline cursor-pointer"
+                      title="Click to edit amount"
+                    >
+                      {slip.declared_amount.toLocaleString()} THB
+                    </button>
+                    <span className="text-muted-foreground ml-1">
+                      {slip.bank_name ? `• ${slip.bank_name}` : ''}
+                    </span>
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  {new Date(slip.created_at).toLocaleString()}
+                </div>
+              </div>
+
+              {/* Status badge */}
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] whitespace-nowrap ${
+                isVerified ? 'bg-green-100 text-green-700' :
+                isRejected ? 'bg-red-100 text-red-700 line-through' :
+                'bg-yellow-100 text-yellow-700'
+              }`}>
+                {slip.verification_status}
+              </span>
+
+              {/* Verify / Reject buttons */}
+              {isPending && (
+                <div className="flex gap-1 shrink-0">
+                  <Button
+                    size="sm"
+                    className="h-6 text-[10px] bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => verifyMutation.mutate({ slipId: slip.id, verified: true })}
+                    disabled={verifyMutation.isPending}
+                  >
+                    {t('orders.verify')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-6 text-[10px]"
+                    onClick={() => verifyMutation.mutate({ slipId: slip.id, verified: false })}
+                    disabled={verifyMutation.isPending}
+                  >
+                    {t('orders.reject')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Full-size image modal */}
+      {fullImageUrl && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70]" onClick={() => setFullImageUrl(null)}>
+          <div className="relative max-w-3xl max-h-[90vh]">
+            <img src={fullImageUrl} alt="Payment slip" className="max-w-full max-h-[85vh] rounded-lg" />
+            <button
+              onClick={() => setFullImageUrl(null)}
+              className="absolute top-2 right-2 bg-white/80 rounded-full p-1 hover:bg-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OrdersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -576,6 +753,16 @@ export function OrdersPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {t('orders.rentalPeriod')}: {order.rental_period.start} — {order.rental_period.end}
                       </div>
+                      {/* Payment Slips Section */}
+                      <ExpandedPaymentSlips
+                        orderId={order.id}
+                        orderStatus={order.status}
+                        onVerified={() => {
+                          queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                          queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
+                          queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+                        }}
+                      />
                       {/* Quick action buttons in expanded view */}
                       <div className="flex gap-2 mt-3">
                         {ALL_TRANSITIONS[order.status]?.length > 0 && (

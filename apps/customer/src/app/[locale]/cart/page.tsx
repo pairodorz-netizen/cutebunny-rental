@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,38 @@ export default function CartPage() {
   const [address, setAddress] = useState('');
   const [postalCode, setPostalCode] = useState('');
 
+  // Credit system state
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [creditToUse, setCreditToUse] = useState(0);
+  const [useCredit, setUseCredit] = useState(false);
+  const [creditLookedUp, setCreditLookedUp] = useState(false);
+
   const totals = getTotal();
+
+  // Look up customer credit when email changes (debounced)
+  const lookupCredit = useCallback(async (emailValue: string) => {
+    if (!emailValue || !emailValue.includes('@')) {
+      setCreditBalance(0);
+      setCreditLookedUp(false);
+      return;
+    }
+    try {
+      const result = await api.orders.customerLookup(emailValue);
+      if (result.data.found) {
+        setCreditBalance(result.data.credit_balance);
+        setCreditLookedUp(true);
+        // Auto-fill name and phone if available and fields are empty
+        if (result.data.name && !name) setName(result.data.name);
+        if (result.data.phone && !phone) setPhone(result.data.phone);
+      } else {
+        setCreditBalance(0);
+        setCreditLookedUp(true);
+      }
+    } catch {
+      setCreditBalance(0);
+      setCreditLookedUp(true);
+    }
+  }, [name, phone]);
 
   async function handleProvinceChange(code: string) {
     setProvince(code);
@@ -49,6 +80,9 @@ export default function CartPage() {
       }
     }
   }
+
+  const maxCreditUsable = Math.min(creditBalance, totals.total + shippingFee);
+  const finalTotal = totals.total + shippingFee - (useCredit ? creditToUse : 0);
 
   async function handleCheckout() {
     setLoading(true);
@@ -64,10 +98,12 @@ export default function CartPage() {
       );
 
       // Place order
+      const creditApplied = useCredit && creditToUse > 0 ? creditToUse : undefined;
       const orderResult = await api.orders.create({
         cart_token: cartResult.data.cart_token,
         customer: { name, phone, email },
         shipping_address: { province_code: province, line1: address, postal_code: postalCode },
+        credit_applied: creditApplied,
       });
 
       clearCart();
@@ -150,6 +186,17 @@ export default function CartPage() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">{t('customerInfo')}</h2>
             <div>
+              <label className="text-sm font-medium">{t('email')}</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => lookupCredit(email)}
+                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                required
+              />
+            </div>
+            <div>
               <label className="text-sm font-medium">{t('fullName')}</label>
               <input
                 type="text"
@@ -165,16 +212,6 @@ export default function CartPage() {
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">{t('email')}</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 required
               />
@@ -237,9 +274,52 @@ export default function CartPage() {
                   <span>{t('shippingFee')}</span>
                   <span>{shippingFee.toLocaleString()} THB</span>
                 </div>
+
+                {/* Credit Balance Section */}
+                {creditLookedUp && creditBalance > 0 && (
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useCredit}
+                          onChange={(e) => {
+                            setUseCredit(e.target.checked);
+                            if (e.target.checked) setCreditToUse(maxCreditUsable);
+                          }}
+                          className="rounded border-input"
+                        />
+                        <span>{t('useCredit', { balance: creditBalance.toLocaleString() })}</span>
+                      </label>
+                    </div>
+                    {useCredit && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="number"
+                          value={creditToUse}
+                          onChange={(e) => {
+                            const val = Math.min(Math.max(0, parseInt(e.target.value) || 0), maxCreditUsable);
+                            setCreditToUse(val);
+                          }}
+                          className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm"
+                          min={0}
+                          max={maxCreditUsable}
+                        />
+                        <span className="text-xs text-muted-foreground">/ {maxCreditUsable.toLocaleString()} THB max</span>
+                      </div>
+                    )}
+                    {useCredit && creditToUse > 0 && (
+                      <div className="flex justify-between text-sm text-green-600 mt-1">
+                        <span>{t('creditDiscount')}</span>
+                        <span>-{creditToUse.toLocaleString()} THB</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between font-semibold border-t pt-2">
                   <span>{t('total')}</span>
-                  <span>{(totals.total + shippingFee).toLocaleString()} THB</span>
+                  <span>{finalTotal.toLocaleString()} THB</span>
                 </div>
               </div>
             </div>
