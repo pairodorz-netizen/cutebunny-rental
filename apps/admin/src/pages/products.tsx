@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Plus, Settings, X, ArrowLeft, Upload, Image, Download,
-  FileSpreadsheet, FileUp, Check, AlertCircle, DollarSign, Trash2,
+  FileSpreadsheet, FileUp, Check, AlertCircle, DollarSign, Trash2, Loader2,
 } from 'lucide-react';
 
 type Tab = 'current' | 'combo' | 'sold';
@@ -753,6 +753,10 @@ function ProductForm({
   const [variableCost, setVariableCost] = useState(product ? String(product.variable_cost) : '100');
   const [retailPrice, setRetailPrice] = useState(product ? String(product.retail_price) : '');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; name: string }>>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
@@ -764,8 +768,25 @@ function ProductForm({
     onSuccess,
   });
 
+  async function handleFileUpload(files: FileList) {
+    setUploadingFiles(true);
+    const newUploaded: Array<{ url: string; name: string }> = [];
+    for (const file of Array.from(files)) {
+      try {
+        const result = await adminApi.images.uploadGeneric(file, 'products');
+        newUploaded.push({ url: result.data.url, name: file.name });
+      } catch {
+        // skip failed uploads silently
+      }
+    }
+    setUploadedImages((prev) => [...prev, ...newUploaded]);
+    setUploadingFiles(false);
+  }
+
   function handleSubmit() {
-    const urls = imageUrls.filter((u) => u.trim());
+    const manualUrls = imageUrls.filter((u) => u.trim());
+    const uploadUrls = uploadedImages.map((img) => img.url);
+    const allUrls = [...uploadUrls, ...manualUrls];
     const body: Record<string, unknown> = {
       sku,
       name,
@@ -780,7 +801,7 @@ function ProductForm({
       variable_cost: Number(variableCost) || 100,
       retail_price: Number(retailPrice) || 0,
     };
-    if (urls.length > 0) body.image_urls = urls;
+    if (allUrls.length > 0) body.image_urls = allUrls;
 
     if (mode === 'edit' && product) {
       updateMutation.mutate(body);
@@ -871,34 +892,91 @@ function ProductForm({
           </div>
         </div>
 
-        {/* Image URLs */}
+        {/* Image Upload */}
         <div>
           <label className="text-sm font-medium flex items-center gap-2">
             <Image className="h-4 w-4" />
-            {t('products.imageUrls')}
+            {t('products.images')}
           </label>
-          {imageUrls.map((url, idx) => (
-            <div key={idx} className="flex gap-2 mt-2">
-              <Input
-                value={url}
-                onChange={(e) => {
-                  const newUrls = [...imageUrls];
-                  newUrls[idx] = e.target.value;
-                  setImageUrls(newUrls);
-                }}
-                placeholder="https://..."
-                className="text-sm"
-              />
-              {imageUrls.length > 1 && (
-                <button onClick={() => setImageUrls(imageUrls.filter((_, i) => i !== idx))} className="p-2 hover:bg-muted rounded">
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+
+          {/* Upload Button */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.length) handleFileUpload(e.target.files); e.target.value = ''; }}
+          />
+          <div className="mt-2 flex gap-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFiles}
+            >
+              {uploadingFiles ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              {uploadingFiles ? t('common.loading') : t('products.uploadImages')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowUrlInput(!showUrlInput)}
+              className="text-xs text-muted-foreground"
+            >
+              {showUrlInput ? t('products.hideUrlInput') : t('products.addByUrl')}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WebP, GIF — max 5MB each</p>
+
+          {/* Uploaded Image Previews */}
+          {uploadedImages.length > 0 && (
+            <div className="mt-3 flex gap-2 flex-wrap">
+              {uploadedImages.map((img, idx) => (
+                <div key={idx} className="relative group">
+                  <img src={img.url} alt={img.name} className="w-20 h-20 rounded-md object-cover border" />
+                  <button
+                    onClick={() => setUploadedImages(uploadedImages.filter((_, i) => i !== idx))}
+                    className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  <p className="text-[10px] text-muted-foreground truncate w-20 mt-0.5">{img.name}</p>
+                </div>
+              ))}
             </div>
-          ))}
-          <Button variant="outline" size="sm" className="mt-2" onClick={() => setImageUrls([...imageUrls, ''])}>
-            <Plus className="h-3 w-3 mr-1" /> {t('products.addImageUrl')}
-          </Button>
+          )}
+
+          {/* URL input (secondary option) */}
+          {showUrlInput && (
+            <div className="mt-3 border-t pt-3">
+              <span className="text-xs font-medium text-muted-foreground">{t('products.imageUrls')}</span>
+              {imageUrls.map((url, idx) => (
+                <div key={idx} className="flex gap-2 mt-2">
+                  <Input
+                    value={url}
+                    onChange={(e) => {
+                      const newUrls = [...imageUrls];
+                      newUrls[idx] = e.target.value;
+                      setImageUrls(newUrls);
+                    }}
+                    placeholder="https://..."
+                    className="text-sm"
+                  />
+                  {imageUrls.length > 1 && (
+                    <button onClick={() => setImageUrls(imageUrls.filter((_, i) => i !== idx))} className="p-2 hover:bg-muted rounded">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <Button variant="outline" size="sm" className="mt-2" onClick={() => setImageUrls([...imageUrls, ''])}>
+                <Plus className="h-3 w-3 mr-1" /> {t('products.addImageUrl')}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Product Image Manager (edit mode only) */}
@@ -943,6 +1021,9 @@ function ComboSetForm({
   const [price3, setPrice3] = useState(comboSet ? String(comboSet.rental_prices['3day']) : '');
   const [price5, setPrice5] = useState(comboSet ? String(comboSet.rental_prices['5day']) : '');
   const [variableCost, setVariableCost] = useState(comboSet ? String(comboSet.variable_cost) : '0');
+  const [thumbnailUrl, setThumbnailUrl] = useState(comboSet?.thumbnail ?? '');
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const comboFileInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Array<{ product_id: string; revenue_share_pct: number; label: string }>>(
     comboSet?.items?.map((i) => ({ product_id: i.product_id, revenue_share_pct: i.revenue_share_pct, label: i.label ?? '' })) ?? [
       { product_id: '', revenue_share_pct: 50, label: '' },
@@ -966,6 +1047,17 @@ function ComboSetForm({
     onSuccess,
   });
 
+  async function handleThumbnailUpload(file: File) {
+    setUploadingThumbnail(true);
+    try {
+      const result = await adminApi.images.uploadGeneric(file, 'combo-sets');
+      setThumbnailUrl(result.data.url);
+    } catch {
+      // skip
+    }
+    setUploadingThumbnail(false);
+  }
+
   function handleSubmit() {
     const validItems = items.filter((i) => i.product_id);
     const body: Record<string, unknown> = {
@@ -978,6 +1070,7 @@ function ComboSetForm({
       rental_price_3day: Number(price3),
       rental_price_5day: Number(price5),
       variable_cost: Number(variableCost) || 0,
+      thumbnail_url: thumbnailUrl || undefined,
       items: validItems,
     };
 
@@ -1048,6 +1141,57 @@ function ComboSetForm({
         <div>
           <label className="text-sm font-medium">{t('products.variableCost')}</label>
           <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} />
+        </div>
+
+        {/* Thumbnail Upload */}
+        <div>
+          <label className="text-sm font-medium flex items-center gap-2">
+            <Image className="h-4 w-4" />
+            {t('products.thumbnail')}
+          </label>
+          <input
+            ref={comboFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.[0]) handleThumbnailUpload(e.target.files[0]); e.target.value = ''; }}
+          />
+          <div className="mt-2 flex items-center gap-3">
+            {thumbnailUrl ? (
+              <div className="relative group">
+                <img src={thumbnailUrl} alt="Thumbnail" className="w-20 h-20 rounded-md object-cover border" />
+                <button
+                  onClick={() => setThumbnailUrl('')}
+                  className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : null}
+            <div className="space-y-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => comboFileInputRef.current?.click()}
+                disabled={uploadingThumbnail}
+              >
+                {uploadingThumbnail ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                {uploadingThumbnail ? t('common.loading') : thumbnailUrl ? t('products.changeThumbnail') : t('products.uploadThumbnail')}
+              </Button>
+              <p className="text-xs text-muted-foreground">JPEG, PNG, WebP, GIF — max 5MB</p>
+            </div>
+          </div>
+          {!thumbnailUrl && (
+            <div className="mt-2">
+              <Input
+                value={thumbnailUrl}
+                onChange={(e) => setThumbnailUrl(e.target.value)}
+                placeholder="https://... (or upload above)"
+                className="text-sm"
+              />
+            </div>
+          )}
         </div>
 
         {/* Combo Items */}

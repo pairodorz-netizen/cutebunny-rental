@@ -755,6 +755,12 @@ export const adminApi = {
       formData.append('product_id', productId);
       return uploadFile<{ data: { id: string; url: string; alt_text: string; sort_order: number } }>('/api/v1/admin/images/upload', formData);
     },
+    uploadGeneric: (file: File, folder?: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (folder) formData.append('folder', folder);
+      return uploadFile<{ data: { url: string } }>('/api/v1/admin/images/upload-generic', formData);
+    },
     list: (productId: string) =>
       request<{ data: Array<{ id: string; url: string; alt_text: string; sort_order: number }> }>(`/api/v1/admin/images/${productId}`),
     delete: (imageId: string) =>

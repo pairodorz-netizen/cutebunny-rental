@@ -125,6 +125,55 @@ adminImages.delete('/:id', async (c) => {
   return success(c, { deleted: true });
 });
 
+// POST /api/v1/admin/images/upload-generic — Upload image to Supabase Storage without linking to a product
+// Used for: combo set thumbnails, product images during creation (before product ID exists)
+adminImages.post('/upload-generic', async (c) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return error(c, 500, 'CONFIG_ERROR', 'Supabase storage is not configured');
+  }
+
+  const formData = await c.req.formData();
+  const file = formData.get('file') as File | null;
+  const folder = (formData.get('folder') as string) || 'general';
+
+  if (!file) {
+    return error(c, 400, 'VALIDATION_ERROR', 'No file provided');
+  }
+
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowedTypes.includes(file.type)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Only JPEG, PNG, WebP, and GIF images are allowed');
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    return error(c, 400, 'VALIDATION_ERROR', 'File size must be less than 5MB');
+  }
+
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const timestamp = Date.now();
+  const rand = Math.random().toString(36).substring(2, 8);
+  const fileName = `${folder}/${timestamp}-${rand}.${ext}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, arrayBuffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return error(c, 500, 'UPLOAD_ERROR', `Failed to upload: ${uploadError.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(uploadData.path);
+
+  return success(c, { url: urlData.publicUrl }, undefined, 201);
+});
+
 // GET /api/v1/admin/images/:productId — List images for a product
 adminImages.get('/:productId', async (c) => {
   const db = getDb();
