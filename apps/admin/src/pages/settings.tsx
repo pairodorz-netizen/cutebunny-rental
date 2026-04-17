@@ -139,6 +139,8 @@ export function SettingsPage() {
     },
   });
 
+  const [createUserError, setCreateUserError] = useState('');
+
   const createUserMutation = useMutation({
     mutationFn: (body: { email: string; password: string; name?: string; role?: string }) =>
       adminApi.settings.createUser(body),
@@ -149,6 +151,10 @@ export function SettingsPage() {
       setNewUserName('');
       setNewUserPassword('');
       setNewUserRole('staff');
+      setCreateUserError('');
+    },
+    onError: (err: Error & { message?: string }) => {
+      setCreateUserError(err.message || 'Failed to create user');
     },
   });
 
@@ -387,18 +393,24 @@ export function SettingsPage() {
                       </select>
                     </div>
                   </div>
+                  {createUserError && (
+                    <p className="text-sm text-red-600 bg-red-50 rounded px-3 py-2">{createUserError}</p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       disabled={!newUserEmail || !newUserPassword || newUserPassword.length < 8 || createUserMutation.isPending}
-                      onClick={() => createUserMutation.mutate({
-                        email: newUserEmail, password: newUserPassword,
-                        name: newUserName || undefined, role: newUserRole,
-                      })}
+                      onClick={() => {
+                        setCreateUserError('');
+                        createUserMutation.mutate({
+                          email: newUserEmail, password: newUserPassword,
+                          name: newUserName || undefined, role: newUserRole,
+                        });
+                      }}
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" /> {t('settings.createUser')}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowAddUser(false)}>
+                    <Button size="sm" variant="outline" onClick={() => { setShowAddUser(false); setCreateUserError(''); }}>
                       {t('common.cancel')}
                     </Button>
                   </div>

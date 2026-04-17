@@ -401,46 +401,28 @@ export function OrdersPage() {
       <div className="px-4 py-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Input
-            placeholder="ORD-..."
+            placeholder="เลขที่ออเดอร์ (ORD-...)"
             value={searchOrderNumber}
             onChange={(e) => { setSearchOrderNumber(e.target.value); setPage(1); }}
+            className="h-7 text-xs w-36 min-w-0"
+          />
+          <Input
+            placeholder="SKU สินค้า"
+            value={searchSku}
+            onChange={(e) => { setSearchSku(e.target.value); setPage(1); }}
             className="h-7 text-xs w-28 min-w-0"
           />
           <Input
-            placeholder="SKU"
-            value={searchSku}
-            onChange={(e) => { setSearchSku(e.target.value); setPage(1); }}
-            className="h-7 text-xs w-24 min-w-0"
-          />
-          <Input
-            placeholder={t('products.name')}
-            value={searchProductName}
-            onChange={(e) => { setSearchProductName(e.target.value); setPage(1); }}
-            className="h-7 text-xs w-32 min-w-0"
-          />
-          <Input
-            placeholder={t('customers.name')}
+            placeholder="ชื่อ"
             value={searchCustomerName}
             onChange={(e) => { setSearchCustomerName(e.target.value); setPage(1); }}
             className="h-7 text-xs w-32 min-w-0"
           />
-          <Input
-            placeholder={t('orders.phone')}
-            value={searchCustomerPhone}
-            onChange={(e) => { setSearchCustomerPhone(e.target.value); setPage(1); }}
-            className="h-7 text-xs w-28 min-w-0"
-          />
-          <Input
-            placeholder={t('orders.trackingNumber')}
-            value={searchTracking}
-            onChange={(e) => { setSearchTracking(e.target.value); setPage(1); }}
-            className="h-7 text-xs w-32 min-w-0"
-          />
-          {(searchOrderNumber || searchSku || searchProductName || searchCustomerName || searchCustomerPhone || searchTracking) && (
+          {(searchOrderNumber || searchSku || searchCustomerName) && (
             <button
               onClick={() => {
-                setSearchOrderNumber(''); setSearchSku(''); setSearchProductName('');
-                setSearchCustomerName(''); setSearchCustomerPhone(''); setSearchTracking('');
+                setSearchOrderNumber(''); setSearchSku('');
+                setSearchCustomerName('');
               }}
               className="text-xs text-muted-foreground hover:text-primary"
             >

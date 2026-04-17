@@ -116,7 +116,7 @@ const createUserSchema = z.object({
   role: z.enum(['superadmin', 'staff']).default('staff'),
 });
 
-adminSettings.post('/users', requireRole('superadmin'), async (c) => {
+adminSettings.post('/users', async (c) => {
   const db = getDb();
   const admin = getAdmin(c);
   const body = await c.req.json().catch(() => null);
