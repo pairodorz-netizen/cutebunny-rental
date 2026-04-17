@@ -250,9 +250,9 @@ async function main() {
   console.log(`Created ${zones.length} shipping zones`);
 
   // ─── Orders (10) with various statuses ───────────────────────────────
-  const orderStatuses: Array<'unpaid' | 'paid_locked' | 'shipped' | 'returned' | 'cleaning' | 'repair' | 'ready'> = [
+  const orderStatuses: Array<'unpaid' | 'paid_locked' | 'shipped' | 'returned' | 'cleaning' | 'repair' | 'finished'> = [
     'unpaid', 'paid_locked', 'shipped', 'shipped', 'returned',
-    'returned', 'cleaning', 'ready', 'ready', 'repair',
+    'returned', 'cleaning', 'finished', 'finished', 'repair',
   ];
 
   const orders = [];
@@ -307,7 +307,7 @@ async function main() {
         quantity: 1,
         rentalPricePerDay: product1.rentalPrice1Day,
         subtotal: itemPrice1,
-        status: status === 'returned' || status === 'ready' ? 'returned' : status === 'shipped' ? 'shipped' : 'pending',
+        status: status === 'returned' || status === 'finished' ? 'returned' : status === 'shipped' ? 'shipped' : 'pending',
         lateFee: status === 'repair' ? 500 : 0,
         damageFee: status === 'repair' ? 2000 : 0,
       },
@@ -322,7 +322,7 @@ async function main() {
         quantity: 1,
         rentalPricePerDay: product2.rentalPrice1Day,
         subtotal: itemPrice2,
-        status: status === 'returned' || status === 'ready' ? 'returned' : status === 'shipped' ? 'shipped' : 'pending',
+        status: status === 'returned' || status === 'finished' ? 'returned' : status === 'shipped' ? 'shipped' : 'pending',
       },
     });
 
@@ -347,7 +347,7 @@ async function main() {
       });
     }
 
-    if (['shipped', 'returned', 'cleaning', 'repair', 'ready'].includes(status)) {
+    if (['shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(status)) {
       await prisma.orderStatusLog.create({
         data: {
           orderId: order.id,
@@ -358,7 +358,7 @@ async function main() {
       });
     }
 
-    if (['returned', 'cleaning', 'repair', 'ready'].includes(status)) {
+    if (['returned', 'cleaning', 'repair', 'finished'].includes(status)) {
       await prisma.orderStatusLog.create({
         data: {
           orderId: order.id,
@@ -391,7 +391,7 @@ async function main() {
         data: {
           productId: product1.id,
           calendarDate: dateOnly(calDate),
-          slotStatus: status === 'returned' || status === 'ready' ? 'available' : 'booked',
+          slotStatus: status === 'returned' || status === 'finished' ? 'available' : 'booked',
           orderId: order.id,
         },
       });
@@ -426,7 +426,7 @@ async function main() {
         },
       });
 
-      if (status === 'ready') {
+      if (status === 'finished') {
         await prisma.financeTransaction.create({
           data: {
             orderId: order.id,

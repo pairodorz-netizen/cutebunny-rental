@@ -133,7 +133,7 @@
       "returned": "Returned",
       "cleaning": "Cleaning",
       "repair": "Repair",
-      "ready": "Complete"
+      "finished": "Complete"
     },
     "slipStatus": {
       "pending": "Pending Review",

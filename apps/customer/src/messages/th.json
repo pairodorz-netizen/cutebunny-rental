@@ -133,7 +133,7 @@
       "returned": "คืนแล้ว",
       "cleaning": "ทำความสะอาด",
       "repair": "ซ่อมแซม",
-      "ready": "เสร็จสิ้น"
+      "finished": "เสร็จสิ้น"
     },
     "slipStatus": {
       "pending": "รอตรวจสอบ",

@@ -133,7 +133,7 @@
       "returned": "已退回",
       "cleaning": "清洁中",
       "repair": "维修中",
-      "ready": "完成"
+      "finished": "完成"
     },
     "slipStatus": {
       "pending": "审核中",

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { CheckCircle, Clock, Truck, Package, ArrowLeft } from 'lucide-react';
 
-const STATUS_STEPS = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'ready'];
+const STATUS_STEPS = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'finished'];
 
 const STATUS_ICONS: Record<string, typeof Clock> = {
   unpaid: Clock,
