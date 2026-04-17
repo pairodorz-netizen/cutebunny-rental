@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
-const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
+const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
 
 const FORWARD_TRANSITIONS: Record<string, string[]> = {
   unpaid: ['paid_locked'],
@@ -18,16 +18,18 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   cleaning: ['repair', 'finished'],
   repair: ['finished'],
   finished: [],
+  cancelled: [],
 };
 
 const BACKWARD_TRANSITIONS: Record<string, string[]> = {
-  unpaid: [],
-  paid_locked: ['unpaid'],
-  shipped: ['paid_locked'],
-  returned: ['shipped'],
-  cleaning: ['returned'],
-  repair: ['cleaning'],
-  finished: ['cleaning', 'repair'],
+  unpaid: ['finished', 'cancelled'],
+  paid_locked: ['unpaid', 'finished', 'cancelled'],
+  shipped: ['paid_locked', 'finished', 'cancelled'],
+  returned: ['shipped', 'finished', 'cancelled'],
+  cleaning: ['returned', 'cancelled'],
+  repair: ['cleaning', 'cancelled'],
+  finished: ['cleaning', 'repair', 'cancelled'],
+  cancelled: [],
 };
 
 const ALL_TRANSITIONS: Record<string, string[]> = {};
@@ -43,6 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
   cleaning: 'bg-cyan-100 text-cyan-800',
   repair: 'bg-red-100 text-red-800',
   finished: 'bg-green-100 text-green-800',
+  cancelled: 'bg-gray-200 text-gray-800',
 };
 
 const STATUS_TAB_COLORS: Record<string, string> = {
@@ -53,6 +56,7 @@ const STATUS_TAB_COLORS: Record<string, string> = {
   cleaning: 'bg-cyan-500',
   repair: 'bg-red-500',
   finished: 'bg-green-500',
+  cancelled: 'bg-gray-600',
 };
 
 const AFTER_SALES_TYPES = ['cancel', 'late_fee', 'damage_fee', 'force_buy', 'partial_refund'];
@@ -166,6 +170,21 @@ export function OrdersPage() {
   const [afterSalesType, setAfterSalesType] = useState('');
   const [afterSalesAmount, setAfterSalesAmount] = useState('');
   const [afterSalesNote, setAfterSalesNote] = useState('');
+
+  // Create Order modal
+  const [showCreateOrder, setShowCreateOrder] = useState(false);
+  const [createCustomerName, setCreateCustomerName] = useState('');
+  const [createCustomerPhone, setCreateCustomerPhone] = useState('');
+  const [createCustomerEmail, setCreateCustomerEmail] = useState('');
+  const [createStartDate, setCreateStartDate] = useState('');
+  const [createEndDate, setCreateEndDate] = useState('');
+  const [createDeposit, setCreateDeposit] = useState('0');
+  const [createDeliveryFee, setCreateDeliveryFee] = useState('0');
+  const [createNote, setCreateNote] = useState('');
+  const [createMarkPaid, setCreateMarkPaid] = useState(false);
+  const [createItems, setCreateItems] = useState<Array<{ product_id: string; product_name: string; size: string; quantity: number; subtotal: string }>>([]);
+  const [createItemSearch, setCreateItemSearch] = useState('');
+  const [showCreateItemPicker, setShowCreateItemPicker] = useState(false);
 
   // Build query params
   const params: Record<string, string> = { page: String(page), per_page: '20' };
@@ -318,6 +337,26 @@ export function OrdersPage() {
     },
   });
 
+  // Create order product search
+  const debouncedCreateItemSearch = useDebounce(createItemSearch, 300);
+  const { data: createProductSearchData } = useQuery({
+    queryKey: ['create-product-search', debouncedCreateItemSearch],
+    queryFn: () => adminApi.products.list({ search: debouncedCreateItemSearch, per_page: '10' }),
+    enabled: showCreateItemPicker && debouncedCreateItemSearch.length >= 1,
+  });
+
+  const createOrderMutation = useMutation({
+    mutationFn: (body: Parameters<typeof adminApi.orders.create>[0]) => adminApi.orders.create(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      setShowCreateOrder(false);
+      setCreateCustomerName(''); setCreateCustomerPhone(''); setCreateCustomerEmail('');
+      setCreateStartDate(''); setCreateEndDate(''); setCreateDeposit('0'); setCreateDeliveryFee('0');
+      setCreateNote(''); setCreateMarkPaid(false); setCreateItems([]); setCreateItemSearch('');
+    },
+  });
+
   const orders = listData?.data ?? [];
   const meta = listData?.meta;
   const orderDetail = detailData?.data;
@@ -413,6 +452,9 @@ export function OrdersPage() {
               <X className="h-3.5 w-3.5" />
             </button>
           )}
+          <Button size="sm" className="h-7 text-xs ml-auto" onClick={() => setShowCreateOrder(true)}>
+            <Plus className="h-3 w-3 mr-1" /> {t('orders.createOrder')}
+          </Button>
         </div>
       </div>
 
@@ -1178,6 +1220,178 @@ export function OrdersPage() {
                   {afterSalesMutation.isPending ? t('common.loading') : t('common.save')}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CREATE ORDER MODAL ═══ */}
+      {showCreateOrder && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-8 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 mb-8">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold">{t('orders.createOrder')}</h3>
+              <button onClick={() => setShowCreateOrder(false)}><X className="h-4 w-4" /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* Customer info */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium">{t('customers.name')} *</label>
+                  <Input className="h-8 text-sm" value={createCustomerName} onChange={(e) => setCreateCustomerName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">{t('orders.phone')} *</label>
+                  <Input className="h-8 text-sm" value={createCustomerPhone} onChange={(e) => setCreateCustomerPhone(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium">{t('orders.email')}</label>
+                <Input className="h-8 text-sm" type="email" value={createCustomerEmail} onChange={(e) => setCreateCustomerEmail(e.target.value)} />
+              </div>
+
+              {/* Rental dates */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium">{t('orders.rentalStart')} *</label>
+                  <Input className="h-8 text-sm" type="date" value={createStartDate} onChange={(e) => setCreateStartDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">{t('orders.rentalEnd')} *</label>
+                  <Input className="h-8 text-sm" type="date" value={createEndDate} onChange={(e) => setCreateEndDate(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <label className="text-xs font-medium">{t('orders.items')} *</label>
+                {createItems.length > 0 && (
+                  <div className="space-y-1 mt-1">
+                    {createItems.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs bg-gray-50 rounded p-2">
+                        <span className="flex-1 truncate">{item.product_name}</span>
+                        <span className="text-muted-foreground">{item.size}</span>
+                        <span>×{item.quantity}</span>
+                        <Input className="h-6 text-xs w-20" type="number" value={item.subtotal} onChange={(e) => {
+                          const updated = [...createItems];
+                          updated[idx] = { ...updated[idx], subtotal: e.target.value };
+                          setCreateItems(updated);
+                        }} />
+                        <span className="text-muted-foreground">THB</span>
+                        <button onClick={() => setCreateItems((prev) => prev.filter((_, i) => i !== idx))}>
+                          <Trash2 className="h-3 w-3 text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!showCreateItemPicker ? (
+                  <Button size="sm" variant="outline" className="mt-1 h-7 text-xs w-full" onClick={() => setShowCreateItemPicker(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> {t('orders.addItem')}
+                  </Button>
+                ) : (
+                  <div className="mt-1 border rounded p-2 space-y-1">
+                    <Input
+                      className="h-7 text-xs"
+                      placeholder={t('orders.searchProducts')}
+                      value={createItemSearch}
+                      onChange={(e) => setCreateItemSearch(e.target.value)}
+                      autoFocus
+                    />
+                    {(createProductSearchData?.data ?? []).length > 0 && (
+                      <div className="max-h-32 overflow-y-auto space-y-0.5">
+                        {(createProductSearchData?.data ?? []).map((p: AdminProduct) => (
+                          <button
+                            key={p.id}
+                            className="w-full text-left text-xs p-1.5 hover:bg-blue-50 rounded flex justify-between"
+                            onClick={() => {
+                              setCreateItems((prev) => [...prev, {
+                                product_id: p.id,
+                                product_name: p.name,
+                                size: p.size?.[0] ?? 'M',
+                                quantity: 1,
+                                subtotal: String(p.rental_prices?.['1day'] ?? 0),
+                              }]);
+                              setShowCreateItemPicker(false);
+                              setCreateItemSearch('');
+                            }}
+                          >
+                            <span>{p.name} ({p.sku})</span>
+                            <span className="text-muted-foreground">{p.rental_prices?.['1day'] ?? 0} THB</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setShowCreateItemPicker(false); setCreateItemSearch(''); }}>
+                      {t('common.cancel')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Deposit & Delivery */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-medium">{t('orders.deposit')}</label>
+                  <Input className="h-8 text-sm" type="number" value={createDeposit} onChange={(e) => setCreateDeposit(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">{t('orders.deliveryFee')}</label>
+                  <Input className="h-8 text-sm" type="number" value={createDeliveryFee} onChange={(e) => setCreateDeliveryFee(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="text-xs font-medium">{t('orders.note')}</label>
+                <textarea className="w-full border rounded text-sm p-2 h-16 resize-none" value={createNote} onChange={(e) => setCreateNote(e.target.value)} />
+              </div>
+
+              {/* Mark as paid */}
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={createMarkPaid} onChange={(e) => setCreateMarkPaid(e.target.checked)} />
+                {t('orders.markAsPaid')}
+              </label>
+
+              {/* Summary */}
+              {createItems.length > 0 && (
+                <div className="bg-gray-50 rounded p-2 text-xs space-y-0.5">
+                  <div className="flex justify-between"><span>{t('orders.subtotal')}</span><span>{createItems.reduce((s, i) => s + (Number(i.subtotal) || 0), 0)} THB</span></div>
+                  <div className="flex justify-between"><span>{t('orders.deposit')}</span><span>{createDeposit} THB</span></div>
+                  <div className="flex justify-between"><span>{t('orders.deliveryFee')}</span><span>{createDeliveryFee} THB</span></div>
+                  <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+                    <span>{t('orders.total')}</span>
+                    <span>{createItems.reduce((s, i) => s + (Number(i.subtotal) || 0), 0) + (Number(createDeposit) || 0) + (Number(createDeliveryFee) || 0)} THB</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t">
+              <Button variant="outline" onClick={() => setShowCreateOrder(false)}>{t('common.cancel')}</Button>
+              <Button
+                disabled={!createCustomerName || !createCustomerPhone || !createStartDate || !createEndDate || createItems.length === 0 || createOrderMutation.isPending}
+                onClick={() => {
+                  createOrderMutation.mutate({
+                    customer_name: createCustomerName,
+                    customer_phone: createCustomerPhone,
+                    customer_email: createCustomerEmail || undefined,
+                    rental_start_date: createStartDate,
+                    rental_end_date: createEndDate,
+                    items: createItems.map((i) => ({
+                      product_id: i.product_id,
+                      size: i.size,
+                      quantity: i.quantity,
+                      subtotal: Number(i.subtotal) || 0,
+                    })),
+                    deposit: Number(createDeposit) || 0,
+                    delivery_fee: Number(createDeliveryFee) || 0,
+                    note: createNote || undefined,
+                    mark_as_paid: createMarkPaid,
+                  });
+                }}
+              >
+                {createOrderMutation.isPending ? t('common.loading') : t('orders.createOrder')}
+              </Button>
             </div>
           </div>
         </div>

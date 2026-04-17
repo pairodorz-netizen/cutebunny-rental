@@ -47,6 +47,7 @@ enum OrderStatus {
   cleaning
   repair
   finished
+  cancelled
 }
 
 enum OrderItemStatus {

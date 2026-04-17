@@ -107,7 +107,8 @@
       "returned": "已退回",
       "cleaning": "清洁中",
       "repair": "维修中",
-      "finished": "完成"
+      "finished": "完成",
+      "cancelled": "已取消"
     },
     "rentalPeriod": "租赁期间",
     "afterSalesType": {
@@ -142,7 +143,15 @@
     "backwardTransition": "回退到",
     "confirmRemoveItem": "确定从订单中移除此商品？",
     "size": "尺码",
-    "priceSubtotal": "价格"
+    "priceSubtotal": "价格",
+    "createOrder": "创建订单",
+    "email": "邮箱",
+    "rentalStart": "租赁开始",
+    "rentalEnd": "租赁结束",
+    "items": "商品",
+    "markAsPaid": "标记为已付款",
+    "total": "合计",
+    "cancelled": "已取消"
   },
   "products": {
     "title": "商品",

@@ -277,7 +277,7 @@ const editOrderSchema = z.object({
     late_fee: z.number().int().min(0).optional(),
     damage_fee: z.number().int().min(0).optional(),
   })).optional(),
-  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished']).optional(),
+  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled']).optional(),
 });
 
 adminOrders.patch('/:id/edit', async (c) => {
@@ -522,7 +522,7 @@ adminOrders.patch('/:id/status', async (c) => {
   const admin = getAdmin(c);
 
   const bodySchema = z.object({
-    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished']),
+    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled']),
     tracking_number: z.string().optional(),
     note: z.string().optional(),
   });
@@ -615,6 +615,18 @@ adminOrders.patch('/:id/status', async (c) => {
           txType: 'rental_revenue',
           amount: order.subtotal,
           note: `Rental revenue for ${order.orderNumber}`,
+          createdBy: admin.sub,
+        },
+      });
+    }
+
+    if (toStatus === 'cancelled' && db.financeTransaction?.create) {
+      await db.financeTransaction.create({
+        data: {
+          orderId,
+          txType: 'rental_revenue',
+          amount: -order.subtotal,
+          note: `Order cancelled - revenue reversed for ${order.orderNumber}`,
           createdBy: admin.sub,
         },
       });
@@ -1033,6 +1045,158 @@ adminOrders.get('/:id/profit', async (c) => {
     profit_margin: profitMargin,
     deposit: order.deposit,
     delivery_fee: order.deliveryFee,
+  });
+});
+
+// POST /api/v1/admin/orders — Create a new order (admin)
+const createOrderSchema = z.object({
+  customer_name: z.string().min(1),
+  customer_phone: z.string().min(1),
+  customer_email: z.string().email().optional(),
+  rental_start_date: z.string().min(1),
+  rental_end_date: z.string().min(1),
+  items: z.array(z.object({
+    product_id: z.string().uuid(),
+    size: z.string(),
+    quantity: z.number().int().min(1).default(1),
+    subtotal: z.number().int().min(0),
+  })).min(1),
+  deposit: z.number().int().min(0).default(0),
+  delivery_fee: z.number().int().min(0).default(0),
+  note: z.string().optional(),
+  mark_as_paid: z.boolean().default(false),
+});
+
+adminOrders.post('/', async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = createOrderSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid order data', parsed.error.flatten());
+  }
+
+  const { customer_name, customer_phone, customer_email, rental_start_date, rental_end_date, items, deposit, delivery_fee, note, mark_as_paid } = parsed.data;
+
+  // Find or create customer by phone
+  let customer = await db.customer.findFirst({ where: { phone: customer_phone } });
+  if (!customer) {
+    const nameParts = customer_name.trim().split(/\s+/);
+    customer = await db.customer.create({
+      data: {
+        firstName: nameParts[0] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
+        phone: customer_phone,
+        email: customer_email ?? `${customer_phone}@placeholder.local`,
+        locale: 'th',
+      },
+    });
+  }
+
+  // Generate order number: ORD-YYYYNNN
+  const year = new Date().getFullYear();
+  const yearPrefix = `ORD-${year}`;
+  const lastOrder = await db.order.findFirst({
+    where: { orderNumber: { startsWith: yearPrefix } },
+    orderBy: { orderNumber: 'desc' },
+  });
+  let nextNum = 1;
+  if (lastOrder) {
+    const numPart = lastOrder.orderNumber.replace(yearPrefix, '');
+    nextNum = (parseInt(numPart, 10) || 0) + 1;
+  }
+  const orderNumber = `${yearPrefix}${String(nextNum).padStart(3, '0')}`;
+
+  // Calculate totals
+  const startDate = new Date(rental_start_date);
+  const endDate = new Date(rental_end_date);
+  const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+  const subtotal = items.reduce((sum, i) => sum + i.subtotal, 0);
+  const totalAmount = subtotal + deposit + delivery_fee;
+
+  // Look up products for item details
+  const productIds = [...new Set(items.map((i) => i.product_id))];
+  const products = await db.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, name: true, sku: true, rentalPrice1Day: true },
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  // Create order with items
+  const order = await db.order.create({
+    data: {
+      orderNumber,
+      customerId: customer.id,
+      status: mark_as_paid ? 'paid_locked' : 'unpaid',
+      rentalStartDate: startDate,
+      rentalEndDate: endDate,
+      totalDays,
+      subtotal,
+      deposit,
+      deliveryFee: delivery_fee,
+      totalAmount,
+      notes: note ?? '',
+      items: {
+        create: items.map((item) => {
+          const product = productMap.get(item.product_id);
+          return {
+            productId: item.product_id,
+            productName: product?.name ?? 'Unknown',
+            size: item.size,
+            quantity: item.quantity,
+            rentalPricePerDay: product?.rentalPrice1Day ?? 0,
+            subtotal: item.subtotal,
+          };
+        }),
+      },
+    },
+    include: { items: true, customer: true },
+  });
+
+  // Create status log
+  await db.orderStatusLog.create({
+    data: {
+      orderId: order.id,
+      fromStatus: 'unpaid',
+      toStatus: mark_as_paid ? 'paid_locked' : 'unpaid',
+      note: 'Created by admin',
+      changedBy: admin.sub,
+    },
+  });
+
+  // Audit log
+  try {
+    await db.auditLog.create({
+      data: {
+        orderId: order.id,
+        adminId: admin.sub,
+        action: 'CREATE_ORDER',
+        resource: 'order',
+        resourceId: order.id,
+        details: { order_number: orderNumber, customer_name, items_count: items.length, total: totalAmount },
+      },
+    });
+  } catch { /* audit failure should not block */ }
+
+  return created(c, {
+    id: order.id,
+    order_number: order.orderNumber,
+    status: order.status,
+    customer: {
+      id: customer.id,
+      name: `${customer.firstName} ${customer.lastName}`,
+      phone: customer.phone,
+    },
+    items: order.items.map((i) => ({
+      id: i.id,
+      product_name: i.productName,
+      size: i.size,
+      quantity: i.quantity,
+      subtotal: i.subtotal,
+    })),
+    total_amount: order.totalAmount,
+    created_at: order.createdAt.toISOString(),
   });
 });
 

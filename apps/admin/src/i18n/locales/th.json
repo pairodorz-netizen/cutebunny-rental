@@ -107,7 +107,8 @@
       "returned": "คืนแล้ว",
       "cleaning": "ทำความสะอาด",
       "repair": "ซ่อมแซม",
-      "finished": "เสร็จสิ้น"
+      "finished": "เสร็จสิ้น",
+      "cancelled": "ยกเลิก"
     },
     "rentalPeriod": "ระยะเวลาเช่า",
     "afterSalesType": {
@@ -142,7 +143,15 @@
     "backwardTransition": "ย้อนกลับเป็น",
     "confirmRemoveItem": "ลบสินค้านี้ออกจากคำสั่งซื้อ?",
     "size": "ขนาด",
-    "priceSubtotal": "ราคา"
+    "priceSubtotal": "ราคา",
+    "createOrder": "สร้างคำสั่งซื้อ",
+    "email": "อีเมล",
+    "rentalStart": "วันเริ่มเช่า",
+    "rentalEnd": "วันสิ้นสุดเช่า",
+    "items": "รายการสินค้า",
+    "markAsPaid": "ทำเครื่องหมายว่าชำระแล้ว",
+    "total": "รวม",
+    "cancelled": "ยกเลิก"
   },
   "products": {
     "title": "สินค้า",

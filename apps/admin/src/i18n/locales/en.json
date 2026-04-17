@@ -107,7 +107,8 @@
       "returned": "Returned",
       "cleaning": "Cleaning",
       "repair": "Repair",
-      "finished": "Finished"
+      "finished": "Finished",
+      "cancelled": "Cancelled"
     },
     "rentalPeriod": "Rental Period",
     "afterSalesType": {
@@ -142,7 +143,15 @@
     "backwardTransition": "Revert to",
     "confirmRemoveItem": "Remove this item from the order?",
     "size": "Size",
-    "priceSubtotal": "Price"
+    "priceSubtotal": "Price",
+    "createOrder": "Create Order",
+    "email": "Email",
+    "rentalStart": "Rental Start",
+    "rentalEnd": "Rental End",
+    "items": "Items",
+    "markAsPaid": "Mark as Paid",
+    "total": "Total",
+    "cancelled": "Cancelled"
   },
   "products": {
     "title": "Products",

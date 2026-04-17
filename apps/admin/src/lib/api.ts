@@ -487,6 +487,11 @@ export const adminApi = {
       request<{ data: { deleted: boolean; item_id: string; product_name: string; refund_amount: number; order_total: number } }>(`/api/v1/admin/orders/${id}/items/${itemId}`, {
         method: 'DELETE',
       }),
+    create: (body: { customer_name: string; customer_phone: string; customer_email?: string; rental_start_date: string; rental_end_date: string; items: Array<{ product_id: string; size: string; quantity?: number; subtotal: number }>; deposit?: number; delivery_fee?: number; note?: string; mark_as_paid?: boolean }) =>
+      request<{ data: { id: string; order_number: string; status: string; customer: { id: string; name: string; phone: string }; items: Array<{ id: string; product_name: string; size: string; quantity: number; subtotal: number }>; total_amount: number; created_at: string } }>('/api/v1/admin/orders', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   products: {
     list: (params: Record<string, string>) => {

@@ -1,13 +1,14 @@
 import type { OrderStatus } from '@prisma/client';
 
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  unpaid: ['paid_locked'],
-  paid_locked: ['shipped', 'unpaid'],
-  shipped: ['returned', 'paid_locked'],
-  returned: ['cleaning', 'shipped'],
-  cleaning: ['repair', 'finished', 'returned'],
-  repair: ['finished', 'cleaning'],
-  finished: ['cleaning', 'repair'],
+  unpaid: ['paid_locked', 'finished', 'cancelled'],
+  paid_locked: ['shipped', 'unpaid', 'finished', 'cancelled'],
+  shipped: ['returned', 'paid_locked', 'finished', 'cancelled'],
+  returned: ['cleaning', 'shipped', 'finished', 'cancelled'],
+  cleaning: ['repair', 'finished', 'returned', 'cancelled'],
+  repair: ['finished', 'cleaning', 'cancelled'],
+  finished: ['cleaning', 'repair', 'cancelled'],
+  cancelled: [],
 };
 
 // Forward transitions (normal flow)
@@ -19,6 +20,7 @@ const FORWARD_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   cleaning: ['repair', 'finished'],
   repair: ['finished'],
   finished: [],
+  cancelled: [],
 };
 
 export function getAllowedTransitions(currentStatus: OrderStatus): OrderStatus[] {
