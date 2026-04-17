@@ -26,7 +26,7 @@ export interface ProductListItem {
   color: string[];
   rental_prices: { '1day': number; '3day': number; '5day': number };
   deposit: number;
-  rental_count: number;
+  is_popular?: boolean;
   currency: string;
   is_combo?: boolean;
 }

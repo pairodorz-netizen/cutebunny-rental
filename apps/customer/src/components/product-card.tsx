@@ -24,12 +24,7 @@ export function ProductCard({ product }: { product: ProductListItem }) {
             {product.name}
           </div>
         )}
-        {product.is_combo && (
-          <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
-            Combo Set
-          </span>
-        )}
-        {!product.is_combo && product.rental_count > 10 && (
+        {product.is_popular && (
           <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">
             {t('card.popular')}
           </span>
@@ -43,18 +38,13 @@ export function ProductCard({ product }: { product: ProductListItem }) {
           <p className="text-xs text-muted-foreground mt-0.5">{product.brand}</p>
         )}
         <p className="text-sm text-muted-foreground mt-1">
-          {t('card.rentFrom')} {product.rental_prices['1day'].toLocaleString()} {product.currency}
+          {t('card.rentFrom')} {(product.rental_prices?.['1day'] ?? 0).toLocaleString()} {product.currency}
           {t('card.perDay')}
         </p>
         <div className="flex items-center justify-between mt-2">
           <span className="text-xs text-primary font-medium">
             {t('card.viewDetails')}
           </span>
-          {product.rental_count > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {product.rental_count} {t('card.rented')}
-            </span>
-          )}
         </div>
       </div>
     </Link>

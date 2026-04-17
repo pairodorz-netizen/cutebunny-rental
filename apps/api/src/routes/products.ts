@@ -76,7 +76,7 @@ products.get('/', async (c) => {
       '5day': p.rentalPrice5Day,
     },
     deposit: p.deposit,
-    rental_count: p.rentalCount,
+    is_popular: (p.rentalCount ?? 0) > 10,
     currency: p.currency,
     is_combo: false,
   }));
@@ -104,7 +104,7 @@ products.get('/', async (c) => {
         '5day': cs.rentalPrice5Day,
       },
       deposit: 0,
-      rental_count: cs.rentalCount,
+      is_popular: (cs.rentalCount ?? 0) > 10,
       currency: 'THB',
       is_combo: true,
     }));
@@ -157,10 +157,7 @@ products.get('/:id', async (c) => {
       description: localizeField(product.descriptionI18n as Record<string, string> | null, product.description ?? '', locale),
       category: product.category,
       brand: product.brand
-        ? {
-            id: product.brand.id,
-            name: localizeField(product.brand.nameI18n as Record<string, string> | null, product.brand.name, locale),
-          }
+        ? localizeField(product.brand.nameI18n as Record<string, string> | null, product.brand.name, locale)
         : null,
       images: product.images.map((img) => ({
         id: img.id,
@@ -176,7 +173,7 @@ products.get('/:id', async (c) => {
       },
       ref_price: product.retailPrice,
       deposit: product.deposit,
-      rental_count: product.rentalCount,
+      is_popular: (product.rentalCount ?? 0) > 10,
       currency: product.currency,
       is_combo: false,
       related_skus: relatedProducts.map((rp) => ({
@@ -223,10 +220,7 @@ products.get('/:id', async (c) => {
       description: '',
       category: 'combo',
       brand: comboSet.brand
-        ? {
-            id: comboSet.brand.id,
-            name: localizeField(comboSet.brand.nameI18n as Record<string, string> | null, comboSet.brand.name, locale),
-          }
+        ? localizeField(comboSet.brand.nameI18n as Record<string, string> | null, comboSet.brand.name, locale)
         : null,
       images: comboSet.thumbnailUrl ? [{ id: 'thumb', url: comboSet.thumbnailUrl, alt_text: comboSet.name }] : [],
       size: comboSet.size,
@@ -238,7 +232,7 @@ products.get('/:id', async (c) => {
       },
       ref_price: 0,
       deposit: 0,
-      rental_count: comboSet.rentalCount,
+      is_popular: (comboSet.rentalCount ?? 0) > 10,
       currency: 'THB',
       is_combo: true,
       combo_items: comboSet.items.map((item) => ({

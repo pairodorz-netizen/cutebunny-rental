@@ -64,10 +64,10 @@ export default function ProductDetailPage() {
 
   const rentalPrice =
     selectedRentalDays === 1
-      ? product.rental_prices['1day']
+      ? (product.rental_prices?.['1day'] ?? 0)
       : selectedRentalDays === 3
-        ? product.rental_prices['3day']
-        : product.rental_prices['5day'];
+        ? (product.rental_prices?.['3day'] ?? 0)
+        : (product.rental_prices?.['5day'] ?? 0);
 
   const pricePerDay = Math.round(rentalPrice / selectedRentalDays);
 
@@ -76,13 +76,13 @@ export default function ProductDetailPage() {
     addItem({
       product_id: product.id,
       product_name: product.name,
-      thumbnail: product.images[0]?.url ?? product.thumbnail ?? null,
+      thumbnail: product.images?.[0]?.url ?? product.thumbnail ?? null,
       rental_days: selectedRentalDays,
       rental_start: selectedDate,
       price_per_day: pricePerDay,
       subtotal: rentalPrice,
-      deposit: product.deposit,
-      size: product.size[0] ?? 'ONE',
+      deposit: product.deposit ?? 0,
+      size: product.size?.[0] ?? 'ONE',
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -135,12 +135,7 @@ export default function ProductDetailPage() {
           <div>
             <h1 className="text-3xl font-bold">{product.name}</h1>
             {product.brand && (
-              <p className="text-muted-foreground mt-1">{product.brand}</p>
-            )}
-            {product.rental_count > 0 && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {product.rental_count} {t('timesRented')}
-              </p>
+              <p className="text-muted-foreground mt-1">{typeof product.brand === 'string' ? product.brand : product.brand}</p>
             )}
           </div>
 
@@ -195,7 +190,7 @@ export default function ProductDetailPage() {
                     {tier.days} {t('days')}
                   </div>
                   <div className="text-lg font-bold mt-1">
-                    {product.rental_prices[tier.key].toLocaleString()}
+                    {(product.rental_prices?.[tier.key] ?? 0).toLocaleString()}
                   </div>
                   <div className="text-xs text-muted-foreground">{product.currency}</div>
                 </button>
@@ -205,7 +200,7 @@ export default function ProductDetailPage() {
 
           {/* Size & Color */}
           <div className="flex gap-8">
-            {product.size.length > 0 && (
+            {(product.size?.length ?? 0) > 0 && (
               <div>
                 <h3 className="font-semibold mb-2">{t('selectSize')}</h3>
                 <div className="flex gap-2">
@@ -217,7 +212,7 @@ export default function ProductDetailPage() {
                 </div>
               </div>
             )}
-            {product.color.length > 0 && (
+            {(product.color?.length ?? 0) > 0 && (
               <div>
                 <h3 className="font-semibold mb-2">{t('color')}</h3>
                 <div className="flex gap-2">
@@ -232,9 +227,11 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Deposit */}
-          <div className="text-sm text-muted-foreground">
-            {t('depositNote')}: <span className="font-semibold text-foreground">{product.deposit.toLocaleString()} {product.currency}</span>
-          </div>
+          {(product.deposit ?? 0) > 0 && (
+            <div className="text-sm text-muted-foreground">
+              {t('depositNote')}: <span className="font-semibold text-foreground">{(product.deposit ?? 0).toLocaleString()} {product.currency}</span>
+            </div>
+          )}
 
           {/* Retail reference price */}
           {product.ref_price > 0 && (
