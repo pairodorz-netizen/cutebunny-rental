@@ -390,20 +390,15 @@ export function OrdersPage() {
   }, []);
 
   const searchBarRef = useRef<HTMLDivElement>(null);
-  const [searchBarHeight, setSearchBarHeight] = useState(0);
-  useEffect(() => {
-    if (searchBarRef.current) {
-      setSearchBarHeight(searchBarRef.current.offsetHeight);
-    }
-  }, []);
 
   return (
     <div className="relative">
-      {/* ═══ STICKY SEARCH BAR ═══ */}
+      {/* ═══ STICKY SEARCH BAR + STATUS TABS (combined sticky block) ═══ */}
       <div
         ref={searchBarRef}
-        className="sticky top-0 z-20 bg-white shadow-sm border-b px-4 py-2"
+        className="sticky top-0 z-20 bg-white shadow-md border-b"
       >
+      <div className="px-4 py-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Input
             placeholder="ORD-..."
@@ -459,10 +454,7 @@ export function OrdersPage() {
       </div>
 
       {/* ═══ STATUS TABS ═══ */}
-      <div
-        className="sticky z-10 bg-white border-b"
-        style={{ top: searchBarHeight }}
-      >
+      <div className="border-t">
         <div className="flex overflow-x-auto">
           <button
             onClick={() => { setStatusFilter(''); setPage(1); }}
@@ -494,6 +486,7 @@ export function OrdersPage() {
             </button>
           ))}
         </div>
+      </div>
       </div>
 
       {/* ═══ ORDER LIST ═══ */}
