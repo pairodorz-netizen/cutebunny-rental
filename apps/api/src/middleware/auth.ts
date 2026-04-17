@@ -1,6 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 import { sign, verify } from 'hono/jwt';
 import type { AdminRole } from '@prisma/client';
+import { getEnv } from '../lib/env';
 
 export interface JwtPayload {
   sub: string;
@@ -14,7 +15,7 @@ export interface JwtPayload {
 const JWT_EXPIRY_HOURS = 8;
 
 export function getJwtSecret(): string {
-  return process.env.JWT_SECRET || 'dev-secret-change-in-production';
+  return getEnv().JWT_SECRET || 'dev-secret-change-in-production';
 }
 
 export async function createToken(adminId: string, email: string, role: AdminRole): Promise<string> {
@@ -31,11 +32,14 @@ export async function createToken(adminId: string, email: string, role: AdminRol
 
 export const requireAuth = createMiddleware(async (c, next) => {
   const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  const queryToken = c.req.query('token');
+  const tokenSource = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : queryToken;
+
+  if (!tokenSource) {
     return c.json({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid Authorization header' } }, 401);
   }
 
-  const token = authHeader.slice(7);
+  const token = tokenSource;
   try {
     const decoded = await verify(token, getJwtSecret(), 'HS256');
     const payload: JwtPayload = {

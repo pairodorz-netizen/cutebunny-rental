@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+
 import { getDb } from '../lib/db';
 import { success, error } from '../lib/response';
 import { checkAvailability, createTentativeHolds } from '../lib/availability';
@@ -25,15 +25,15 @@ interface CartItem {
   deposit: number;
 }
 
-// Clean expired carts every 5 minutes
-setInterval(() => {
+// Clean expired carts (called lazily, not via setInterval which is disallowed in Workers global scope)
+function cleanExpiredCarts() {
   const now = Date.now();
   for (const [token, cartData] of cartStore) {
     if (cartData.expiresAt <= now) {
       cartStore.delete(token);
     }
   }
-}, 5 * 60_000);
+}
 
 export function getCartStore() {
   return cartStore;
@@ -109,7 +109,10 @@ cart.post('/', async (c) => {
     await createTentativeHolds(db, item.product_id, startDate, item.rental_days);
   }
 
-  const cartToken = randomUUID();
+  // Clean expired carts lazily on each request
+  cleanExpiredCarts();
+
+  const cartToken = crypto.randomUUID();
   const now = Date.now();
   const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 

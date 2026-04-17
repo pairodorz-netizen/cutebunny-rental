@@ -4,6 +4,7 @@ import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import { isValidTransition, getAllowedTransitions, getTransitionError } from '../../lib/state-machine';
 import { getAdmin } from '../../middleware/auth';
+import { sendOrderStatusNotification } from '../../lib/notifications';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -96,6 +97,91 @@ adminOrders.get('/', async (c) => {
   });
 });
 
+// GET /api/v1/admin/orders/:id — Order detail
+adminOrders.get('/:id', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: {
+      customer: true,
+      items: {
+        include: {
+          product: { select: { sku: true } },
+        },
+      },
+      paymentSlips: {
+        orderBy: { createdAt: 'desc' },
+      },
+      statusLogs: {
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const data = {
+    id: order.id,
+    order_number: order.orderNumber,
+    status: order.status,
+    total_amount: order.totalAmount,
+    deposit_total: order.deposit,
+    delivery_fee: order.deliveryFee,
+    credit_applied: order.creditApplied,
+    customer: {
+      id: order.customer.id,
+      name: `${order.customer.firstName} ${order.customer.lastName}`,
+      phone: order.customer.phone,
+      email: order.customer.email,
+    },
+    items: order.items.map((item) => {
+      const rentalDays = Math.ceil(
+        (order.rentalEndDate.getTime() - order.rentalStartDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+      return {
+        id: item.id,
+        product_name: item.productName,
+        sku: item.product?.sku ?? '',
+        size: item.size,
+        quantity: item.quantity,
+        rental_days: rentalDays,
+        price_per_day: item.rentalPricePerDay,
+        subtotal: item.subtotal,
+        late_fee: item.lateFee,
+        damage_fee: item.damageFee,
+        status: item.status,
+      };
+    }),
+    status_log: order.statusLogs.map((log) => ({
+      from_status: log.fromStatus,
+      to_status: log.toStatus,
+      changed_by: log.changedBy,
+      note: log.note ?? '',
+      created_at: log.createdAt.toISOString(),
+    })),
+    payment_slips: order.paymentSlips.map((slip) => ({
+      id: slip.id,
+      storage_key: slip.storageKey,
+      declared_amount: slip.declaredAmount,
+      bank_name: slip.bankName,
+      verification_status: slip.verificationStatus,
+      created_at: slip.createdAt.toISOString(),
+    })),
+    shipping: order.shippingSnapshot ?? {},
+    rental_period: {
+      start: order.rentalStartDate.toISOString().split('T')[0],
+      end: order.rentalEndDate.toISOString().split('T')[0],
+    },
+    created_at: order.createdAt.toISOString(),
+  };
+
+  return success(c, data);
+});
+
 // A14: PATCH /api/v1/admin/orders/:id/status — Status transition
 adminOrders.patch('/:id/status', async (c) => {
   const db = getDb();
@@ -153,6 +239,84 @@ adminOrders.patch('/:id/status', async (c) => {
       changedBy: admin.sub,
     },
   });
+
+  // Auto-create finance transactions for key status transitions (non-blocking)
+  try {
+    if (toStatus === 'ready' && db.orderItem?.aggregate) {
+      const totalLateFee = await db.orderItem.aggregate({
+        where: { orderId },
+        _sum: { lateFee: true, damageFee: true },
+      });
+      const totalDeductions = (totalLateFee._sum.lateFee ?? 0) + (totalLateFee._sum.damageFee ?? 0);
+      const depositReturn = Math.max(0, order.deposit - totalDeductions);
+
+      if (depositReturn > 0 && db.financeTransaction?.create) {
+        await db.financeTransaction.create({
+          data: {
+            orderId,
+            txType: 'deposit_returned',
+            amount: depositReturn,
+            note: `Auto deposit return for ${order.orderNumber} (deposit: ${order.deposit}, deductions: ${totalDeductions})`,
+            createdBy: admin.sub,
+          },
+        });
+      }
+
+      if (totalDeductions > 0 && db.financeTransaction?.create) {
+        await db.financeTransaction.create({
+          data: {
+            orderId,
+            txType: 'deposit_forfeited',
+            amount: totalDeductions,
+            note: `Deposit deduction for ${order.orderNumber} (late: ${totalLateFee._sum.lateFee ?? 0}, damage: ${totalLateFee._sum.damageFee ?? 0})`,
+            createdBy: admin.sub,
+          },
+        });
+      }
+    }
+
+    if (toStatus === 'returned' && db.financeTransaction?.create) {
+      await db.financeTransaction.create({
+        data: {
+          orderId,
+          txType: 'rental_revenue',
+          amount: order.subtotal,
+          note: `Rental revenue for ${order.orderNumber}`,
+          createdBy: admin.sub,
+        },
+      });
+    }
+  } catch { /* finance tx failure should not block status transition */ }
+
+  // Send notification to customer (non-blocking)
+  try {
+    const customer = await db.customer.findUnique({ where: { id: order.customerId } });
+    if (customer) {
+      await sendOrderStatusNotification(
+        orderId,
+        order.orderNumber,
+        toStatus,
+        customer.email,
+        customer.id,
+        parsed.data.tracking_number,
+      );
+    }
+  } catch { /* notification failure should not block status transition */ }
+
+  // Create audit log entry (non-blocking)
+  try {
+    if (db.auditLog?.create) {
+      await db.auditLog.create({
+        data: {
+          adminId: admin.sub,
+          action: 'STATUS_CHANGE',
+          resource: 'order',
+          resourceId: orderId,
+          details: { from: order.status, to: toStatus, tracking_number: parsed.data.tracking_number },
+        },
+      });
+    }
+  } catch { /* audit failure should not block */ }
 
   return success(c, {
     id: updatedOrder.id,
@@ -222,11 +386,97 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
     }
   }
 
+  // Audit log for payment verification (non-blocking)
+  try {
+    if (db.auditLog?.create) {
+      await db.auditLog.create({
+        data: {
+          adminId: admin.sub,
+          action: parsed.data.verified ? 'VERIFY' : 'REJECT',
+          resource: 'payment_slip',
+          resourceId: slip.id,
+          details: { order_id: orderId, slip_id: slip.id, verified: parsed.data.verified, note: parsed.data.note },
+        },
+      });
+    }
+  } catch { /* audit failure should not block */ }
+
   return success(c, {
     slip_id: slip.id,
     verification_status: newStatus,
     order_status: parsed.data.verified ? 'paid_locked' : undefined,
   });
+});
+
+// Late fee configuration (THB per day)
+const LATE_FEE_PER_DAY_THB = 200;
+
+// GET /api/v1/admin/orders/:id/late-fee — Calculate late fee
+adminOrders.get('/:id/late-fee', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const now = new Date();
+  const rentalEnd = new Date(order.rentalEndDate);
+  const daysLate = Math.max(0, Math.ceil((now.getTime() - rentalEnd.getTime()) / (1000 * 60 * 60 * 24)));
+  const feePerDay = LATE_FEE_PER_DAY_THB;
+  const totalLateFee = daysLate * feePerDay;
+
+  return success(c, {
+    order_id: orderId,
+    rental_end_date: order.rentalEndDate.toISOString().split('T')[0],
+    current_date: now.toISOString().split('T')[0],
+    days_late: daysLate,
+    fee_per_day: feePerDay,
+    total_late_fee: totalLateFee,
+    is_overdue: daysLate > 0,
+    deposit_total: order.deposit,
+    deposit_remaining: Math.max(0, order.deposit - totalLateFee),
+  });
+});
+
+// GET /api/v1/admin/orders/overdue — List overdue orders
+adminOrders.get('/overdue/list', async (c) => {
+  const db = getDb();
+  const now = new Date();
+
+  const overdueOrders = await db.order.findMany({
+    where: {
+      status: { in: ['shipped'] },
+      rentalEndDate: { lt: now },
+    },
+    include: {
+      customer: {
+        select: { firstName: true, lastName: true, phone: true },
+      },
+    },
+    orderBy: { rentalEndDate: 'asc' },
+  });
+
+  const data = overdueOrders.map((o) => {
+    const daysLate = Math.ceil((now.getTime() - new Date(o.rentalEndDate).getTime()) / (1000 * 60 * 60 * 24));
+    return {
+      id: o.id,
+      order_number: o.orderNumber,
+      customer_name: `${o.customer.firstName} ${o.customer.lastName}`,
+      customer_phone: o.customer.phone,
+      rental_end_date: o.rentalEndDate.toISOString().split('T')[0],
+      days_late: daysLate,
+      estimated_late_fee: daysLate * LATE_FEE_PER_DAY_THB,
+      deposit: o.deposit,
+    };
+  });
+
+  return success(c, data);
 });
 
 // A17: POST /api/v1/admin/orders/:id/after-sales
@@ -239,6 +489,7 @@ adminOrders.post('/:id/after-sales', async (c) => {
     event_type: z.enum(['cancel', 'late_fee', 'damage_fee', 'force_buy', 'partial_refund']),
     amount: z.number().int().min(0),
     note: z.string().optional(),
+    item_ids: z.array(z.string().uuid()).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -247,7 +498,10 @@ adminOrders.post('/:id/after-sales', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid after-sales data', parsed.error.flatten());
   }
 
-  const order = await db.order.findUnique({ where: { id: orderId } });
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
   if (!order) {
     return error(c, 404, 'NOT_FOUND', 'Order not found');
   }
@@ -285,11 +539,165 @@ adminOrders.post('/:id/after-sales', async (c) => {
     },
   });
 
+  // Handle specific event types
+  if (parsed.data.event_type === 'late_fee') {
+    // Apply late fee to order items
+    const itemIds = parsed.data.item_ids ?? order.items.map((i) => i.id);
+    const perItemFee = Math.ceil(parsed.data.amount / itemIds.length);
+    for (const itemId of itemIds) {
+      const item = order.items.find((i) => i.id === itemId);
+      if (item) {
+        await db.orderItem.update({
+          where: { id: itemId },
+          data: { lateFee: item.lateFee + perItemFee },
+        });
+      }
+    }
+  }
+
+  if (parsed.data.event_type === 'damage_fee') {
+    // Apply damage fee to order items
+    const itemIds = parsed.data.item_ids ?? order.items.map((i) => i.id);
+    const perItemFee = Math.ceil(parsed.data.amount / itemIds.length);
+    for (const itemId of itemIds) {
+      const item = order.items.find((i) => i.id === itemId);
+      if (item) {
+        await db.orderItem.update({
+          where: { id: itemId },
+          data: { damageFee: item.damageFee + perItemFee },
+        });
+      }
+    }
+  }
+
+  if (parsed.data.event_type === 'force_buy') {
+    // Decommission the product — mark it unavailable and set stock to 0
+    const itemIds = parsed.data.item_ids ?? order.items.map((i) => i.id);
+    for (const itemId of itemIds) {
+      const item = order.items.find((i) => i.id === itemId);
+      if (item) {
+        await db.product.update({
+          where: { id: item.productId },
+          data: { available: false, stockQuantity: 0 },
+        });
+        await db.orderItem.update({
+          where: { id: itemId },
+          data: { status: 'force_bought' as never },
+        });
+      }
+    }
+
+    // Create deposit deduction finance transaction
+    const depositToDeduct = Math.min(order.deposit, parsed.data.amount);
+    if (depositToDeduct > 0) {
+      await db.financeTransaction.create({
+        data: {
+          orderId,
+          txType: 'deposit_returned',
+          amount: -depositToDeduct,
+          note: `Deposit deducted for force-buy (${depositToDeduct} THB from ${order.deposit} THB deposit)`,
+          createdBy: admin.sub,
+        },
+      });
+    }
+  }
+
+  if (parsed.data.event_type === 'partial_refund' || parsed.data.event_type === 'cancel') {
+    // Deposit deduction/refund: record the remaining deposit return
+    const totalFees = order.items.reduce((sum, i) => sum + i.lateFee + i.damageFee, 0) + parsed.data.amount;
+    const depositRefund = Math.max(0, order.deposit - totalFees);
+    if (depositRefund > 0 && parsed.data.event_type !== 'cancel') {
+      await db.financeTransaction.create({
+        data: {
+          orderId,
+          txType: 'deposit_returned',
+          amount: -depositRefund,
+          note: `Deposit refund: ${depositRefund} THB (after ${totalFees} THB in fees)`,
+          createdBy: admin.sub,
+        },
+      });
+    }
+  }
+
   return success(c, {
     event_id: event.id,
     event_type: event.eventType,
     amount: event.amount,
     order_id: orderId,
+  });
+});
+
+// ─── M06: Per-Rental Profit Breakdown ────────────────────────────────────
+
+// GET /api/v1/admin/orders/:id/profit
+adminOrders.get('/:id/profit', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: {
+      customer: { select: { firstName: true, lastName: true } },
+      items: {
+        include: {
+          product: { select: { name: true, sku: true } },
+        },
+      },
+      financeTransactions: true,
+    },
+  });
+
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const rentalPrice = order.subtotal;
+  const totalLateFee = order.items.reduce((sum, i) => sum + i.lateFee, 0);
+  const totalDamageFee = order.items.reduce((sum, i) => sum + i.damageFee, 0);
+  const grossRevenue = rentalPrice + totalLateFee + totalDamageFee;
+
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const expenses: Array<{ category: string; amount: number }> = [];
+  let totalExpenses = 0;
+
+  for (const tx of order.financeTransactions) {
+    if (expenseTypes.includes(tx.txType)) {
+      expenses.push({ category: tx.txType, amount: Math.abs(tx.amount) });
+      totalExpenses += Math.abs(tx.amount);
+    }
+  }
+
+  // Add delivery fee as shipping expense if no explicit shipping transaction
+  if (!expenses.some((e) => e.category === 'shipping') && order.deliveryFee > 0) {
+    expenses.push({ category: 'shipping', amount: order.deliveryFee });
+    totalExpenses += order.deliveryFee;
+  }
+
+  const netProfit = grossRevenue - totalExpenses;
+  const profitMargin = grossRevenue > 0 ? Math.round((netProfit / grossRevenue) * 10000) / 100 : 0;
+
+  return success(c, {
+    order_id: order.id,
+    order_number: order.orderNumber,
+    customer_name: `${order.customer.firstName} ${order.customer.lastName}`,
+    items: order.items.map((i) => ({
+      product_name: i.product.name,
+      sku: i.product.sku,
+      size: i.size,
+      subtotal: i.subtotal,
+      late_fee: i.lateFee,
+      damage_fee: i.damageFee,
+    })),
+    rental_price: rentalPrice,
+    late_fee: totalLateFee,
+    damage_fee: totalDamageFee,
+    gross_revenue: grossRevenue,
+    expenses,
+    total_expenses: totalExpenses,
+    net_profit: netProfit,
+    profit_margin: profitMargin,
+    deposit: order.deposit,
+    delivery_fee: order.deliveryFee,
   });
 });
 

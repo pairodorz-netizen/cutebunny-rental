@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { getDb } from './lib/db';
+import { getDb, resetDb } from './lib/db';
+import { setEnv, type Env } from './lib/env';
 import { requireAuth } from './middleware/auth';
 import products from './routes/products';
 import cart from './routes/cart';
@@ -14,10 +15,32 @@ import adminCalendar from './routes/admin/calendar';
 import adminCustomers from './routes/admin/customers';
 import adminShipping from './routes/admin/shipping';
 import adminFinance from './routes/admin/finance';
+import adminImages from './routes/admin/images';
+import adminSettings from './routes/admin/settings';
+import customerAuth from './routes/customer-auth';
 
-const app = new Hono();
+const app = new Hono<{ Bindings: Env }>();
 
-app.use('*', cors());
+// Initialize env from Workers bindings on every request
+app.use('*', async (c, next) => {
+  if (c.env?.DATABASE_URL) {
+    setEnv(c.env);
+    resetDb();
+  }
+  await next();
+});
+
+app.use('*', cors({
+  origin: (origin) => {
+    if (!origin) return '*';
+    if (origin.endsWith('.vercel.app')) return origin;
+    if (origin === 'http://localhost:3000' || origin === 'http://localhost:5173') return origin;
+    return null;
+  },
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
+}));
 
 // ─── Public routes ─────────────────────────────────────────────────────
 app.get('/', (c) => {
@@ -58,6 +81,7 @@ app.route('/api/v1/products', products);
 app.route('/api/v1/cart', cart);
 app.route('/api/v1/orders', orders);
 app.route('/api/v1/shipping', shipping);
+app.route('/api/v1/customer/auth', customerAuth);
 
 // ─── Admin APIs (v1) ───────────────────────────────────────────────────
 // Auth (public, rate-limited)
@@ -71,6 +95,8 @@ app.use('/api/v1/admin/calendar/*', requireAuth);
 app.use('/api/v1/admin/customers/*', requireAuth);
 app.use('/api/v1/admin/shipping/*', requireAuth);
 app.use('/api/v1/admin/finance/*', requireAuth);
+app.use('/api/v1/admin/images/*', requireAuth);
+app.use('/api/v1/admin/settings/*', requireAuth);
 
 app.route('/api/v1/admin/dashboard', adminDashboard);
 app.route('/api/v1/admin/orders', adminOrders);
@@ -79,6 +105,8 @@ app.route('/api/v1/admin/calendar', adminCalendar);
 app.route('/api/v1/admin/customers', adminCustomers);
 app.route('/api/v1/admin/shipping', adminShipping);
 app.route('/api/v1/admin/finance', adminFinance);
+app.route('/api/v1/admin/images', adminImages);
+app.route('/api/v1/admin/settings', adminSettings);
 
 export default app;
 export type AppType = typeof app;

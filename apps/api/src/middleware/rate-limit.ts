@@ -7,18 +7,20 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>();
 
-// Clean expired entries periodically
-setInterval(() => {
+// Clean expired entries lazily (setInterval is disallowed in Workers global scope)
+function cleanExpiredEntries() {
   const now = Date.now();
   for (const [key, entry] of store) {
     if (entry.resetAt <= now) {
       store.delete(key);
     }
   }
-}, 60_000);
+}
 
 export function rateLimit(maxAttempts: number, windowMinutes: number) {
   return createMiddleware(async (c, next) => {
+    // Lazy cleanup on each request
+    cleanExpiredEntries();
     const ip = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown';
     const key = `${ip}:${c.req.path}`;
     const now = Date.now();

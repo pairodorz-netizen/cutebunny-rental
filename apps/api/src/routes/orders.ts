@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+
 import { getDb } from '../lib/db';
 import { success, created, error } from '../lib/response';
 import { confirmHolds } from '../lib/availability';
@@ -99,7 +99,7 @@ orders.post('/', async (c) => {
   const latestEnd = new Date(Math.max(...endDates.map((d) => d.getTime())));
   const totalDays = Math.max(...cartData.items.map((i) => i.rental_days));
 
-  const orderToken = randomUUID();
+  const orderToken = crypto.randomUUID();
   const orderNumber = generateOrderNumber();
 
   const order = await db.order.create({

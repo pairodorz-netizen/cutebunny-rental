@@ -1,49 +1,58 @@
 /**
- * Environment variable validation.
- * Fail fast at startup if required variables are missing.
+ * Environment variable handling for Cloudflare Workers.
+ * Workers don't have process.env — env vars come from wrangler secrets/vars
+ * and are accessed via Hono's c.env bindings.
  */
 
-interface EnvConfig {
+export interface Env {
   DATABASE_URL: string;
+  DIRECT_URL?: string;
   JWT_SECRET: string;
-  PORT: number;
-  NODE_ENV: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  ENVIRONMENT?: string;
+  NODE_ENV?: string;
+  PORT?: string;
 }
 
-const REQUIRED_VARS = ['DATABASE_URL'] as const;
+// Global env store — set once per request via middleware
+let _env: Env | null = null;
 
-const WARNINGS = {
-  JWT_SECRET: 'Using default JWT secret — change this in production!',
-} as const;
+export function setEnv(env: Env): void {
+  _env = env;
+}
 
-export function validateEnv(): EnvConfig {
-  const missing: string[] = [];
-
-  for (const key of REQUIRED_VARS) {
-    if (!process.env[key]) {
-      missing.push(key);
+export function getEnv(): Env {
+  if (!_env) {
+    // Fallback to process.env for local dev (node-server)
+    if (typeof process !== 'undefined' && process.env) {
+      return {
+        DATABASE_URL: process.env.DATABASE_URL ?? '',
+        DIRECT_URL: process.env.DIRECT_URL,
+        JWT_SECRET: process.env.JWT_SECRET ?? 'dev-secret-change-in-production',
+        ENVIRONMENT: process.env.ENVIRONMENT ?? 'development',
+        NODE_ENV: process.env.NODE_ENV ?? 'development',
+        PORT: process.env.PORT ?? '3001',
+      };
     }
+    throw new Error('Environment not initialized. Call setEnv() first.');
   }
+  return _env;
+}
 
-  if (missing.length > 0) {
-    console.error(`\n  FATAL: Missing required environment variables:\n`);
-    for (const key of missing) {
-      console.error(`    - ${key}`);
-    }
-    console.error(`\n  Copy .env.example to .env and fill in the values.\n`);
-    process.exit(1);
+/**
+ * Legacy validateEnv for local node-server usage (server.ts).
+ */
+export function validateEnv() {
+  const env = getEnv();
+  if (!env.DATABASE_URL) {
+    console.error('\n  FATAL: Missing required DATABASE_URL\n');
+    if (typeof process !== 'undefined') process.exit(1);
   }
-
-  // Warnings for non-critical defaults
-  const jwtSecret = process.env.JWT_SECRET || 'dev-secret-change-in-production';
-  if (jwtSecret === 'dev-secret-change-in-production' && process.env.NODE_ENV === 'production') {
-    console.warn(`  WARNING: ${WARNINGS.JWT_SECRET}`);
-  }
-
   return {
-    DATABASE_URL: process.env.DATABASE_URL!,
-    JWT_SECRET: jwtSecret,
-    PORT: parseInt(process.env.PORT ?? '3001', 10),
-    NODE_ENV: process.env.NODE_ENV ?? 'development',
+    DATABASE_URL: env.DATABASE_URL,
+    JWT_SECRET: env.JWT_SECRET || 'dev-secret-change-in-production',
+    PORT: parseInt(env.PORT ?? '3001', 10),
+    NODE_ENV: env.NODE_ENV ?? 'development',
   };
 }

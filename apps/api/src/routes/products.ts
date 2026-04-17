@@ -16,6 +16,7 @@ products.get('/', async (c) => {
   const perPage = Math.min(50, Math.max(1, parseInt(c.req.query('per_page') ?? '20', 10)));
   const color = c.req.query('color');
   const size = c.req.query('size');
+  const category = c.req.query('category');
   const availableStart = c.req.query('available_start');
   const availableEnd = c.req.query('available_end');
 
@@ -26,6 +27,9 @@ products.get('/', async (c) => {
   }
   if (size) {
     where.size = { has: size };
+  }
+  if (category) {
+    where.category = category as Prisma.ProductWhereInput['category'];
   }
 
   // If availability date filter is provided, exclude products with conflicting bookings
