@@ -46,7 +46,8 @@ products.get('/', async (c) => {
     }
   }
 
-  const [items, total] = await Promise.all([
+  // Fetch products
+  const [items, productTotal] = await Promise.all([
     db.product.findMany({
       where,
       include: {
@@ -60,7 +61,7 @@ products.get('/', async (c) => {
     db.product.count({ where }),
   ]);
 
-  const data = items.map((p) => ({
+  const productData = items.map((p) => ({
     id: p.id,
     sku: p.sku,
     name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
@@ -77,9 +78,44 @@ products.get('/', async (c) => {
     deposit: p.deposit,
     rental_count: p.rentalCount,
     currency: p.currency,
+    is_combo: false,
   }));
 
-  return success(c, data, {
+  // Fetch combo sets and merge into listing
+  let comboData: typeof productData = [];
+  try {
+    const comboSets = await db.comboSet.findMany({
+      where: { available: true },
+      include: { brand: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    comboData = comboSets.map((cs) => ({
+      id: cs.id,
+      sku: cs.sku,
+      name: cs.name,
+      category: 'combo' as string,
+      brand: cs.brand ? localizeField(cs.brand.nameI18n as Record<string, string> | null, cs.brand.name, locale) : null,
+      thumbnail: cs.thumbnailUrl,
+      size: cs.size,
+      color: cs.color,
+      rental_prices: {
+        '1day': cs.rentalPrice1Day,
+        '3day': cs.rentalPrice3Day,
+        '5day': cs.rentalPrice5Day,
+      },
+      deposit: 0,
+      rental_count: cs.rentalCount,
+      currency: 'THB',
+      is_combo: true,
+    }));
+  } catch {
+    // combo_sets table may not exist yet — skip gracefully
+  }
+
+  const allData = [...productData, ...comboData];
+  const total = productTotal + comboData.length;
+
+  return success(c, allData, {
     page,
     per_page: perPage,
     total,
@@ -87,12 +123,13 @@ products.get('/', async (c) => {
   });
 });
 
-// C02: GET /api/v1/products/:id — Product detail
+// C02: GET /api/v1/products/:id — Product detail (checks both products and combo_sets)
 products.get('/:id', async (c) => {
   const db = getDb();
   const locale = parseLocale(c.req.query('locale'));
   const id = c.req.param('id');
 
+  // Try product first
   const product = await db.product.findUnique({
     where: { id },
     include: {
@@ -101,59 +138,127 @@ products.get('/:id', async (c) => {
     },
   });
 
-  if (!product) {
-    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  if (product) {
+    // Get related products (same category, different SKU)
+    const relatedProducts = await db.product.findMany({
+      where: {
+        category: product.category,
+        id: { not: product.id },
+        available: true,
+      },
+      take: 4,
+      select: { id: true, sku: true, name: true, nameI18n: true, thumbnailUrl: true, rentalPrice1Day: true },
+    });
+
+    const data = {
+      id: product.id,
+      sku: product.sku,
+      name: localizeField(product.nameI18n as Record<string, string> | null, product.name, locale),
+      description: localizeField(product.descriptionI18n as Record<string, string> | null, product.description ?? '', locale),
+      category: product.category,
+      brand: product.brand
+        ? {
+            id: product.brand.id,
+            name: localizeField(product.brand.nameI18n as Record<string, string> | null, product.brand.name, locale),
+          }
+        : null,
+      images: product.images.map((img) => ({
+        id: img.id,
+        url: img.url,
+        alt_text: img.altText,
+      })),
+      size: product.size,
+      color: product.color,
+      rental_prices: {
+        '1day': product.rentalPrice1Day,
+        '3day': product.rentalPrice3Day,
+        '5day': product.rentalPrice5Day,
+      },
+      ref_price: product.retailPrice,
+      deposit: product.deposit,
+      rental_count: product.rentalCount,
+      currency: product.currency,
+      is_combo: false,
+      related_skus: relatedProducts.map((rp) => ({
+        id: rp.id,
+        sku: rp.sku,
+        name: localizeField(rp.nameI18n as Record<string, string> | null, rp.name, locale),
+        thumbnail: rp.thumbnailUrl,
+        price_1day: rp.rentalPrice1Day,
+      })),
+    };
+
+    return success(c, data);
   }
 
-  // Get related products (same category, different SKU)
-  const relatedProducts = await db.product.findMany({
-    where: {
-      category: product.category,
-      id: { not: product.id },
-      available: true,
-    },
-    take: 4,
-    select: { id: true, sku: true, name: true, nameI18n: true, thumbnailUrl: true, rentalPrice1Day: true },
-  });
+  // Try combo set
+  try {
+    const comboSet = await db.comboSet.findUnique({
+      where: { id },
+      include: {
+        brand: true,
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true, sku: true, name: true, nameI18n: true,
+                thumbnailUrl: true,
+                images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+                rentalPrice1Day: true, rentalPrice3Day: true, rentalPrice5Day: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
-  const data = {
-    id: product.id,
-    sku: product.sku,
-    name: localizeField(product.nameI18n as Record<string, string> | null, product.name, locale),
-    description: localizeField(product.descriptionI18n as Record<string, string> | null, product.description ?? '', locale),
-    category: product.category,
-    brand: product.brand
-      ? {
-          id: product.brand.id,
-          name: localizeField(product.brand.nameI18n as Record<string, string> | null, product.brand.name, locale),
-        }
-      : null,
-    images: product.images.map((img) => ({
-      id: img.id,
-      url: img.url,
-      alt_text: img.altText,
-    })),
-    size: product.size,
-    color: product.color,
-    rental_prices: {
-      '1day': product.rentalPrice1Day,
-      '3day': product.rentalPrice3Day,
-      '5day': product.rentalPrice5Day,
-    },
-    ref_price: product.retailPrice,
-    deposit: product.deposit,
-    rental_count: product.rentalCount,
-    currency: product.currency,
-    related_skus: relatedProducts.map((rp) => ({
-      id: rp.id,
-      sku: rp.sku,
-      name: localizeField(rp.nameI18n as Record<string, string> | null, rp.name, locale),
-      thumbnail: rp.thumbnailUrl,
-      price_1day: rp.rentalPrice1Day,
-    })),
-  };
+    if (!comboSet) {
+      return error(c, 404, 'NOT_FOUND', 'Product not found');
+    }
 
-  return success(c, data);
+    const data = {
+      id: comboSet.id,
+      sku: comboSet.sku,
+      name: comboSet.name,
+      description: '',
+      category: 'combo',
+      brand: comboSet.brand
+        ? {
+            id: comboSet.brand.id,
+            name: localizeField(comboSet.brand.nameI18n as Record<string, string> | null, comboSet.brand.name, locale),
+          }
+        : null,
+      images: comboSet.thumbnailUrl ? [{ id: 'thumb', url: comboSet.thumbnailUrl, alt_text: comboSet.name }] : [],
+      size: comboSet.size,
+      color: comboSet.color,
+      rental_prices: {
+        '1day': comboSet.rentalPrice1Day,
+        '3day': comboSet.rentalPrice3Day,
+        '5day': comboSet.rentalPrice5Day,
+      },
+      ref_price: 0,
+      deposit: 0,
+      rental_count: comboSet.rentalCount,
+      currency: 'THB',
+      is_combo: true,
+      combo_items: comboSet.items.map((item) => ({
+        id: item.id,
+        product_id: item.product.id,
+        product_sku: item.product.sku,
+        product_name: localizeField(item.product.nameI18n as Record<string, string> | null, item.product.name, locale),
+        product_thumbnail: item.product.images[0]?.url ?? item.product.thumbnailUrl,
+        revenue_share_pct: item.revenueSharePct,
+        label: item.label,
+      })),
+      related_skus: [],
+    };
+
+    return success(c, data);
+  } catch {
+    // combo_sets table may not exist
+  }
+
+  return error(c, 404, 'NOT_FOUND', 'Product not found');
 });
 
 // C03: GET /api/v1/products/:id/calendar — Availability calendar

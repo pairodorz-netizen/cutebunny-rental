@@ -69,7 +69,8 @@
       "depositNote": "ค่ามัดจำ (คืนได้)",
       "retailPrice": "ราคาขายปลีก",
       "timesRented": "ครั้งที่เช่า",
-      "relatedProducts": "สินค้าที่คุณอาจชอบ"
+      "relatedProducts": "สินค้าที่คุณอาจชอบ",
+      "includedItems": "สินค้าในชุด"
     }
   },
   "calendar": {

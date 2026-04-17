@@ -28,6 +28,7 @@ export interface ProductListItem {
   deposit: number;
   rental_count: number;
   currency: string;
+  is_combo?: boolean;
 }
 
 export interface ProductDetail extends ProductListItem {
@@ -35,6 +36,15 @@ export interface ProductDetail extends ProductListItem {
   images: Array<{ id: string; url: string; alt_text: string | null }>;
   ref_price: number;
   related_skus: Array<{ id: string; sku: string; name: string; thumbnail: string | null; price_1day: number }>;
+  combo_items?: Array<{
+    id: string;
+    product_id: string;
+    product_sku: string;
+    product_name: string;
+    product_thumbnail: string | null;
+    revenue_share_pct: number;
+    label: string | null;
+  }>;
 }
 
 export interface CalendarDay {

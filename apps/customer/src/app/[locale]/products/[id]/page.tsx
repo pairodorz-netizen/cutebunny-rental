@@ -151,6 +151,32 @@ export default function ProductDetailPage() {
             </div>
           )}
 
+          {/* Combo Items (if combo set) */}
+          {product.combo_items && product.combo_items.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-2">{t('includedItems')}</h3>
+              <div className="space-y-2">
+                {product.combo_items.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/products/${item.product_id}`}
+                    className="flex items-center gap-3 rounded-lg border p-3 hover:shadow-sm transition-shadow"
+                  >
+                    <div className="w-12 h-16 bg-muted rounded shrink-0 overflow-hidden">
+                      {item.product_thumbnail && (
+                        <img src={item.product_thumbnail} alt={item.product_name} className="w-full h-full object-cover" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{item.product_name}</p>
+                      <p className="text-xs text-muted-foreground">{item.product_sku}{item.label ? ` • ${item.label}` : ''}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Rental Price Tiers */}
           <div>
             <h3 className="font-semibold mb-2">{t('rentalPricing')}</h3>

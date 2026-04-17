@@ -24,7 +24,12 @@ export function ProductCard({ product }: { product: ProductListItem }) {
             {product.name}
           </div>
         )}
-        {product.rental_count > 10 && (
+        {product.is_combo && (
+          <span className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
+            Combo Set
+          </span>
+        )}
+        {!product.is_combo && product.rental_count > 10 && (
           <span className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">
             {t('card.popular')}
           </span>

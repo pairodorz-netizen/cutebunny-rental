@@ -69,7 +69,8 @@
       "depositNote": "Refundable deposit",
       "retailPrice": "Retail price",
       "timesRented": "times rented",
-      "relatedProducts": "You May Also Like"
+      "relatedProducts": "You May Also Like",
+      "includedItems": "Included Items"
     }
   },
   "calendar": {

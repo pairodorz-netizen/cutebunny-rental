@@ -69,7 +69,8 @@
       "depositNote": "可退押金",
       "retailPrice": "零售价",
       "timesRented": "次租赁",
-      "relatedProducts": "您可能还喜欢"
+      "relatedProducts": "您可能还喜欢",
+      "includedItems": "套装包含"
     }
   },
   "calendar": {
