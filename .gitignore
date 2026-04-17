@@ -1,0 +1,29 @@
+node_modules
+dist
+.next
+.turbo
+*.log
+.DS_Store
+coverage
+.wrangler
+.pnpm-store
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# Test artifacts
+test-results.xml

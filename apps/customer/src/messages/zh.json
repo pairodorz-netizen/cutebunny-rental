@@ -1,0 +1,162 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "加载中...",
+    "language": "语言",
+    "english": "英语",
+    "thai": "泰语",
+    "chinese": "中文"
+  },
+  "nav": {
+    "home": "首页",
+    "products": "商品",
+    "about": "关于",
+    "contact": "联系",
+    "cart": "购物车",
+    "account": "账户"
+  },
+  "home": {
+    "hero": {
+      "title": "租赁精美礼服",
+      "subtitle": "各种场合的高端礼服租赁服务",
+      "cta": "浏览系列"
+    },
+    "featured": {
+      "title": "热门礼服",
+      "viewAll": "查看全部"
+    },
+    "categories": {
+      "title": "按类别选购"
+    }
+  },
+  "products": {
+    "title": "我们的系列",
+    "loading": "正在加载商品...",
+    "error": "加载商品失败，请重试。",
+    "empty": "未找到符合条件的商品。",
+    "prev": "上一页",
+    "next": "下一页",
+    "filter": {
+      "category": "类别",
+      "size": "尺码",
+      "color": "颜色",
+      "priceRange": "价格范围",
+      "availability": "可用性"
+    },
+    "card": {
+      "rentFrom": "租赁起价",
+      "perDay": "/天",
+      "viewDetails": "查看详情",
+      "outOfStock": "无库存",
+      "popular": "热门",
+      "rented": "次租赁"
+    },
+    "detail": {
+      "title": "商品详情",
+      "description": "描述",
+      "selectSize": "尺码",
+      "selectDates": "选择租赁日期",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "addToCart": "加入购物车",
+      "added": "已添加！",
+      "totalRental": "租赁总价",
+      "days": "天",
+      "backToProducts": "返回商品列表",
+      "notFound": "未找到商品",
+      "rentalPricing": "租赁价格",
+      "color": "颜色",
+      "depositNote": "可退押金",
+      "retailPrice": "零售价",
+      "timesRented": "次租赁",
+      "relatedProducts": "您可能还喜欢"
+    }
+  },
+  "calendar": {
+    "loading": "正在加载日历...",
+    "prev": "上个月",
+    "next": "下个月",
+    "available": "可用",
+    "booked": "已预订",
+    "cleaning": "清洁中"
+  },
+  "cart": {
+    "title": "购物车",
+    "empty": "您的购物车是空的",
+    "continueShopping": "继续购物",
+    "days": "天",
+    "from": "从",
+    "size": "尺码",
+    "subtotal": "小计",
+    "deposit": "押金",
+    "total": "总计",
+    "shippingFee": "运费",
+    "proceedToCheckout": "去结算",
+    "back": "返回",
+    "customerInfo": "客户信息",
+    "fullName": "姓名",
+    "phone": "电话",
+    "email": "邮箱",
+    "shippingAddress": "收货地址",
+    "province": "省份",
+    "selectProvince": "选择省份",
+    "addressLine": "详细地址",
+    "postalCode": "邮编",
+    "orderSummary": "订单摘要",
+    "placeOrder": "提交订单",
+    "placing": "正在提交...",
+    "checkoutError": "下单失败，请重试。"
+  },
+  "orderStatus": {
+    "title": "订单状态",
+    "orderNumber": "订单",
+    "notFound": "未找到订单",
+    "notFoundDesc": "您查找的订单不存在或链接已过期。",
+    "backToProducts": "返回商品列表",
+    "items": "订单商品",
+    "size": "尺码",
+    "summary": "订单摘要",
+    "subtotal": "小计",
+    "deposit": "押金",
+    "deliveryFee": "运费",
+    "total": "总计",
+    "days": "天",
+    "rentalPeriod": "租赁期",
+    "paymentRequired": "待付款",
+    "paymentInstructions": "请转账并上传付款凭证。",
+    "uploadSlip": "上传付款凭证",
+    "paymentSlips": "付款凭证",
+    "status": {
+      "unpaid": "待付款",
+      "paid_locked": "已付款",
+      "shipped": "已发货",
+      "returned": "已退回",
+      "cleaning": "清洁中",
+      "repair": "维修中",
+      "ready": "完成"
+    },
+    "slipStatus": {
+      "pending": "审核中",
+      "verified": "已验证",
+      "rejected": "已拒绝"
+    }
+  },
+  "payment": {
+    "title": "上传付款凭证",
+    "backToOrder": "返回订单",
+    "paymentSlip": "付款凭证图片",
+    "dropOrClick": "点击上传付款凭证",
+    "fileTypes": "JPEG或PNG，最大10MB",
+    "amount": "转账金额（泰铢）",
+    "bankName": "银行",
+    "selectBank": "选择银行",
+    "submit": "提交凭证",
+    "uploading": "上传中...",
+    "uploadError": "上传失败，请重试。",
+    "invalidFileType": "仅支持JPEG和PNG格式。",
+    "fileTooLarge": "文件不能超过10MB。",
+    "successTitle": "凭证已提交",
+    "successDesc": "您的付款凭证已提交审核，我们将在1-2小时内验证。",
+    "viewOrderStatus": "查看订单状态"
+  }
+}

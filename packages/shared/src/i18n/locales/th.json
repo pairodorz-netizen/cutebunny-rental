@@ -1,0 +1,141 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "กำลังโหลด...",
+    "error": "เกิดข้อผิดพลาด",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "delete": "ลบ",
+    "edit": "แก้ไข",
+    "create": "สร้าง",
+    "search": "ค้นหา",
+    "filter": "กรอง",
+    "reset": "รีเซ็ต",
+    "confirm": "ยืนยัน",
+    "back": "กลับ",
+    "next": "ถัดไป",
+    "previous": "ก่อนหน้า",
+    "yes": "ใช่",
+    "no": "ไม่",
+    "close": "ปิด",
+    "submit": "ส่ง",
+    "noResults": "ไม่พบผลลัพธ์",
+    "actions": "การดำเนินการ",
+    "status": "สถานะ",
+    "date": "วันที่",
+    "total": "รวม",
+    "language": "ภาษา",
+    "english": "อังกฤษ",
+    "thai": "ไทย",
+    "chinese": "จีน"
+  },
+  "nav": {
+    "home": "หน้าแรก",
+    "products": "สินค้า",
+    "about": "เกี่ยวกับ",
+    "contact": "ติดต่อ",
+    "cart": "ตะกร้า",
+    "account": "บัญชี",
+    "login": "เข้าสู่ระบบ",
+    "logout": "ออกจากระบบ",
+    "register": "สมัครสมาชิก"
+  },
+  "home": {
+    "hero": {
+      "title": "เช่าชุดสวยๆ",
+      "subtitle": "บริการเช่าชุดพรีเมียมสำหรับทุกโอกาส",
+      "cta": "ดูคอลเลกชัน"
+    },
+    "featured": {
+      "title": "ชุดแนะนำ",
+      "viewAll": "ดูทั้งหมด"
+    },
+    "categories": {
+      "title": "เลือกตามหมวดหมู่"
+    }
+  },
+  "products": {
+    "title": "คอลเลกชันของเรา",
+    "filter": {
+      "category": "หมวดหมู่",
+      "size": "ขนาด",
+      "color": "สี",
+      "priceRange": "ช่วงราคา",
+      "availability": "สถานะสินค้า"
+    },
+    "card": {
+      "rentFrom": "เช่าเริ่มต้น",
+      "perDay": "/วัน",
+      "viewDetails": "ดูรายละเอียด",
+      "outOfStock": "สินค้าหมด"
+    },
+    "detail": {
+      "description": "รายละเอียด",
+      "selectSize": "เลือกขนาด",
+      "selectDates": "เลือกวันเช่า",
+      "startDate": "วันเริ่มต้น",
+      "endDate": "วันสิ้นสุด",
+      "addToCart": "เพิ่มลงตะกร้า",
+      "totalRental": "ค่าเช่ารวม",
+      "days": "วัน"
+    }
+  },
+  "admin": {
+    "login": {
+      "title": "เข้าสู่ระบบผู้ดูแล",
+      "email": "อีเมล",
+      "password": "รหัสผ่าน",
+      "submit": "เข้าสู่ระบบ",
+      "forgotPassword": "ลืมรหัสผ่าน?",
+      "error": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+    },
+    "sidebar": {
+      "dashboard": "แดชบอร์ด",
+      "orders": "คำสั่งซื้อ",
+      "products": "สินค้า",
+      "customers": "ลูกค้า",
+      "calendar": "ปฏิทิน",
+      "finance": "การเงิน",
+      "settings": "ตั้งค่า"
+    },
+    "dashboard": {
+      "title": "แดชบอร์ด",
+      "totalOrders": "คำสั่งซื้อทั้งหมด",
+      "totalRevenue": "รายได้รวม",
+      "activeRentals": "การเช่าที่ใช้งานอยู่",
+      "newCustomers": "ลูกค้าใหม่"
+    },
+    "orders": {
+      "title": "คำสั่งซื้อ",
+      "orderNumber": "เลขที่คำสั่งซื้อ",
+      "customer": "ลูกค้า",
+      "status": "สถานะ",
+      "total": "รวม",
+      "date": "วันที่"
+    },
+    "products": {
+      "title": "สินค้า",
+      "addProduct": "เพิ่มสินค้า",
+      "name": "ชื่อ",
+      "category": "หมวดหมู่",
+      "price": "ราคา",
+      "stock": "สต็อก"
+    },
+    "customers": {
+      "title": "ลูกค้า",
+      "name": "ชื่อ",
+      "email": "อีเมล",
+      "orders": "คำสั่งซื้อ",
+      "joined": "วันที่สมัคร"
+    },
+    "calendar": {
+      "title": "ปฏิทิน"
+    },
+    "finance": {
+      "title": "การเงิน"
+    },
+    "settings": {
+      "title": "ตั้งค่า"
+    }
+  }
+}

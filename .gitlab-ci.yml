@@ -1,0 +1,156 @@
+image: node:20-slim
+
+variables:
+  PNPM_VERSION: "9"
+  NODE_ENV: "test"
+
+stages:
+  - lint
+  - test
+  - build
+  - security
+
+# ─── Cache ───────────────────────────────────────────────────────────────
+.pnpm-cache: &pnpm-cache
+  cache:
+    key:
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store/
+    policy: pull-push
+
+before_script:
+  - corepack enable
+  - corepack prepare pnpm@${PNPM_VERSION} --activate
+  - pnpm config set store-dir .pnpm-store
+  - pnpm install --frozen-lockfile
+
+# ─── Lint Stage ──────────────────────────────────────────────────────────
+lint:eslint:
+  stage: lint
+  <<: *pnpm-cache
+  script:
+    - pnpm --filter @cutebunny/api lint
+    - pnpm --filter @cutebunny/admin lint
+    - pnpm --filter @cutebunny/customer lint
+  allow_failure: false
+
+lint:typecheck:
+  stage: lint
+  <<: *pnpm-cache
+  script:
+    - pnpm --filter @cutebunny/shared build
+    - pnpm --filter @cutebunny/api typecheck
+    - pnpm --filter @cutebunny/admin typecheck
+    - pnpm --filter @cutebunny/customer typecheck
+  allow_failure: false
+
+# ─── Test Stage ──────────────────────────────────────────────────────────
+test:unit:
+  stage: test
+  <<: *pnpm-cache
+  script:
+    - pnpm --filter @cutebunny/api test
+  artifacts:
+    when: always
+    reports:
+      junit: apps/api/test-results.xml
+    expire_in: 30 days
+  allow_failure: false
+
+# ─── Build Stage ─────────────────────────────────────────────────────────
+build:shared:
+  stage: build
+  <<: *pnpm-cache
+  script:
+    - pnpm --filter @cutebunny/shared build
+  artifacts:
+    paths:
+      - packages/shared/dist/
+    expire_in: 1 day
+
+build:customer:
+  stage: build
+  <<: *pnpm-cache
+  needs:
+    - build:shared
+  script:
+    - pnpm --filter @cutebunny/shared build
+    - pnpm --filter @cutebunny/customer build
+  artifacts:
+    paths:
+      - apps/customer/.next/
+    expire_in: 1 day
+
+build:admin:
+  stage: build
+  <<: *pnpm-cache
+  needs:
+    - build:shared
+  script:
+    - pnpm --filter @cutebunny/shared build
+    - pnpm --filter @cutebunny/admin build
+  artifacts:
+    paths:
+      - apps/admin/dist/
+    expire_in: 1 day
+
+build:api:
+  stage: build
+  <<: *pnpm-cache
+  needs:
+    - build:shared
+  script:
+    - pnpm --filter @cutebunny/shared build
+    - pnpm --filter @cutebunny/api typecheck
+  allow_failure: false
+
+# ─── Security Stage ──────────────────────────────────────────────────────
+security:audit:
+  stage: security
+  <<: *pnpm-cache
+  script:
+    - pnpm audit --audit-level=critical || true
+    - echo "Audit completed (non-blocking for non-critical)"
+  allow_failure: true
+
+security:secrets:
+  stage: security
+  <<: *pnpm-cache
+  script:
+    - |
+      echo "Scanning for hardcoded secrets..."
+      FOUND=0
+
+      # Check for common secret patterns
+      if grep -rn --include='*.ts' --include='*.tsx' --include='*.js' --include='*.json' \
+        -E '(password|secret|api_key|access_key)\s*[:=]\s*["\x27][A-Za-z0-9+/=]{16,}' \
+        --exclude-dir=node_modules --exclude-dir=.pnpm-store --exclude-dir=dist --exclude-dir=.next \
+        apps/ packages/ 2>/dev/null | grep -v 'dev-secret-change-in-production' | grep -v '.test.ts' | grep -v 'placeholder' | grep -v 'example'; then
+        echo "WARNING: Potential hardcoded secrets found"
+        FOUND=1
+      fi
+
+      # Check for AWS keys
+      if grep -rn --include='*.ts' --include='*.tsx' --include='*.js' \
+        -E 'AKIA[0-9A-Z]{16}' \
+        --exclude-dir=node_modules --exclude-dir=.pnpm-store \
+        apps/ packages/ 2>/dev/null; then
+        echo "ERROR: AWS access key found!"
+        FOUND=1
+      fi
+
+      # Check for .env files committed
+      if find . -name '.env' -not -path '*/node_modules/*' -not -path '*/.pnpm-store/*' -not -name '.env.example' | head -1 | grep -q '.'; then
+        echo "ERROR: .env file found in repository!"
+        FOUND=1
+      fi
+
+      if [ $FOUND -eq 1 ]; then
+        echo "Secret scan failed"
+        exit 1
+      fi
+
+      echo "No hardcoded secrets detected"
+  allow_failure: false

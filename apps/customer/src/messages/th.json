@@ -1,0 +1,162 @@
+{
+  "common": {
+    "appName": "CuteBunny Rental",
+    "loading": "กำลังโหลด...",
+    "language": "ภาษา",
+    "english": "อังกฤษ",
+    "thai": "ไทย",
+    "chinese": "จีน"
+  },
+  "nav": {
+    "home": "หน้าแรก",
+    "products": "สินค้า",
+    "about": "เกี่ยวกับ",
+    "contact": "ติดต่อ",
+    "cart": "ตะกร้า",
+    "account": "บัญชี"
+  },
+  "home": {
+    "hero": {
+      "title": "เช่าชุดสวย",
+      "subtitle": "บริการเช่าชุดพรีเมียมสำหรับทุกโอกาส",
+      "cta": "ดูคอลเลกชัน"
+    },
+    "featured": {
+      "title": "ชุดยอดนิยม",
+      "viewAll": "ดูทั้งหมด"
+    },
+    "categories": {
+      "title": "เลือกตามประเภท"
+    }
+  },
+  "products": {
+    "title": "คอลเลกชันของเรา",
+    "loading": "กำลังโหลดสินค้า...",
+    "error": "ไม่สามารถโหลดสินค้าได้ กรุณาลองใหม่",
+    "empty": "ไม่พบสินค้าตามเงื่อนไขที่เลือก",
+    "prev": "ก่อนหน้า",
+    "next": "ถัดไป",
+    "filter": {
+      "category": "หมวดหมู่",
+      "size": "ขนาด",
+      "color": "สี",
+      "priceRange": "ช่วงราคา",
+      "availability": "ความพร้อม"
+    },
+    "card": {
+      "rentFrom": "เช่าเริ่มต้น",
+      "perDay": "/วัน",
+      "viewDetails": "ดูรายละเอียด",
+      "outOfStock": "หมด",
+      "popular": "ยอดนิยม",
+      "rented": "ครั้งที่เช่า"
+    },
+    "detail": {
+      "title": "รายละเอียดสินค้า",
+      "description": "รายละเอียด",
+      "selectSize": "ขนาด",
+      "selectDates": "เลือกวันเช่า",
+      "startDate": "วันเริ่ม",
+      "endDate": "วันสิ้นสุด",
+      "addToCart": "เพิ่มลงตะกร้า",
+      "added": "เพิ่มแล้ว!",
+      "totalRental": "ค่าเช่ารวม",
+      "days": "วัน",
+      "backToProducts": "กลับไปหน้าสินค้า",
+      "notFound": "ไม่พบสินค้า",
+      "rentalPricing": "ราคาเช่า",
+      "color": "สี",
+      "depositNote": "ค่ามัดจำ (คืนได้)",
+      "retailPrice": "ราคาขายปลีก",
+      "timesRented": "ครั้งที่เช่า",
+      "relatedProducts": "สินค้าที่คุณอาจชอบ"
+    }
+  },
+  "calendar": {
+    "loading": "กำลังโหลดปฏิทิน...",
+    "prev": "เดือนก่อน",
+    "next": "เดือนถัดไป",
+    "available": "ว่าง",
+    "booked": "จองแล้ว",
+    "cleaning": "ทำความสะอาด"
+  },
+  "cart": {
+    "title": "ตะกร้าสินค้า",
+    "empty": "ตะกร้าของคุณว่างเปล่า",
+    "continueShopping": "เลือกซื้อต่อ",
+    "days": "วัน",
+    "from": "จาก",
+    "size": "ขนาด",
+    "subtotal": "ยอดรวมสินค้า",
+    "deposit": "ค่ามัดจำ",
+    "total": "ยอดรวมทั้งสิ้น",
+    "shippingFee": "ค่าจัดส่ง",
+    "proceedToCheckout": "ดำเนินการชำระเงิน",
+    "back": "กลับ",
+    "customerInfo": "ข้อมูลลูกค้า",
+    "fullName": "ชื่อ-นามสกุล",
+    "phone": "เบอร์โทร",
+    "email": "อีเมล",
+    "shippingAddress": "ที่อยู่จัดส่ง",
+    "province": "จังหวัด",
+    "selectProvince": "เลือกจังหวัด",
+    "addressLine": "ที่อยู่",
+    "postalCode": "รหัสไปรษณีย์",
+    "orderSummary": "สรุปคำสั่งซื้อ",
+    "placeOrder": "สั่งซื้อ",
+    "placing": "กำลังสั่งซื้อ...",
+    "checkoutError": "ไม่สามารถสั่งซื้อได้ กรุณาลองใหม่"
+  },
+  "orderStatus": {
+    "title": "สถานะคำสั่งซื้อ",
+    "orderNumber": "คำสั่งซื้อ",
+    "notFound": "ไม่พบคำสั่งซื้อ",
+    "notFoundDesc": "คำสั่งซื้อที่คุณค้นหาไม่มีอยู่หรือลิงก์หมดอายุ",
+    "backToProducts": "กลับไปหน้าสินค้า",
+    "items": "รายการสินค้า",
+    "size": "ขนาด",
+    "summary": "สรุปคำสั่งซื้อ",
+    "subtotal": "ยอดรวมสินค้า",
+    "deposit": "ค่ามัดจำ",
+    "deliveryFee": "ค่าจัดส่ง",
+    "total": "ยอดรวมทั้งสิ้น",
+    "days": "วัน",
+    "rentalPeriod": "ระยะเวลาเช่า",
+    "paymentRequired": "กรุณาชำระเงิน",
+    "paymentInstructions": "กรุณาโอนเงินและอัปโหลดสลิปการชำระเงิน",
+    "uploadSlip": "อัปโหลดสลิป",
+    "paymentSlips": "สลิปการชำระเงิน",
+    "status": {
+      "unpaid": "รอชำระ",
+      "paid_locked": "ชำระแล้ว",
+      "shipped": "จัดส่งแล้ว",
+      "returned": "คืนแล้ว",
+      "cleaning": "ทำความสะอาด",
+      "repair": "ซ่อมแซม",
+      "ready": "เสร็จสิ้น"
+    },
+    "slipStatus": {
+      "pending": "รอตรวจสอบ",
+      "verified": "ยืนยันแล้ว",
+      "rejected": "ปฏิเสธ"
+    }
+  },
+  "payment": {
+    "title": "อัปโหลดสลิปการชำระเงิน",
+    "backToOrder": "กลับไปหน้าคำสั่งซื้อ",
+    "paymentSlip": "รูปสลิปการโอนเงิน",
+    "dropOrClick": "คลิกเพื่ออัปโหลดสลิป",
+    "fileTypes": "JPEG หรือ PNG ไม่เกิน 10MB",
+    "amount": "จำนวนเงินที่โอน (บาท)",
+    "bankName": "ธนาคาร",
+    "selectBank": "เลือกธนาคาร",
+    "submit": "ส่งสลิป",
+    "uploading": "กำลังอัปโหลด...",
+    "uploadError": "อัปโหลดล้มเหลว กรุณาลองใหม่",
+    "invalidFileType": "รองรับเฉพาะไฟล์ JPEG และ PNG",
+    "fileTooLarge": "ไฟล์ต้องไม่เกิน 10MB",
+    "successTitle": "ส่งสลิปเรียบร้อย",
+    "successDesc": "สลิปของคุณถูกส่งเพื่อตรวจสอบแล้ว เราจะยืนยันภายใน 1-2 ชั่วโมง",
+    "viewOrderStatus": "ดูสถานะคำสั่งซื้อ"
+  }
+}
