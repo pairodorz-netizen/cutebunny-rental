@@ -127,22 +127,48 @@ orders.post('/', async (c) => {
 
   // Create order items and confirm availability holds
   for (const item of cartData.items) {
-    await db.orderItem.create({
-      data: {
-        orderId: order.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        size: item.size,
-        quantity: 1,
-        rentalPricePerDay: item.price_per_day,
-        subtotal: item.subtotal,
-        status: 'pending',
-      },
-    });
+    if (item.is_combo && item.combo_components && item.combo_components.length > 0) {
+      // Combo set: expand into component product OrderItems with revenue split
+      for (const comp of item.combo_components) {
+        const compSubtotal = Math.round(item.subtotal * comp.revenue_share_pct / 100);
+        const compPricePerDay = Math.round(compSubtotal / item.rental_days);
 
-    // Confirm tentative holds as booked
-    const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
-    await confirmHolds(db, item.product_id, startDate, item.rental_days, order.id);
+        await db.orderItem.create({
+          data: {
+            orderId: order.id,
+            productId: comp.product_id,
+            productName: `${item.product_name} — ${comp.product_name}${comp.label ? ` (${comp.label})` : ''}`,
+            size: item.size,
+            quantity: 1,
+            rentalPricePerDay: compPricePerDay,
+            subtotal: compSubtotal,
+            status: 'pending',
+          },
+        });
+
+        // Confirm tentative holds for each component product
+        const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
+        await confirmHolds(db, comp.product_id, startDate, item.rental_days, order.id);
+      }
+    } else {
+      // Regular product
+      await db.orderItem.create({
+        data: {
+          orderId: order.id,
+          productId: item.product_id,
+          productName: item.product_name,
+          size: item.size,
+          quantity: 1,
+          rentalPricePerDay: item.price_per_day,
+          subtotal: item.subtotal,
+          status: 'pending',
+        },
+      });
+
+      // Confirm tentative holds as booked
+      const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
+      await confirmHolds(db, item.product_id, startDate, item.rental_days, order.id);
+    }
   }
 
   // Create initial status log
