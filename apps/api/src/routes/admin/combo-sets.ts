@@ -51,6 +51,7 @@ adminComboSets.get('/', async (c) => {
     id: cs.id,
     sku: cs.sku,
     name: cs.name,
+    description: cs.description ?? '',
     brand: cs.brand?.name ?? null,
     thumbnail: cs.thumbnailUrl,
     color: cs.color,
@@ -119,6 +120,7 @@ adminComboSets.get('/:id', async (c) => {
     id: cs.id,
     sku: cs.sku,
     name: cs.name,
+    description: cs.description ?? '',
     brand: cs.brand?.name ?? null,
     brand_id: cs.brandId,
     thumbnail: cs.thumbnailUrl,
@@ -151,6 +153,7 @@ adminComboSets.get('/:id', async (c) => {
 const createComboSchema = z.object({
   sku: z.string().min(1),
   name: z.string().min(1),
+  description: z.string().optional(),
   brand_name: z.string().optional(),
   brand_id: z.string().uuid().optional(),
   color: z.array(z.string()).default([]),
@@ -196,6 +199,7 @@ adminComboSets.post('/', async (c) => {
     data: {
       sku: parsed.data.sku,
       name: parsed.data.name,
+      description: parsed.data.description ?? null,
       brandId,
       color: parsed.data.color,
       size: parsed.data.size,
@@ -239,6 +243,7 @@ adminComboSets.post('/', async (c) => {
 // PATCH /api/v1/admin/combo-sets/:id — Update combo set
 const updateComboSchema = z.object({
   name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
   brand_name: z.string().optional(),
   brand_id: z.string().uuid().nullable().optional(),
   color: z.array(z.string()).optional(),
@@ -285,6 +290,7 @@ adminComboSets.patch('/:id', async (c) => {
 
   const updateData: Record<string, unknown> = { brandId };
   if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
+  if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
   if (parsed.data.size !== undefined) updateData.size = parsed.data.size;
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;

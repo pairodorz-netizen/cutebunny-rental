@@ -172,6 +172,7 @@
     "createTitle": "Create Product",
     "editTitle": "Edit Product",
     "description": "Description",
+    "descriptionPlaceholder": "Enter product description...",
     "sizes": "Sizes (comma-separated)",
     "colors": "Colors (comma-separated)",
     "pricing": "Rental Pricing (THB)",

@@ -220,7 +220,7 @@ products.get('/:id', async (c) => {
       id: comboSet.id,
       sku: comboSet.sku,
       name: comboSet.name,
-      description: '',
+      description: comboSet.description ?? '',
       category: 'combo',
       brand: comboSet.brand
         ? localizeField(comboSet.brand.nameI18n as Record<string, string> | null, comboSet.brand.name, locale)

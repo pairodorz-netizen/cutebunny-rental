@@ -867,6 +867,7 @@ function ComboSetForm({
   const { t } = useTranslation();
   const [sku, setSku] = useState(comboSet?.sku ?? '');
   const [name, setName] = useState(comboSet?.name ?? '');
+  const [description, setDescription] = useState(comboSet?.description ?? '');
   const [brandName, setBrandName] = useState(comboSet?.brand ?? '');
   const [size, setSize] = useState(comboSet?.size?.join(', ') ?? '');
   const [color, setColor] = useState(comboSet?.color?.join(', ') ?? '');
@@ -917,6 +918,7 @@ function ComboSetForm({
     const body: Record<string, unknown> = {
       sku,
       name,
+      description: description || null,
       brand_name: brandName || undefined,
       color: color.split(',').map((s) => s.trim()).filter(Boolean),
       size: size.split(',').map((s) => s.trim()).filter(Boolean),
@@ -957,6 +959,16 @@ function ComboSetForm({
             <label className="text-sm font-medium">{t('products.name')}</label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Top & Bottom" />
           </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium">{t('products.description')}</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={t('products.descriptionPlaceholder')}
+            className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+          />
         </div>
 
         <div>

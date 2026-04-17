@@ -439,6 +439,7 @@ model ComboSet {
   id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   sku             String   @unique
   name            String
+  description     String?
   brandId         String?  @map("brand_id") @db.Uuid
   color           String[]
   size            String[]

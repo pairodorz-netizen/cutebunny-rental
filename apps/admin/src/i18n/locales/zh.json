@@ -172,6 +172,7 @@
     "createTitle": "创建商品",
     "editTitle": "编辑商品",
     "description": "描述",
+    "descriptionPlaceholder": "输入商品描述...",
     "sizes": "尺码（逗号分隔）",
     "colors": "颜色（逗号分隔）",
     "pricing": "租赁定价（泰铢）",

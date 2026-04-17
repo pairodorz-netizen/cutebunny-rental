@@ -249,6 +249,7 @@ export interface AdminComboSet {
   id: string;
   sku: string;
   name: string;
+  description: string;
   brand: string | null;
   thumbnail: string | null;
   color: string[];
