@@ -175,17 +175,25 @@ adminOrders.get('/:id', async (c) => {
       statusLogs: {
         orderBy: { createdAt: 'desc' },
       },
-      auditLogs: {
-        orderBy: { createdAt: 'desc' },
-        include: {
-          admin: { select: { id: true, name: true, email: true } },
-        },
-      },
     },
   });
 
   if (!order) {
     return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  // Fetch audit logs separately so a missing/misconfigured table doesn't break the detail endpoint
+  let auditLogEntries: Array<{ id: string; action: string; resource: string | null; details: unknown; adminId: string; createdAt: Date; admin?: { name: string | null; email: string } | null }> = [];
+  try {
+    auditLogEntries = await db.auditLog.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        admin: { select: { id: true, name: true, email: true } },
+      },
+    });
+  } catch (e) {
+    console.error('Failed to fetch audit logs:', e instanceof Error ? e.message : e);
   }
 
   const data = {
@@ -245,7 +253,7 @@ adminOrders.get('/:id', async (c) => {
       start: order.rentalStartDate.toISOString().split('T')[0],
       end: order.rentalEndDate.toISOString().split('T')[0],
     },
-    audit_logs: (order.auditLogs ?? []).map((log) => ({
+    audit_logs: auditLogEntries.map((log) => ({
       id: log.id,
       action: log.action,
       resource: log.resource,
@@ -356,6 +364,7 @@ adminOrders.patch('/:id/edit', async (c) => {
     if (db.auditLog?.create) {
       await db.auditLog.create({
         data: {
+          orderId,
           adminId: admin.sub,
           action: 'EDIT',
           resource: 'order',
@@ -632,6 +641,7 @@ adminOrders.patch('/:id/status', async (c) => {
     if (db.auditLog?.create) {
       await db.auditLog.create({
         data: {
+          orderId,
           adminId: admin.sub,
           action: 'STATUS_CHANGE',
           resource: 'order',
@@ -715,6 +725,7 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
     if (db.auditLog?.create) {
       await db.auditLog.create({
         data: {
+          orderId,
           adminId: admin.sub,
           action: parsed.data.verified ? 'VERIFY' : 'REJECT',
           resource: 'payment_slip',

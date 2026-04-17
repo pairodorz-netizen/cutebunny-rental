@@ -889,33 +889,35 @@ export function OrdersPage() {
                   <Printer className="h-3 w-3 mr-1" /> {t('shipping.printLabel')}
                 </Button>
               )}
-              {/* Audit Log */}
-              {orderDetail && editOrderId === orderDetail.id && (
-                <div className="border-t pt-4">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-                    <History className="h-3.5 w-3.5" /> {t('orders.auditLog')}
-                  </label>
-                  {(orderDetail.audit_logs ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">{t('orders.noAuditLogs')}</p>
+              {/* Activity Log */}
+              <div className="border-t pt-4">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
+                  <History className="h-3.5 w-3.5" /> {t('orders.auditLog')}
+                </label>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  {!orderDetail || editOrderId !== orderDetail.id ? (
+                    <p className="text-[11px] text-muted-foreground italic text-center py-2">{t('common.loading')}</p>
+                  ) : (orderDetail.audit_logs ?? []).length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground italic text-center py-2">{t('orders.noAuditLogs')}</p>
                   ) : (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto">
                       {(orderDetail.audit_logs ?? []).map((log) => (
-                        <div key={log.id} className="text-xs border rounded p-2 bg-muted/10">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{log.admin_name}</span>
-                            <span className="text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                        <div key={log.id} className="text-[11px] bg-white rounded border border-gray-200 p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground truncate">{log.admin_name}</span>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</span>
                           </div>
-                          <div className="text-muted-foreground mt-0.5">
-                            {log.action}
+                          <div className="text-muted-foreground mt-0.5 leading-relaxed">
+                            <span className="font-medium text-foreground/80">{log.action}</span>
                             {log.details && typeof log.details === 'object' && (
                               <span className="ml-1">
-                                {Object.entries(log.details as Record<string, unknown>)
+                                — {Object.entries(log.details as Record<string, unknown>)
                                   .filter(([k]) => k !== 'changes')
                                   .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
                                   .join(', ')}
                                 {(() => {
                                   const d = log.details as Record<string, unknown>;
-                                  return d.changes && Array.isArray(d.changes) ? <span> — {(d.changes as string[]).join('; ')}</span> : null;
+                                  return d.changes && Array.isArray(d.changes) ? ` (${(d.changes as string[]).join('; ')})` : '';
                                 })()}
                               </span>
                             )}
@@ -925,7 +927,7 @@ export function OrdersPage() {
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
               {/* Save/Cancel */}
               <div className="flex gap-2 pt-2">
