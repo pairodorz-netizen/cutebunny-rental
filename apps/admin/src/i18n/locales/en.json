@@ -270,7 +270,14 @@
     "next": "Next",
     "searchPlaceholder": "Search by name, email, or phone...",
     "allTiers": "All Tiers",
-    "backToList": "Back to Customers"
+    "backToList": "Back to Customers",
+    "adjustCredit": "Adjust Credit",
+    "currentBalance": "Current balance",
+    "creditAmount": "Amount (THB)",
+    "creditAmountHint": "Positive to add, negative to deduct",
+    "creditReason": "Reason",
+    "creditReasonPlaceholder": "e.g. Overpayment refund, promotional credit, manual adjustment...",
+    "submitAdjustment": "Submit Adjustment"
   },
   "calendar": {
     "title": "Calendar",

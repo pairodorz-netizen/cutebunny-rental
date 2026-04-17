@@ -270,7 +270,14 @@
     "next": "ถัดไป",
     "searchPlaceholder": "ค้นหาตามชื่อ อีเมล หรือเบอร์โทร...",
     "allTiers": "ทุกระดับ",
-    "backToList": "กลับไปหน้ารายการ"
+    "backToList": "กลับไปหน้ารายการ",
+    "adjustCredit": "ปรับเครดิต",
+    "currentBalance": "ยอมเครดิตปัจจุบัน",
+    "creditAmount": "จำนวน (บาท)",
+    "creditAmountHint": "ค่าบวกเพื่อเพิ่ม ค่าลบเพื่อหัก",
+    "creditReason": "เหตุผล",
+    "creditReasonPlaceholder": "เช่น คืนเงินส่วนเกิน, เครดิตโปรโมชั่น...",
+    "submitAdjustment": "ยืนยันการปรับ"
   },
   "calendar": {
     "title": "ปฏิทิน",

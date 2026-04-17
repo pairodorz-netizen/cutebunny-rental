@@ -270,7 +270,14 @@
     "next": "下一页",
     "searchPlaceholder": "按姓名、邮箱或电话搜索...",
     "allTiers": "所有等级",
-    "backToList": "返回列表"
+    "backToList": "返回列表",
+    "adjustCredit": "调整信用",
+    "currentBalance": "当前余额",
+    "creditAmount": "金额（泰铢）",
+    "creditAmountHint": "正数为添加，负数为扣除",
+    "creditReason": "原因",
+    "creditReasonPlaceholder": "例如：多付退款、促销信用、手动调整...",
+    "submitAdjustment": "提交调整"
   },
   "calendar": {
     "title": "日历",

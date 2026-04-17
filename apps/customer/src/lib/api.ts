@@ -155,6 +155,7 @@ export const api = {
       customer: { name: string; phone: string; email: string };
       shipping_address: { province_code: string; line1: string; city?: string; postal_code?: string };
       credit_applied?: number;
+      document_urls?: Array<{ url: string; doc_type: string }>;
     }) =>
       request<{ data: OrderResponse }>('/api/v1/orders', {
         method: 'POST',
@@ -162,6 +163,15 @@ export const api = {
       }),
     customerLookup: (email: string) =>
       request<{ data: { found: boolean; name?: string; phone?: string; credit_balance: number } }>(`/api/v1/orders/customer/lookup?email=${encodeURIComponent(email)}`),
+    uploadDocument: (file: File, docType: string) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('doc_type', docType);
+      return fetch(`${API_BASE}/api/v1/orders/upload-document`, {
+        method: 'POST',
+        body: formData,
+      }).then((res) => res.json()) as Promise<{ data: { url: string; doc_type: string } }>;
+    },
     detail: (token: string) =>
       request<{ data: OrderDetail }>(`/api/v1/orders/${token}`),
     uploadSlip: (token: string, formData: FormData) =>

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
@@ -139,6 +140,61 @@ adminCustomers.get('/:id', async (c) => {
       created_at: o.createdAt.toISOString(),
     })),
     created_at: customer.createdAt.toISOString(),
+  });
+});
+
+// POST /api/v1/admin/customers/:id/adjust-credit — Adjust customer credit balance
+adminCustomers.post('/:id/adjust-credit', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+
+  const bodySchema = z.object({
+    amount: z.number().int(),
+    reason: z.string().min(1),
+  });
+
+  const body = await c.req.json();
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', parsed.error.issues.map((i) => i.message).join(', '));
+  }
+
+  const { amount, reason } = parsed.data;
+
+  const customer = await db.customer.findUnique({ where: { id } });
+  if (!customer) {
+    return error(c, 404, 'NOT_FOUND', 'Customer not found');
+  }
+
+  const newBalance = customer.creditBalance + amount;
+  if (newBalance < 0) {
+    return error(c, 400, 'VALIDATION_ERROR', `Cannot deduct ${Math.abs(amount)} THB. Current balance is ${customer.creditBalance} THB.`);
+  }
+
+  const updated = await db.customer.update({
+    where: { id },
+    data: { creditBalance: newBalance },
+  });
+
+  // Log the credit adjustment as a finance transaction for tracking
+  try {
+    await db.financeTransaction.create({
+      data: {
+        txType: amount > 0 ? 'deposit_received' : 'deposit_returned',
+        amount: Math.abs(amount),
+        note: `Credit adjustment for customer ${customer.firstName} ${customer.lastName}: ${reason} (${customer.creditBalance} → ${newBalance} THB)`,
+      },
+    });
+  } catch {
+    // Finance transaction creation is non-critical
+  }
+
+  return success(c, {
+    customer_id: id,
+    previous_balance: customer.creditBalance,
+    adjustment: amount,
+    new_balance: updated.creditBalance,
+    reason,
   });
 });
 

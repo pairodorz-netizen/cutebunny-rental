@@ -6,7 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { api } from '@/lib/api';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Upload, FileCheck, X } from 'lucide-react';
 
 const THAI_PROVINCES = [
   { code: 'BKK', name: 'Bangkok' },
@@ -44,6 +44,11 @@ export default function CartPage() {
   const [creditLoading, setCreditLoading] = useState(false);
   const [customerFound, setCustomerFound] = useState(false);
 
+  // Terms & document upload state
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState<Array<{ url: string; doc_type: string; name: string }>>([]);
+  const [uploading, setUploading] = useState(false);
+
   const totals = getTotal();
 
   // Look up customer credit when email is entered
@@ -78,6 +83,24 @@ export default function CartPage() {
     }
   }, [name, phone]);
 
+  async function handleDocUpload(file: File, docType: string) {
+    setUploading(true);
+    try {
+      const result = await api.orders.uploadDocument(file, docType);
+      if (result.data?.url) {
+        setUploadedDocs((prev) => [...prev, { url: result.data.url, doc_type: docType, name: file.name }]);
+      }
+    } catch {
+      // Upload failed silently — user can retry
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeDoc(index: number) {
+    setUploadedDocs((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleProvinceChange(code: string) {
     setProvince(code);
     if (code) {
@@ -108,11 +131,13 @@ export default function CartPage() {
 
       // Place order
       const creditApplied = useCredit && creditToUse > 0 ? creditToUse : undefined;
+      const docUrls = uploadedDocs.length > 0 ? uploadedDocs.map((d) => ({ url: d.url, doc_type: d.doc_type })) : undefined;
       const orderResult = await api.orders.create({
         cart_token: cartResult.data.cart_token,
         customer: { name, phone, email },
         shipping_address: { province_code: province, line1: address, postal_code: postalCode },
         credit_applied: creditApplied,
+        document_urls: docUrls,
       });
 
       clearCart();
@@ -352,6 +377,101 @@ export default function CartPage() {
               </div>
             </div>
 
+            {/* Terms & Conditions */}
+            <div className="mt-6 rounded-lg border p-4">
+              <h3 className="font-semibold text-sm mb-2">{t('termsTitle')}</h3>
+              <div className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto bg-muted/30 rounded p-3 mb-3">
+                <p>เงื่อนไขการเช่าชุด CuteBunny Rental:</p>
+                <p>1. ลูกค้าต้องวางมัดจำตามจำนวนที่กำหนดก่อนรับชุด</p>
+                <p>2. หากชุดเสียหายหรือสูญหาย ลูกค้าต้องรับผิดชอบค่าเสียหายตามราคาที่กำหนด</p>
+                <p>3. ต้องส่งคืนชุดภายในวันที่กำหนด หากส่งคืนล่าช้าจะมีค่าปรับรายวัน</p>
+                <p>4. ลูกค้าต้องแนบสำเนาบัตรประชาชนและ/หรือหน้า Social Media เพื่อยืนยันตัวตน</p>
+                <p>5. ชุดที่เช่าต้องซักแห้งก่อนส่งคืน หรือชำระค่าซักเพิ่มเติม</p>
+                <p>6. การยกเลิกคำสั่งเช่าหลังจากชำระเงินแล้ว จะหักค่าธรรมเนียม 20%</p>
+                <p>7. CuteBunny Rental ขอสงวนสิทธิ์ในการปฏิเสธการให้เช่าหากพิจารณาแล้วเห็นว่าไม่เหมาะสม</p>
+              </div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="rounded border-input mt-0.5"
+                />
+                <span className="text-sm">{t('termsAccept')}</span>
+              </label>
+            </div>
+
+            {/* Document Upload */}
+            <div className="mt-4 rounded-lg border p-4">
+              <h3 className="font-semibold text-sm mb-2">{t('attachDocuments')}</h3>
+              <p className="text-xs text-muted-foreground mb-3">{t('attachDocumentsHint')}</p>
+
+              <div className="space-y-3">
+                {/* ID Card upload */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{t('docIdCard')}</label>
+                  <div className="mt-1">
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-input cursor-pointer hover:bg-muted/30 text-sm">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t('selectFile')}</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocUpload(file, 'id_card');
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Social Media screenshot upload */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">{t('docSocialMedia')}</label>
+                  <div className="mt-1">
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-input cursor-pointer hover:bg-muted/30 text-sm">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">{t('selectFile')}</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleDocUpload(file, 'social_media');
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {uploading && (
+                <p className="text-xs text-muted-foreground mt-2">{t('uploadingFile')}</p>
+              )}
+
+              {/* Uploaded files list */}
+              {uploadedDocs.length > 0 && (
+                <div className="mt-3 space-y-1">
+                  {uploadedDocs.map((doc, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-green-50 rounded px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <FileCheck className="h-3.5 w-3.5 text-green-600" />
+                        <span className="text-green-700">{doc.doc_type === 'id_card' ? t('docIdCard') : t('docSocialMedia')}: {doc.name}</span>
+                      </div>
+                      <button onClick={() => removeDoc(i)} className="text-muted-foreground hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {error && (
               <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
                 {error}
@@ -362,11 +482,16 @@ export default function CartPage() {
               <Button variant="outline" onClick={() => setStep('cart')}>{t('back')}</Button>
               <Button
                 onClick={handleCheckout}
-                disabled={loading || !name || !phone || !email || !province || !address}
+                disabled={loading || !name || !phone || !email || !province || !address || !termsAccepted || uploadedDocs.length === 0}
                 className="flex-1"
               >
                 {loading ? t('placing') : t('placeOrder')}
               </Button>
+              {(!termsAccepted || uploadedDocs.length === 0) && (
+                <p className="text-xs text-muted-foreground self-center">
+                  {!termsAccepted && !uploadedDocs.length ? t('requireTermsAndDocs') : !termsAccepted ? t('requireTerms') : t('requireDocs')}
+                </p>
+              )}
             </div>
           </div>
         </div>

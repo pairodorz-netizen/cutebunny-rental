@@ -114,7 +114,18 @@
     "creditBalanceLabel": "ยอมเครดิตของคุณ",
     "lookingUpCredit": "กำลังค้นหาบัญชี...",
     "returningCustomer": "ยินดีต้อนรับกลับ! ข้อมูลถูกกรอกให้อัตโนมัติ",
-    "newCustomer": "ลูกค้าใหม่"
+    "newCustomer": "ลูกค้าใหม่",
+    "termsTitle": "เงื่อนไขการเช่า",
+    "termsAccept": "ข้าพเจ้าได้อ่านและยอมรับเงื่อนไขการเช่าทั้งหมด",
+    "attachDocuments": "แนบเอกสาร",
+    "attachDocumentsHint": "กรุณาแนบสำเนาบัตรประชาชนและ/หรือภาพหน้าจอโซเชียลมีเดียเพื่อยืนยันตัวตน",
+    "docIdCard": "บัตรประชาชน",
+    "docSocialMedia": "หน้า Facebook / Instagram",
+    "selectFile": "เลือกไฟล์...",
+    "uploadingFile": "กำลังอัพโหลด...",
+    "requireTermsAndDocs": "กรุณายอมรับเงื่อนไขและแนบเอกสาร",
+    "requireTerms": "กรุณายอมรับเงื่อนไข",
+    "requireDocs": "กรุณาแนบเอกสารอย่างน้อย 1 รายการ"
   },
   "orderStatus": {
     "title": "สถานะคำสั่งซื้อ",

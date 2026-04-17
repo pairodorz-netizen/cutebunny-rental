@@ -114,7 +114,18 @@
     "creditBalanceLabel": "您的信用余额",
     "lookingUpCredit": "正在查找账户...",
     "returningCustomer": "欢迎回来！信息已自动填入。",
-    "newCustomer": "新客户"
+    "newCustomer": "新客户",
+    "termsTitle": "租赁条款与条件",
+    "termsAccept": "我已阅读并接受所有租赁条件",
+    "attachDocuments": "附加文件",
+    "attachDocumentsHint": "请上传您的身份证和/或社交媒体截图以验证身份。",
+    "docIdCard": "身份证",
+    "docSocialMedia": "Facebook / Instagram 截图",
+    "selectFile": "选择文件...",
+    "uploadingFile": "上传中...",
+    "requireTermsAndDocs": "请接受条款并上传文件",
+    "requireTerms": "请接受条款",
+    "requireDocs": "请至少上传一份文件"
   },
   "orderStatus": {
     "title": "订单状态",

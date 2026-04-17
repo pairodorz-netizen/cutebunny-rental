@@ -1,11 +1,19 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 
 import { getDb } from '../lib/db';
+import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
 import { confirmHolds } from '../lib/availability';
 import { calculateShippingFee } from '../lib/shipping';
 import { getCartStore } from './cart';
+
+function getSupabaseClient() {
+  const env = getEnv();
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+}
 
 const orders = new Hono();
 
@@ -35,6 +43,10 @@ orders.post('/', async (c) => {
       postal_code: z.string().optional(),
     }),
     credit_applied: z.number().int().min(0).optional(),
+    document_urls: z.array(z.object({
+      url: z.string().url(),
+      doc_type: z.string(),
+    })).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -199,6 +211,29 @@ orders.post('/', async (c) => {
     });
   }
 
+  // Store customer documents linked to the order's customer
+  if (parsed.data.document_urls && parsed.data.document_urls.length > 0) {
+    const docTypeMap: Record<string, 'id_card_front' | 'id_card_back' | 'facebook' | 'instagram' | 'selfie_with_id'> = {
+      id_card: 'id_card_front',
+      social_media: 'facebook',
+    };
+    for (const doc of parsed.data.document_urls) {
+      try {
+        const mappedType = docTypeMap[doc.doc_type] ?? 'id_card_front';
+        await db.customerDocument.create({
+          data: {
+            customerId: customer.id,
+            docType: mappedType,
+            storageKey: doc.url,
+            verified: false,
+          },
+        });
+      } catch {
+        // Non-critical — continue if document creation fails
+      }
+    }
+  }
+
   // Remove cart
   getCartStore().delete(parsed.data.cart_token);
 
@@ -253,6 +288,54 @@ orders.get('/customer/lookup', async (c) => {
     phone: customer.phone,
     credit_balance: customer.creditBalance,
   });
+});
+
+// POST /api/v1/orders/upload-document — Upload customer document (ID card, social media screenshot)
+orders.post('/upload-document', async (c) => {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    return error(c, 500, 'CONFIG_ERROR', 'Storage is not configured');
+  }
+
+  const formData = await c.req.formData();
+  const file = formData.get('file') as File | null;
+  const docType = (formData.get('doc_type') as string) || 'general';
+
+  if (!file) {
+    return error(c, 400, 'VALIDATION_ERROR', 'No file provided');
+  }
+
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  if (!allowedTypes.includes(file.type)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Only JPEG, PNG, WebP, and PDF files are allowed');
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return error(c, 400, 'VALIDATION_ERROR', 'File size must be less than 10MB');
+  }
+
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const timestamp = Date.now();
+  const rand = Math.random().toString(36).substring(2, 8);
+  const fileName = `customer-documents/${docType}/${timestamp}-${rand}.${ext}`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, arrayBuffer, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return error(c, 500, 'UPLOAD_ERROR', `Failed to upload: ${uploadError.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(uploadData.path);
+
+  return success(c, { url: urlData.publicUrl, doc_type: docType }, undefined, 201);
 });
 
 // C10: POST /api/v1/orders/:order_token/payment-slip — Upload payment slip

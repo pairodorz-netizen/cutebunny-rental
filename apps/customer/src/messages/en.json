@@ -114,7 +114,18 @@
     "creditBalanceLabel": "Your credit balance",
     "lookingUpCredit": "Looking up account...",
     "returningCustomer": "Welcome back! Your info has been auto-filled.",
-    "newCustomer": "New customer"
+    "newCustomer": "New customer",
+    "termsTitle": "Rental Terms & Conditions",
+    "termsAccept": "I have read and accept all rental conditions",
+    "attachDocuments": "Attach Documents",
+    "attachDocumentsHint": "Please upload your ID card and/or social media profile screenshot for identity verification.",
+    "docIdCard": "ID Card (บัตรประชาชน)",
+    "docSocialMedia": "Facebook / Instagram Screenshot",
+    "selectFile": "Choose file...",
+    "uploadingFile": "Uploading...",
+    "requireTermsAndDocs": "Please accept terms and upload documents",
+    "requireTerms": "Please accept the terms",
+    "requireDocs": "Please upload at least one document"
   },
   "orderStatus": {
     "title": "Order Status",

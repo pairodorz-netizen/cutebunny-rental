@@ -95,6 +95,7 @@ export interface AdminOrder {
   }>;
   tracking_number: string | null;
   total_amount: number;
+  credit_applied: number;
   payment_status: string;
   rental_period: {
     start: string;
@@ -654,6 +655,11 @@ export const adminApi = {
     },
     detail: (id: string) =>
       request<{ data: AdminCustomerDetail }>(`/api/v1/admin/customers/${id}`),
+    adjustCredit: (id: string, body: { amount: number; reason: string }) =>
+      request<{ data: { customer_id: string; previous_balance: number; adjustment: number; new_balance: number; reason: string } }>(`/api/v1/admin/customers/${id}/adjust-credit`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   shipping: {
     zones: () => request<{ data: ShippingZone[] }>('/api/v1/admin/shipping/zones'),

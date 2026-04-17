@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ChevronLeft, User, Mail, Phone, CreditCard } from 'lucide-react';
+import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle } from 'lucide-react';
 
 const TIER_COLORS: Record<string, string> = {
   bronze: 'bg-orange-100 text-orange-800',
@@ -15,10 +15,18 @@ const TIER_COLORS: Record<string, string> = {
 
 export function CustomersPage() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Credit adjustment modal state
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditReason, setCreditReason] = useState('');
+  const [creditError, setCreditError] = useState<string | null>(null);
+  const [creditSuccess, setCreditSuccess] = useState<string | null>(null);
 
   const params: Record<string, string> = { page: String(page), per_page: '20' };
   if (search) params.search = search;
@@ -33,6 +41,24 @@ export function CustomersPage() {
     queryKey: ['admin-customer-detail', selectedId],
     queryFn: () => adminApi.customers.detail(selectedId!),
     enabled: !!selectedId,
+  });
+
+  const creditMutation = useMutation({
+    mutationFn: ({ id, amount, reason }: { id: string; amount: number; reason: string }) =>
+      adminApi.customers.adjustCredit(id, { amount, reason }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-detail', selectedId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      setCreditSuccess(`Credit adjusted: ${result.data.previous_balance} → ${result.data.new_balance} THB`);
+      setCreditError(null);
+      setCreditAmount('');
+      setCreditReason('');
+      setTimeout(() => { setShowCreditModal(false); setCreditSuccess(null); }, 2000);
+    },
+    onError: (err: Error) => {
+      setCreditError(err.message);
+      setCreditSuccess(null);
+    },
   });
 
   const customers = listData?.data ?? [];
@@ -87,6 +113,14 @@ export function CustomersPage() {
                   <CreditCard className="h-4 w-4" /> {t('customers.credit')}
                 </div>
                 <p className="font-medium">{customer.credit_balance.toLocaleString()} THB</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 h-7 text-xs"
+                  onClick={() => { setShowCreditModal(true); setCreditError(null); setCreditSuccess(null); setCreditAmount(''); setCreditReason(''); }}
+                >
+                  <PlusCircle className="h-3 w-3 mr-1" /> {t('customers.adjustCredit')}
+                </Button>
               </div>
             </div>
 
@@ -156,6 +190,60 @@ export function CustomersPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {/* Credit Adjustment Modal */}
+            {showCreditModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreditModal(false)}>
+                <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-semibold mb-4">{t('customers.adjustCredit')}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {t('customers.currentBalance')}: <span className="font-semibold">{customer.credit_balance.toLocaleString()} THB</span>
+                  </p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium">{t('customers.creditAmount')}</label>
+                      <p className="text-xs text-muted-foreground mb-1">{t('customers.creditAmountHint')}</p>
+                      <input
+                        type="number"
+                        value={creditAmount}
+                        onChange={(e) => setCreditAmount(e.target.value)}
+                        className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        placeholder="e.g. 100 or -50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">{t('customers.creditReason')}</label>
+                      <textarea
+                        value={creditReason}
+                        onChange={(e) => setCreditReason(e.target.value)}
+                        className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        rows={2}
+                        placeholder={t('customers.creditReasonPlaceholder')}
+                      />
+                    </div>
+                    {creditError && (
+                      <div className="p-2 rounded bg-destructive/10 text-destructive text-sm">{creditError}</div>
+                    )}
+                    {creditSuccess && (
+                      <div className="p-2 rounded bg-green-50 text-green-700 text-sm">{creditSuccess}</div>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <Button variant="outline" size="sm" onClick={() => setShowCreditModal(false)}>{t('common.cancel')}</Button>
+                    <Button
+                      size="sm"
+                      disabled={!creditAmount || !creditReason || creditMutation.isPending}
+                      onClick={() => {
+                        const amt = parseInt(creditAmount, 10);
+                        if (isNaN(amt) || amt === 0) { setCreditError('Amount must be a non-zero integer'); return; }
+                        creditMutation.mutate({ id: selectedId!, amount: amt, reason: creditReason });
+                      }}
+                    >
+                      {creditMutation.isPending ? t('common.saving') : t('customers.submitAdjustment')}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
