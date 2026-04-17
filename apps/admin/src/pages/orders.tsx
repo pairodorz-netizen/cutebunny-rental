@@ -753,6 +753,12 @@ export function OrdersPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {t('orders.rentalPeriod')}: {order.rental_period.start} — {order.rental_period.end}
                       </div>
+                      {/* Credit Applied */}
+                      {order.credit_applied > 0 && (
+                        <div className="mt-1 text-xs text-green-600 font-medium">
+                          {t('orders.creditApplied')}: -{order.credit_applied.toLocaleString()} THB
+                        </div>
+                      )}
                       {/* Payment Slips Section */}
                       <ExpandedPaymentSlips
                         orderId={order.id}

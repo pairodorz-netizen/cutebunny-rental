@@ -133,6 +133,7 @@ adminOrders.get('/', async (c) => {
     })),
     tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
     total_amount: o.totalAmount,
+    credit_applied: o.creditApplied ?? 0,
     payment_status: o.paymentSlips[0]?.verificationStatus ?? 'no_slip',
     rental_period: {
       start: o.rentalStartDate.toISOString().split('T')[0],
