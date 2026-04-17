@@ -205,6 +205,7 @@
     "buyingCost": "ต้นทุนซื้อ",
     "variableCost": "ต้นทุนผันแปร",
     "extraDayRate": "ค่าเช่าวันเพิ่ม",
+    "extraDay": "วันเพิ่ม",
     "retailPrice": "ราคาขายปลีก",
     "sellingPrice": "ราคาขาย",
     "profitLoss": "กำไร/ขาดทุน",

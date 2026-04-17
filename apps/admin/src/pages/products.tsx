@@ -28,7 +28,7 @@ export function ProductsPage() {
   const [mode, setMode] = useState<FormMode>('list');
   const [editingProduct, setEditingProduct] = useState<AdminProduct | null>(null);
   const [editingCombo, setEditingCombo] = useState<AdminComboSet | null>(null);
-  const [editPanelOpen, setEditPanelOpen] = useState(false);
+
 
   // Search fields
   const [searchSku, setSearchSku] = useState('');
@@ -99,14 +99,9 @@ export function ProductsPage() {
     if (window.confirm(t('products.confirmDelete'))) deleteComboMutation.mutate(id);
   }
 
-  function openEditPanel(product: AdminProduct) {
+  function openEditPage(product: AdminProduct) {
     setEditingProduct(product);
-    setEditPanelOpen(true);
-  }
-
-  function closeEditPanel() {
-    setEditPanelOpen(false);
-    setEditingProduct(null);
+    setMode('edit');
   }
 
   // Bulk import view
@@ -240,7 +235,7 @@ export function ProductsPage() {
           <CurrentProductsTable
             products={currentProducts}
             isLoading={isLoading}
-            onEdit={openEditPanel}
+            onEdit={openEditPage}
             onRowClick={(p) => navigate(`/products/${p.id}`)}
             onDelete={handleDelete}
           />
@@ -276,17 +271,7 @@ export function ProductsPage() {
         )}
       </div>
 
-      {/* Edit Slide-Over Panel */}
-      {editPanelOpen && editingProduct && (
-        <EditProductPanel
-          product={editingProduct}
-          onClose={closeEditPanel}
-          onSaved={() => {
-            closeEditPanel();
-            queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-          }}
-        />
-      )}
+
     </div>
   );
 }
@@ -530,209 +515,6 @@ function SoldProductsTable({
   );
 }
 
-// ─── Edit Product Panel (Slide-Over) ─────────────────────────────────────
-function EditProductPanel({
-  product,
-  onClose,
-  onSaved,
-}: {
-  product: AdminProduct;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { t } = useTranslation();
-  const [name, setName] = useState(product.name);
-  const [brandName, setBrandName] = useState(product.brand ?? '');
-  const [category, setCategory] = useState(product.category);
-  const [size, setSize] = useState(product.size?.join(', ') ?? '');
-  const [color, setColor] = useState(product.color?.join(', ') ?? '');
-  const [price1, setPrice1] = useState(String(product.rental_prices['1day']));
-  const [price3, setPrice3] = useState(String(product.rental_prices['3day']));
-  const [price5, setPrice5] = useState(String(product.rental_prices['5day']));
-  const [costPrice, setCostPrice] = useState(String(product.cost_price));
-  const [variableCost, setVariableCost] = useState(String(product.variable_cost));
-  const [extraDayRate, setExtraDayRate] = useState(String(product.extra_day_rate ?? 0));
-  const [retailPrice, setRetailPrice] = useState(String(product.retail_price));
-
-  // Mark as Sold state
-  const [showSoldForm, setShowSoldForm] = useState(false);
-  const [sellingPrice, setSellingPrice] = useState('');
-
-  const updateMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product.id, body),
-    onSuccess: () => onSaved(),
-  });
-
-  const markSoldMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product.id, body),
-    onSuccess: () => onSaved(),
-  });
-
-  function handleSave() {
-    updateMutation.mutate({
-      name,
-      brand_name: brandName || undefined,
-      category,
-      size: size.split(',').map((s) => s.trim()).filter(Boolean),
-      color: color.split(',').map((s) => s.trim()).filter(Boolean),
-      rental_price_1day: Number(price1),
-      rental_price_3day: Number(price3),
-      rental_price_5day: Number(price5),
-      cost_price: Number(costPrice),
-      variable_cost: Number(variableCost),
-      extra_day_rate: Number(extraDayRate),
-      retail_price: Number(retailPrice),
-    });
-  }
-
-  function handleMarkAsSold() {
-    if (!sellingPrice || Number(sellingPrice) <= 0) return;
-    markSoldMutation.mutate({
-      product_status: 'sold',
-      selling_price: Number(sellingPrice),
-    });
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white shadow-xl overflow-y-auto">
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold">{t('products.editTitle')}: {product.sku}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-muted rounded"><X className="h-5 w-5" /></button>
-        </div>
-
-        <div className="p-4 space-y-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">{t('products.name')}</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">{t('products.brand')}</label>
-            <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} className="h-8 text-sm" placeholder={t('products.brandPlaceholder')} />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">{t('products.category')}</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-              {['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'].map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.sizes')}</label>
-              <Input value={size} onChange={(e) => setSize(e.target.value)} className="h-8 text-sm" placeholder="S, M, L" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.colors')}</label>
-              <Input value={color} onChange={(e) => setColor(e.target.value)} className="h-8 text-sm" placeholder="red, blue" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">{t('products.pricing')}</label>
-            <div className="grid grid-cols-3 gap-2 mt-1">
-              <div>
-                <span className="text-[10px] text-muted-foreground">1D</span>
-                <Input type="number" value={price1} onChange={(e) => setPrice1(e.target.value)} className="h-8 text-sm" />
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">3D</span>
-                <Input type="number" value={price3} onChange={(e) => setPrice3(e.target.value)} className="h-8 text-sm" />
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground">5D</span>
-                <Input type="number" value={price5} onChange={(e) => setPrice5(e.target.value)} className="h-8 text-sm" />
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.buyingCost')}</label>
-              <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} className="h-8 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.variableCost')}</label>
-              <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} className="h-8 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.extraDayRate')}</label>
-              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} className="h-8 text-sm" placeholder="0" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">{t('products.retailPrice')}</label>
-              <Input type="number" value={retailPrice} onChange={(e) => setRetailPrice(e.target.value)} className="h-8 text-sm" />
-            </div>
-          </div>
-
-          {/* Image Manager */}
-          <ProductImageManager productId={product.id} />
-
-          {/* Mark as Sold Section */}
-          {product.product_status !== 'sold' && (
-            <div className="border-t pt-4">
-              {!showSoldForm ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
-                  onClick={() => setShowSoldForm(true)}
-                >
-                  <DollarSign className="h-4 w-4 mr-1" />
-                  {t('products.markAsSold')}
-                </Button>
-              ) : (
-                <div className="space-y-3 p-3 rounded border border-orange-200 bg-orange-50">
-                  <p className="text-sm font-medium text-orange-700">{t('products.markAsSoldTitle')}</p>
-                  <div>
-                    <label className="text-xs text-orange-700">{t('products.sellingPrice')}</label>
-                    <Input
-                      type="number"
-                      value={sellingPrice}
-                      onChange={(e) => setSellingPrice(e.target.value)}
-                      className="h-8 text-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setShowSoldForm(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-orange-600 hover:bg-orange-700"
-                      onClick={handleMarkAsSold}
-                      disabled={markSoldMutation.isPending || !sellingPrice}
-                    >
-                      {markSoldMutation.isPending ? t('common.loading') : t('products.confirmSold')}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Save / Cancel */}
-          <div className="flex gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={onClose} className="flex-1">
-              {t('common.cancel')}
-            </Button>
-            <Button onClick={handleSave} disabled={updateMutation.isPending} className="flex-1">
-              {updateMutation.isPending ? t('common.loading') : t('common.save')}
-            </Button>
-          </div>
-
-          {(updateMutation.isError || markSoldMutation.isError) && (
-            <p className="text-sm text-destructive">
-              {((updateMutation.error || markSoldMutation.error) as Error)?.message}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Product Form (Create / Edit) ────────────────────────────────────────
 function ProductForm({
   mode,
@@ -764,6 +546,8 @@ function ProductForm({
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showSoldForm, setShowSoldForm] = useState(false);
+  const [sellingPrice, setSellingPrice] = useState('');
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
@@ -774,6 +558,19 @@ function ProductForm({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product!.id, body),
     onSuccess,
   });
+
+  const markSoldMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product!.id, body),
+    onSuccess,
+  });
+
+  function handleMarkAsSold() {
+    if (!sellingPrice || Number(sellingPrice) <= 0) return;
+    markSoldMutation.mutate({
+      product_status: 'sold',
+      selling_price: Number(sellingPrice),
+    });
+  }
 
   async function handleFileUpload(files: FileList) {
     setUploadingFiles(true);
@@ -869,7 +666,7 @@ function ProductForm({
 
         <div>
           <label className="text-sm font-medium">{t('products.pricing')}</label>
-          <div className="grid grid-cols-3 gap-3 mt-1">
+          <div className="grid grid-cols-4 gap-3 mt-1">
             <div>
               <span className="text-xs text-muted-foreground">1 {t('products.day')}</span>
               <Input type="number" value={price1} onChange={(e) => setPrice1(e.target.value)} />
@@ -882,10 +679,14 @@ function ProductForm({
               <span className="text-xs text-muted-foreground">5 {t('products.days')}</span>
               <Input type="number" value={price5} onChange={(e) => setPrice5(e.target.value)} />
             </div>
+            <div>
+              <span className="text-xs text-muted-foreground">{t('products.extraDay')}</span>
+              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="text-sm font-medium">{t('products.buyingCost')}</label>
             <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
@@ -893,10 +694,6 @@ function ProductForm({
           <div>
             <label className="text-sm font-medium">{t('products.variableCost')}</label>
             <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} placeholder="100" />
-          </div>
-          <div>
-            <label className="text-sm font-medium">{t('products.extraDayRate')}</label>
-            <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.retailPrice')}</label>
@@ -993,6 +790,50 @@ function ProductForm({
 
         {/* Product Image Manager (edit mode only) */}
         {mode === 'edit' && product && <ProductImageManager productId={product.id} />}
+
+        {/* Mark as Sold Section (edit mode only) */}
+        {mode === 'edit' && product && product.product_status !== 'sold' && (
+          <div className="border-t pt-4">
+            {!showSoldForm ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                onClick={() => setShowSoldForm(true)}
+              >
+                <DollarSign className="h-4 w-4 mr-1" />
+                {t('products.markAsSold')}
+              </Button>
+            ) : (
+              <div className="space-y-3 p-3 rounded border border-orange-200 bg-orange-50">
+                <p className="text-sm font-medium text-orange-700">{t('products.markAsSoldTitle')}</p>
+                <div>
+                  <label className="text-xs text-orange-700">{t('products.sellingPrice')}</label>
+                  <Input
+                    type="number"
+                    value={sellingPrice}
+                    onChange={(e) => setSellingPrice(e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowSoldForm(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-orange-600 hover:bg-orange-700"
+                    onClick={handleMarkAsSold}
+                    disabled={markSoldMutation.isPending || !sellingPrice}
+                  >
+                    {markSoldMutation.isPending ? t('common.loading') : t('products.confirmSold')}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="outline" onClick={onBack}>{t('common.cancel')}</Button>
@@ -1136,7 +977,7 @@ function ComboSetForm({
 
         <div>
           <label className="text-sm font-medium">{t('products.pricing')}</label>
-          <div className="grid grid-cols-3 gap-3 mt-1">
+          <div className="grid grid-cols-4 gap-3 mt-1">
             <div>
               <span className="text-xs text-muted-foreground">1 {t('products.day')}</span>
               <Input type="number" value={price1} onChange={(e) => setPrice1(e.target.value)} />
@@ -1149,18 +990,16 @@ function ComboSetForm({
               <span className="text-xs text-muted-foreground">5 {t('products.days')}</span>
               <Input type="number" value={price5} onChange={(e) => setPrice5(e.target.value)} />
             </div>
+            <div>
+              <span className="text-xs text-muted-foreground">{t('products.extraDay')}</span>
+              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium">{t('products.variableCost')}</label>
-            <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium">{t('products.extraDayRate')}</label>
-            <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
-          </div>
+        <div>
+          <label className="text-sm font-medium">{t('products.variableCost')}</label>
+          <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} className="max-w-xs" />
         </div>
 
         {/* Thumbnail Upload */}

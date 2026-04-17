@@ -18,8 +18,9 @@ const RENTAL_TIERS = [
 
 /**
  * Calculate rental price based on number of days.
- * - 1, 3, or 5 days: use preset price
- * - 2 or 4 days: interpolate between presets
+ * - 1 day: use 1-day price
+ * - 2-3 days: use 3-day price
+ * - 4-5 days: use 5-day price
  * - >5 days: price_5day + extra_day_rate * (days - 5)
  */
 function calculateRentalPrice(
@@ -29,10 +30,8 @@ function calculateRentalPrice(
 ): number {
   if (days <= 0) return 0;
   if (days === 1) return prices['1day'];
-  if (days === 3) return prices['3day'];
-  if (days === 5) return prices['5day'];
-  if (days === 2) return Math.round((prices['1day'] + prices['3day']) / 2);
-  if (days === 4) return Math.round((prices['3day'] + prices['5day']) / 2);
+  if (days === 2 || days === 3) return prices['3day'];
+  if (days === 4 || days === 5) return prices['5day'];
   // days > 5: 5-day price + extra rate per additional day
   if (extraDayRate > 0) {
     return prices['5day'] + extraDayRate * (days - 5);
@@ -82,12 +81,10 @@ export default function ProductDetailPage() {
 
   function handleRangeSelect(startDate: string, endDate: string, days: number) {
     setSelectedStartDate(startDate);
-    setSelectedEndDate(endDate);
+    // If start === end (single date / 3rd-click reset), clear end date display
+    setSelectedEndDate(startDate === endDate ? null : endDate);
     setCustomDays(days);
-    // If matches a preset, also highlight that preset
-    if (days === 1 || days === 3 || days === 5) {
-      setSelectedRentalDays(days);
-    }
+    setSelectedRentalDays(days === 1 || days === 3 || days === 5 ? days : selectedRentalDays);
   }
 
   function handlePresetClick(days: number) {

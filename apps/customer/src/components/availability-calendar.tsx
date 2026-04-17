@@ -86,6 +86,8 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
+      // Notify parent to reset to 1-day price
+      onSelectRange?.(dateStr, dateStr, 1);
     }
   }, [clickCount, rangeStart, onSelectRange]);
 
@@ -130,9 +132,9 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
 
             let colorClass = '';
             if (isStart || isEnd) {
-              colorClass = 'bg-primary text-white';
+              colorClass = 'bg-[#93C5FD] text-blue-900 font-medium';
             } else if (inRange && isAvailable) {
-              colorClass = 'bg-primary/20 text-primary';
+              colorClass = 'bg-[#DBEAFE] text-blue-800';
             } else if (inRange && !isAvailable) {
               colorClass = 'bg-red-100 text-red-600 line-through';
             } else if (isAvailable) {
