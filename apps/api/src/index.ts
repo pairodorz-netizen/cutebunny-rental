@@ -17,6 +17,7 @@ import adminShipping from './routes/admin/shipping';
 import adminFinance from './routes/admin/finance';
 import adminImages from './routes/admin/images';
 import adminSettings from './routes/admin/settings';
+import adminComboSets from './routes/admin/combo-sets';
 import customerAuth from './routes/customer-auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -97,6 +98,7 @@ app.use('/api/v1/admin/shipping/*', requireAuth);
 app.use('/api/v1/admin/finance/*', requireAuth);
 app.use('/api/v1/admin/images/*', requireAuth);
 app.use('/api/v1/admin/settings/*', requireAuth);
+app.use('/api/v1/admin/combo-sets/*', requireAuth);
 
 app.route('/api/v1/admin/dashboard', adminDashboard);
 app.route('/api/v1/admin/orders', adminOrders);
@@ -107,6 +109,7 @@ app.route('/api/v1/admin/shipping', adminShipping);
 app.route('/api/v1/admin/finance', adminFinance);
 app.route('/api/v1/admin/images', adminImages);
 app.route('/api/v1/admin/settings', adminSettings);
+app.route('/api/v1/admin/combo-sets', adminComboSets);
 
 export default app;
 export type AppType = typeof app;

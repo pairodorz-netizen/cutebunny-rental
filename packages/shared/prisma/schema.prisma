@@ -123,7 +123,8 @@ model Brand {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  products Product[]
+  products  Product[]
+  comboSets  ComboSet[]
 
   @@map("brands")
 }
@@ -154,11 +155,17 @@ model Product {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
+  costPrice       Int             @default(0) @map("cost_price")
+  sellingPrice    Int             @default(0) @map("selling_price")
+  productStatus   String          @default("active") @map("product_status")
+  soldAt          DateTime?       @map("sold_at")
+
   brand               Brand?               @relation(fields: [brandId], references: [id])
   images              ProductImage[]
   inventoryStatusLogs InventoryStatusLog[]
   availabilitySlots   AvailabilityCalendar[]
   orderItems          OrderItem[]
+  comboSetItems       ComboSetItem[]
 
   @@map("products")
 }
@@ -422,4 +429,40 @@ model AuditLog {
   admin AdminUser @relation(fields: [adminId], references: [id])
 
   @@map("audit_logs")
+}
+
+model ComboSet {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sku             String   @unique
+  name            String
+  brandId         String?  @map("brand_id") @db.Uuid
+  color           String[]
+  size            String[]
+  thumbnailUrl    String?  @map("thumbnail_url")
+  rentalPrice1Day Int      @default(0) @map("rental_price_1day")
+  rentalPrice3Day Int      @default(0) @map("rental_price_3day")
+  rentalPrice5Day Int      @default(0) @map("rental_price_5day")
+  variableCost    Int      @default(0) @map("variable_cost")
+  available       Boolean  @default(true)
+  rentalCount     Int      @default(0) @map("rental_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  brand Brand?         @relation(fields: [brandId], references: [id])
+  items ComboSetItem[]
+
+  @@map("combo_sets")
+}
+
+model ComboSetItem {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  comboSetId      String   @map("combo_set_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  revenueSharePct Float    @default(50) @map("revenue_share_pct")
+  label           String?
+
+  comboSet ComboSet @relation(fields: [comboSetId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@map("combo_set_items")
 }

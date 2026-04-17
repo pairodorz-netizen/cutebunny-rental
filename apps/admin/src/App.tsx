@@ -11,6 +11,7 @@ import { FinancePage } from '@/pages/finance';
 import { SettingsPage } from '@/pages/settings';
 import { ShippingLabelPage } from '@/pages/shipping-label';
 import { ShippingPage } from '@/pages/shipping';
+import { ProductDetailPage } from '@/pages/product-detail';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/products" element={<ProductsPage />} />
+            <Route path="/products/:id" element={<ProductDetailPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/finance" element={<FinancePage />} />

@@ -64,6 +64,11 @@ adminProducts.get('/', async (c) => {
     stock: p.stockQuantity,
     rental_count: p.rentalCount,
     available: p.available,
+    cost_price: p.costPrice,
+    selling_price: p.sellingPrice,
+    product_status: p.productStatus,
+    sold_at: p.soldAt?.toISOString() ?? null,
+    variable_cost: p.variableCost,
     created_at: p.createdAt.toISOString(),
   }));
 
@@ -416,6 +421,7 @@ adminProducts.post('/', async (c) => {
     description_i18n: z.record(z.string()).optional(),
     category: z.enum(['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories']),
     brand_id: z.string().uuid().optional(),
+    brand_name: z.string().optional(),
     size: z.array(z.string()).min(1),
     color: z.array(z.string()).min(1),
     rental_price_1day: z.number().int().min(0),
@@ -423,8 +429,10 @@ adminProducts.post('/', async (c) => {
     rental_price_5day: z.number().int().min(0),
     retail_price: z.number().int().min(0).optional(),
     variable_cost: z.number().int().min(0).optional(),
-    deposit: z.number().int().min(0),
+    cost_price: z.number().int().min(0).optional(),
+    deposit: z.number().int().min(0).optional(),
     stock_quantity: z.number().int().min(0).optional(),
+    image_urls: z.array(z.string().url()).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -439,6 +447,16 @@ adminProducts.post('/', async (c) => {
     return error(c, 409, 'DUPLICATE_SKU', `SKU "${parsed.data.sku}" already exists`);
   }
 
+  // Resolve brand: brand_id takes priority, then brand_name (find-or-create)
+  let resolvedBrandId = parsed.data.brand_id ?? null;
+  if (!resolvedBrandId && parsed.data.brand_name) {
+    let brand = await db.brand.findFirst({ where: { name: { equals: parsed.data.brand_name, mode: 'insensitive' } } });
+    if (!brand) {
+      brand = await db.brand.create({ data: { name: parsed.data.brand_name } });
+    }
+    resolvedBrandId = brand.id;
+  }
+
   const product = await db.product.create({
     data: {
       sku: parsed.data.sku,
@@ -447,18 +465,30 @@ adminProducts.post('/', async (c) => {
       description: parsed.data.description ?? '',
       descriptionI18n: parsed.data.description_i18n ?? Prisma.JsonNull,
       category: parsed.data.category,
-      brandId: parsed.data.brand_id ?? null,
+      brandId: resolvedBrandId,
       size: parsed.data.size,
       color: parsed.data.color,
       rentalPrice1Day: parsed.data.rental_price_1day,
       rentalPrice3Day: parsed.data.rental_price_3day,
       rentalPrice5Day: parsed.data.rental_price_5day,
       retailPrice: parsed.data.retail_price ?? 0,
-      variableCost: parsed.data.variable_cost ?? 0,
-      deposit: parsed.data.deposit,
+      variableCost: parsed.data.variable_cost ?? 100,
+      costPrice: parsed.data.cost_price ?? 0,
+      deposit: parsed.data.deposit ?? parsed.data.cost_price ?? 0,
       stockQuantity: parsed.data.stock_quantity ?? 1,
     },
   });
+
+  // Create product images if URLs provided
+  if (parsed.data.image_urls && parsed.data.image_urls.length > 0) {
+    await Promise.all(
+      parsed.data.image_urls.map((url, idx) =>
+        db.productImage.create({
+          data: { productId: product.id, url, sortOrder: idx },
+        })
+      )
+    );
+  }
 
   // Audit log for product creation (non-blocking)
   try {
@@ -501,6 +531,7 @@ adminProducts.patch('/:id', async (c) => {
     description_i18n: z.record(z.string()).optional(),
     category: z.enum(['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories']).optional(),
     brand_id: z.string().uuid().nullable().optional(),
+    brand_name: z.string().optional(),
     size: z.array(z.string()).min(1).optional(),
     color: z.array(z.string()).min(1).optional(),
     rental_price_1day: z.number().int().min(0).optional(),
@@ -508,9 +539,13 @@ adminProducts.patch('/:id', async (c) => {
     rental_price_5day: z.number().int().min(0).optional(),
     retail_price: z.number().int().min(0).optional(),
     variable_cost: z.number().int().min(0).optional(),
+    cost_price: z.number().int().min(0).optional(),
     deposit: z.number().int().min(0).optional(),
     stock_quantity: z.number().int().min(0).optional(),
     available: z.boolean().optional(),
+    product_status: z.enum(['active', 'sold', 'decommissioned']).optional(),
+    selling_price: z.number().int().min(0).optional(),
+    image_urls: z.array(z.string().url()).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -526,6 +561,11 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.description_i18n !== undefined) updateData.descriptionI18n = parsed.data.description_i18n;
   if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
   if (parsed.data.brand_id !== undefined) updateData.brand = parsed.data.brand_id ? { connect: { id: parsed.data.brand_id } } : { disconnect: true };
+  if (!parsed.data.brand_id && parsed.data.brand_name) {
+    let brand = await db.brand.findFirst({ where: { name: { equals: parsed.data.brand_name, mode: 'insensitive' } } });
+    if (!brand) brand = await db.brand.create({ data: { name: parsed.data.brand_name } });
+    updateData.brand = { connect: { id: brand.id } };
+  }
   if (parsed.data.size !== undefined) updateData.size = parsed.data.size;
   if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;
@@ -536,6 +576,16 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.deposit !== undefined) updateData.deposit = parsed.data.deposit;
   if (parsed.data.stock_quantity !== undefined) updateData.stockQuantity = parsed.data.stock_quantity;
   if (parsed.data.available !== undefined) updateData.available = parsed.data.available;
+  if (parsed.data.cost_price !== undefined) updateData.costPrice = parsed.data.cost_price;
+  if (parsed.data.product_status !== undefined) {
+    updateData.productStatus = parsed.data.product_status;
+    if (parsed.data.product_status === 'sold') {
+      updateData.soldAt = new Date();
+      updateData.available = false;
+      updateData.stockQuantity = 0;
+    }
+  }
+  if (parsed.data.selling_price !== undefined) updateData.sellingPrice = parsed.data.selling_price;
 
   const updated = await db.product.update({
     where: { id },
@@ -557,11 +607,130 @@ adminProducts.patch('/:id', async (c) => {
     }
   } catch { /* audit failure should not block */ }
 
+  // Handle image URLs if provided
+  if (parsed.data.image_urls && parsed.data.image_urls.length > 0) {
+    // Delete existing images and re-create
+    await db.productImage.deleteMany({ where: { productId: id } });
+    await Promise.all(
+      parsed.data.image_urls.map((url, idx) =>
+        db.productImage.create({ data: { productId: id, url, sortOrder: idx } })
+      )
+    );
+  }
+
+  // Create finance transaction if marked as sold
+  if (parsed.data.product_status === 'sold' && parsed.data.selling_price) {
+    try {
+      await db.financeTransaction.create({
+        data: {
+          txType: 'force_buy',
+          amount: parsed.data.selling_price,
+          note: `Product sold: ${product.sku} - ${product.name}`,
+          createdBy: admin.sub,
+        },
+      });
+    } catch { /* finance failure should not block */ }
+  }
+
   return success(c, {
     id: updated.id,
     sku: updated.sku,
     name: updated.name,
     updated_at: updated.updatedAt.toISOString(),
+  });
+});
+
+// GET /api/v1/admin/products/:id/detail — Full product detail with images, rental history, calendar
+adminProducts.get('/:id/detail', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+
+  const product = await db.product.findUnique({
+    where: { id },
+    include: {
+      brand: true,
+      images: { orderBy: { sortOrder: 'asc' } },
+      orderItems: {
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              rentalStartDate: true,
+              rentalEndDate: true,
+              totalDays: true,
+              createdAt: true,
+              customer: { select: { firstName: true, lastName: true, phone: true } },
+            },
+          },
+        },
+        orderBy: { order: { createdAt: 'desc' } },
+      },
+    },
+  });
+
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  // Calculate P&L
+  const completedStatuses = ['returned', 'cleaning', 'repair', 'finished'];
+  const completedItems = product.orderItems.filter((oi) => completedStatuses.includes(oi.order.status));
+  const totalRentalRevenue = completedItems.reduce((sum, oi) => sum + oi.subtotal, 0);
+
+  return success(c, {
+    id: product.id,
+    sku: product.sku,
+    name: product.name,
+    name_i18n: product.nameI18n,
+    description: product.description,
+    category: product.category,
+    brand: product.brand?.name ?? null,
+    brand_id: product.brandId,
+    thumbnail: product.images[0]?.url ?? product.thumbnailUrl,
+    images: product.images.map((img) => ({ id: img.id, url: img.url, alt: img.altText })),
+    size: product.size,
+    color: product.color,
+    rental_prices: {
+      '1day': product.rentalPrice1Day,
+      '3day': product.rentalPrice3Day,
+      '5day': product.rentalPrice5Day,
+    },
+    retail_price: product.retailPrice,
+    cost_price: product.costPrice,
+    variable_cost: product.variableCost,
+    deposit: product.deposit,
+    selling_price: product.sellingPrice,
+    product_status: product.productStatus,
+    sold_at: product.soldAt?.toISOString() ?? null,
+    stock: product.stockQuantity,
+    rental_count: product.rentalCount,
+    available: product.available,
+    rental_history: product.orderItems.map((oi) => ({
+      order_id: oi.order.id,
+      order_number: oi.order.orderNumber,
+      customer_name: `${oi.order.customer.firstName} ${oi.order.customer.lastName}`,
+      customer_phone: oi.order.customer.phone,
+      rental_start: oi.order.rentalStartDate.toISOString().split('T')[0],
+      rental_end: oi.order.rentalEndDate.toISOString().split('T')[0],
+      rental_days: oi.order.totalDays,
+      revenue: oi.subtotal,
+      status: oi.order.status,
+      date: oi.order.createdAt.toISOString(),
+    })),
+    calendar: product.orderItems.map((oi) => ({
+      start: oi.order.rentalStartDate.toISOString().split('T')[0],
+      end: oi.order.rentalEndDate.toISOString().split('T')[0],
+      status: oi.order.status,
+      order_number: oi.order.orderNumber,
+    })),
+    profit_summary: {
+      buying_cost: product.costPrice,
+      total_rental_revenue: totalRentalRevenue,
+      selling_price: product.sellingPrice,
+      net_pl: totalRentalRevenue + product.sellingPrice - product.costPrice,
+    },
   });
 });
 

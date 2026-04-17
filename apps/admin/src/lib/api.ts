@@ -185,6 +185,85 @@ export interface AdminProduct {
   stock: number;
   rental_count: number;
   available: boolean;
+  cost_price: number;
+  selling_price: number;
+  product_status: string;
+  sold_at: string | null;
+  variable_cost: number;
+  created_at: string;
+}
+
+export interface AdminProductDetail {
+  id: string;
+  sku: string;
+  name: string;
+  name_i18n: Record<string, string> | null;
+  description: string | null;
+  category: string;
+  brand: string | null;
+  brand_id: string | null;
+  thumbnail: string | null;
+  images: Array<{ id: string; url: string; alt: string | null }>;
+  size: string[];
+  color: string[];
+  rental_prices: { '1day': number; '3day': number; '5day': number };
+  retail_price: number;
+  cost_price: number;
+  variable_cost: number;
+  deposit: number;
+  selling_price: number;
+  product_status: string;
+  sold_at: string | null;
+  stock: number;
+  rental_count: number;
+  available: boolean;
+  rental_history: Array<{
+    order_id: string;
+    order_number: string;
+    customer_name: string;
+    customer_phone: string;
+    rental_start: string;
+    rental_end: string;
+    rental_days: number;
+    revenue: number;
+    status: string;
+    date: string;
+  }>;
+  calendar: Array<{
+    start: string;
+    end: string;
+    status: string;
+    order_number: string;
+  }>;
+  profit_summary: {
+    buying_cost: number;
+    total_rental_revenue: number;
+    selling_price: number;
+    net_pl: number;
+  };
+}
+
+export interface AdminComboSet {
+  id: string;
+  sku: string;
+  name: string;
+  brand: string | null;
+  thumbnail: string | null;
+  color: string[];
+  size: string[];
+  rental_prices: { '1day': number; '3day': number; '5day': number };
+  variable_cost: number;
+  available: boolean;
+  rental_count: number;
+  items: Array<{
+    id: string;
+    product_id: string;
+    product_sku: string;
+    product_name: string;
+    product_thumbnail: string | null;
+    revenue_share_pct: number;
+    label: string | null;
+  }>;
   created_at: string;
 }
 
@@ -299,6 +378,7 @@ export interface BulkImportResult {
   updates?: number;
   preview?: Array<{ row: number; name: string; category: string; size?: string[]; color?: string[]; price_1day: number; deposit?: number; action: 'create' | 'update' }>;
   results?: Array<{ row: number; action: string; id: string; name: string }>;
+  errors?: Array<{ row: number; field: string; message: string }>;
 }
 
 export interface ProductROI {
@@ -526,6 +606,30 @@ export const adminApi = {
       request<{ data: BulkImportResult }>('/api/v1/admin/products/import', {
         method: 'POST',
         body: JSON.stringify({ csv_data: csvData, dry_run: dryRun }),
+      }),
+    detail: (id: string) =>
+      request<{ data: AdminProductDetail }>(`/api/v1/admin/products/${id}/detail`),
+  },
+  comboSets: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? new URLSearchParams(params).toString() : '';
+      return request<{ data: AdminComboSet[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/combo-sets${qs ? `?${qs}` : ''}`);
+    },
+    detail: (id: string) =>
+      request<{ data: AdminComboSet }>(`/api/v1/admin/combo-sets/${id}`),
+    create: (body: Record<string, unknown>) =>
+      request<{ data: { id: string; sku: string; name: string } }>('/api/v1/admin/combo-sets', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Record<string, unknown>) =>
+      request<{ data: { id: string; updated: boolean } }>(`/api/v1/admin/combo-sets/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ data: { id: string; deleted: boolean } }>(`/api/v1/admin/combo-sets/${id}`, {
+        method: 'DELETE',
       }),
   },
   calendar: {
