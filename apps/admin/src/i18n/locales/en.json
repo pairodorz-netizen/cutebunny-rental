@@ -125,7 +125,11 @@
     "applyFee": "Apply suggested fee",
     "notOverdue": "This order is not overdue.",
     "forceBuyWarning": "Force Buy Warning",
-    "forceBuyDesc": "This will decommission the product (mark unavailable, stock 0) and deduct from the customer's deposit."
+    "forceBuyDesc": "This will decommission the product (mark unavailable, stock 0) and deduct from the customer's deposit.",
+    "editOrder": "Edit Order",
+    "address": "Address",
+    "addressPlaceholder": "Enter address or JSON",
+    "quantity": "Qty"
   },
   "products": {
     "title": "Products",

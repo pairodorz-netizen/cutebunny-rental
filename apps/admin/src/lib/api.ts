@@ -82,11 +82,18 @@ export interface AdminOrder {
     phone: string;
   };
   items: Array<{
+    id: string;
     product_name: string;
+    sku: string;
     size: string;
     quantity: number;
+    subtotal: number;
+    late_fee: number;
+    damage_fee: number;
     item_status: string;
+    thumbnail: string | null;
   }>;
+  tracking_number: string | null;
   total_amount: number;
   payment_status: string;
   rental_period: {
@@ -121,6 +128,8 @@ export interface AdminOrderDetail {
     late_fee: number;
     damage_fee: number;
     status: string;
+    thumbnail: string | null;
+    images: Array<{ id: string; url: string; altText: string | null; sortOrder: number }>;
   }>;
   status_log: Array<{
     from_status: string;
@@ -449,6 +458,11 @@ export const adminApi = {
       request<{ data: OverdueOrder[] }>(`/api/v1/admin/orders/overdue/list`),
     profit: (id: string) =>
       request<{ data: OrderProfit }>(`/api/v1/admin/orders/${id}/profit`),
+    edit: (id: string, body: { customer_name?: string; customer_address?: Record<string, unknown>; items?: Array<{ id: string; subtotal?: number; late_fee?: number; damage_fee?: number }>; status?: string }) =>
+      request<{ data: { id: string; changes: string[] } }>(`/api/v1/admin/orders/${id}/edit`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
   },
   products: {
     list: (params: Record<string, string>) => {

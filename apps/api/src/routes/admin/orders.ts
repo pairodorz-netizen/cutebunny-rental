@@ -18,6 +18,12 @@ adminOrders.get('/', async (c) => {
   const dateFrom = c.req.query('date_from');
   const dateTo = c.req.query('date_to');
   const search = c.req.query('search');
+  const searchSku = c.req.query('search_sku');
+  const searchProductName = c.req.query('search_product_name');
+  const searchTrackingNumber = c.req.query('search_tracking');
+  const searchOrderNumber = c.req.query('search_order_number');
+  const searchCustomerName = c.req.query('search_customer_name');
+  const searchCustomerPhone = c.req.query('search_customer_phone');
 
   const where: Prisma.OrderWhereInput = {};
 
@@ -42,6 +48,35 @@ adminOrders.get('/', async (c) => {
     ];
   }
 
+  // Individual field filters
+  const andConditions: Prisma.OrderWhereInput[] = [];
+  if (searchOrderNumber) {
+    andConditions.push({ orderNumber: { contains: searchOrderNumber, mode: 'insensitive' } });
+  }
+  if (searchCustomerName) {
+    andConditions.push({
+      OR: [
+        { customer: { firstName: { contains: searchCustomerName, mode: 'insensitive' } } },
+        { customer: { lastName: { contains: searchCustomerName, mode: 'insensitive' } } },
+      ],
+    });
+  }
+  if (searchCustomerPhone) {
+    andConditions.push({ customer: { phone: { contains: searchCustomerPhone } } });
+  }
+  if (searchSku) {
+    andConditions.push({ items: { some: { product: { sku: { contains: searchSku, mode: 'insensitive' } } } } });
+  }
+  if (searchProductName) {
+    andConditions.push({ items: { some: { productName: { contains: searchProductName, mode: 'insensitive' } } } });
+  }
+  if (searchTrackingNumber) {
+    andConditions.push({ shippingSnapshot: { path: ['tracking_number'], string_contains: searchTrackingNumber } });
+  }
+  if (andConditions.length > 0) {
+    where.AND = andConditions;
+  }
+
   const [orders, total] = await Promise.all([
     db.order.findMany({
       where,
@@ -50,7 +85,17 @@ adminOrders.get('/', async (c) => {
           select: { firstName: true, lastName: true, email: true, phone: true },
         },
         items: {
-          select: { productName: true, size: true, quantity: true, status: true },
+          select: {
+            id: true,
+            productName: true,
+            size: true,
+            quantity: true,
+            status: true,
+            subtotal: true,
+            lateFee: true,
+            damageFee: true,
+            product: { select: { sku: true, thumbnailUrl: true } },
+          },
         },
         paymentSlips: {
           select: { verificationStatus: true },
@@ -75,11 +120,18 @@ adminOrders.get('/', async (c) => {
       phone: o.customer.phone,
     },
     items: o.items.map((item) => ({
+      id: item.id,
       product_name: item.productName,
+      sku: item.product?.sku ?? '',
       size: item.size,
       quantity: item.quantity,
+      subtotal: item.subtotal,
+      late_fee: item.lateFee,
+      damage_fee: item.damageFee,
       item_status: item.status,
+      thumbnail: item.product?.thumbnailUrl ?? null,
     })),
+    tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
     total_amount: o.totalAmount,
     payment_status: o.paymentSlips[0]?.verificationStatus ?? 'no_slip',
     rental_period: {
@@ -108,7 +160,13 @@ adminOrders.get('/:id', async (c) => {
       customer: true,
       items: {
         include: {
-          product: { select: { sku: true } },
+          product: {
+            select: {
+              sku: true,
+              thumbnailUrl: true,
+              images: { select: { id: true, url: true, altText: true, sortOrder: true } },
+            },
+          },
         },
       },
       paymentSlips: {
@@ -154,6 +212,8 @@ adminOrders.get('/:id', async (c) => {
         late_fee: item.lateFee,
         damage_fee: item.damageFee,
         status: item.status,
+        thumbnail: item.product?.thumbnailUrl ?? null,
+        images: item.product?.images ?? [],
       };
     }),
     status_log: order.statusLogs.map((log) => ({
@@ -180,6 +240,116 @@ adminOrders.get('/:id', async (c) => {
   };
 
   return success(c, data);
+});
+
+// PATCH /api/v1/admin/orders/:id/edit — Inline edit order
+const editOrderSchema = z.object({
+  customer_name: z.string().optional(),
+  customer_address: z.record(z.unknown()).optional(),
+  items: z.array(z.object({
+    id: z.string().uuid(),
+    subtotal: z.number().int().min(0).optional(),
+    late_fee: z.number().int().min(0).optional(),
+    damage_fee: z.number().int().min(0).optional(),
+  })).optional(),
+  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready']).optional(),
+});
+
+adminOrders.patch('/:id/edit', async (c) => {
+  const db = getDb();
+  const orderId = c.req.param('id');
+  const admin = getAdmin(c);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = editOrderSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid edit data', parsed.error.flatten());
+  }
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { customer: true, items: true },
+  });
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  const changes: string[] = [];
+
+  // Update customer name
+  if (parsed.data.customer_name) {
+    const parts = parsed.data.customer_name.trim().split(/\s+/);
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ') || '';
+    await db.customer.update({
+      where: { id: order.customerId },
+      data: { firstName, lastName },
+    });
+    changes.push(`customer_name: "${order.customer.firstName} ${order.customer.lastName}" -> "${parsed.data.customer_name}"`);
+  }
+
+  // Update customer address
+  if (parsed.data.customer_address) {
+    await db.customer.update({
+      where: { id: order.customerId },
+      data: { address: parsed.data.customer_address },
+    });
+    changes.push('customer_address updated');
+  }
+
+  // Update order items
+  if (parsed.data.items && parsed.data.items.length > 0) {
+    for (const itemUpdate of parsed.data.items) {
+      const existingItem = order.items.find((i) => i.id === itemUpdate.id);
+      if (!existingItem) continue;
+      const data: Record<string, number> = {};
+      if (itemUpdate.subtotal !== undefined) data.subtotal = itemUpdate.subtotal;
+      if (itemUpdate.late_fee !== undefined) data.lateFee = itemUpdate.late_fee;
+      if (itemUpdate.damage_fee !== undefined) data.damageFee = itemUpdate.damage_fee;
+      if (Object.keys(data).length > 0) {
+        await db.orderItem.update({ where: { id: itemUpdate.id }, data });
+        changes.push(`item ${itemUpdate.id}: ${JSON.stringify(data)}`);
+      }
+    }
+    // Recalculate order total
+    const updatedItems = await db.orderItem.findMany({ where: { orderId } });
+    const newSubtotal = updatedItems.reduce((sum, i) => sum + i.subtotal, 0);
+    const newTotal = newSubtotal + order.deposit + order.deliveryFee - order.discount - order.creditApplied;
+    await db.order.update({
+      where: { id: orderId },
+      data: { subtotal: newSubtotal, totalAmount: newTotal },
+    });
+  }
+
+  // Update order status
+  if (parsed.data.status && parsed.data.status !== order.status) {
+    const toStatus = parsed.data.status as OrderStatus;
+    if (!isValidTransition(order.status, toStatus)) {
+      return error(c, 422, 'INVALID_TRANSITION', getTransitionError(order.status, toStatus));
+    }
+    await db.order.update({ where: { id: orderId }, data: { status: toStatus } });
+    await db.orderStatusLog.create({
+      data: { orderId, fromStatus: order.status, toStatus, note: 'Edited via admin panel', changedBy: admin.sub },
+    });
+    changes.push(`status: ${order.status} -> ${toStatus}`);
+  }
+
+  // Audit log
+  try {
+    if (db.auditLog?.create) {
+      await db.auditLog.create({
+        data: {
+          adminId: admin.sub,
+          action: 'EDIT',
+          resource: 'order',
+          resourceId: orderId,
+          details: { changes },
+        },
+      });
+    }
+  } catch { /* audit failure should not block */ }
+
+  return success(c, { id: orderId, changes });
 });
 
 // A14: PATCH /api/v1/admin/orders/:id/status — Status transition

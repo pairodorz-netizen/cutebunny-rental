@@ -125,7 +125,11 @@
     "applyFee": "应用建议费用",
     "notOverdue": "此订单未逾期。",
     "forceBuyWarning": "强制购买警告",
-    "forceBuyDesc": "此操作将停用商品（标记为不可用，库存为0）并从客户押金中扣除。"
+    "forceBuyDesc": "此操作将停用商品（标记为不可用，库存为0）并从客户押金中扣除。",
+    "editOrder": "编辑订单",
+    "address": "地址",
+    "addressPlaceholder": "输入地址",
+    "quantity": "数量"
   },
   "products": {
     "title": "商品",
