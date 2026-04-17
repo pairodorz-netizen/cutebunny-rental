@@ -272,19 +272,65 @@ products.get('/:id/calendar', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid year or month', parsed.error.flatten());
   }
 
+  // Check if it's a regular product
   const product = await db.product.findUnique({ where: { id }, select: { id: true } });
-  if (!product) {
-    return error(c, 404, 'NOT_FOUND', 'Product not found');
+
+  if (product) {
+    const days = await getMonthAvailability(db, id, parsed.data.year, parsed.data.month);
+    return success(c, {
+      product_id: id,
+      year: parsed.data.year,
+      month: parsed.data.month,
+      days,
+    });
   }
 
-  const days = await getMonthAvailability(db, id, parsed.data.year, parsed.data.month);
+  // Check if it's a combo set — aggregate availability of all component products
+  try {
+    const comboSet = await db.comboSet.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        items: { select: { productId: true } },
+      },
+    });
 
-  return success(c, {
-    product_id: id,
-    year: parsed.data.year,
-    month: parsed.data.month,
-    days,
-  });
+    if (!comboSet || comboSet.items.length === 0) {
+      return error(c, 404, 'NOT_FOUND', 'Product not found');
+    }
+
+    // Get availability for each component product
+    const componentDays = await Promise.all(
+      comboSet.items.map((item) =>
+        getMonthAvailability(db, item.productId, parsed.data.year, parsed.data.month)
+      )
+    );
+
+    // Merge: a day is unavailable if ANY component is not available
+    const mergedDays = componentDays[0].map((day, idx) => {
+      const allAvailable = componentDays.every(
+        (cd) => cd[idx]?.status === 'available'
+      );
+      return {
+        date: day.date,
+        status: allAvailable ? day.status : (
+          // Pick the most restrictive status from components
+          componentDays.find((cd) => cd[idx]?.status !== 'available')?.[idx]?.status ?? 'booked'
+        ),
+      };
+    });
+
+    return success(c, {
+      product_id: id,
+      year: parsed.data.year,
+      month: parsed.data.month,
+      days: mergedDays,
+    });
+  } catch {
+    // combo_sets table may not exist
+  }
+
+  return error(c, 404, 'NOT_FOUND', 'Product not found');
 });
 
 export default products;
