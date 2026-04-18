@@ -1189,9 +1189,22 @@ adminProducts.get('/:id/calendar', async (c) => {
     select: { id: true, unitIndex: true, label: true, size: true, color: true, status: true },
   }).catch(() => []);
 
-  // FEAT-302: Resolve unit filter
+  // FEAT-302: Validate + resolve unit filter
   let resolvedUnitId: string | undefined = unitIdFilter;
-  const unitIndexNum = unitParam !== 'all' ? parseInt(unitParam, 10) : null;
+  let unitIndexNum: number | null = null;
+
+  if (unitParam !== 'all') {
+    unitIndexNum = parseInt(unitParam, 10);
+    // Validate: must be a positive integer
+    if (isNaN(unitIndexNum) || unitIndexNum < 1 || !Number.isInteger(unitIndexNum)) {
+      return error(c, 400, 'VALIDATION_ERROR', `Invalid unit parameter: "${unitParam}". Must be "all" or a positive integer.`);
+    }
+    // Validate: must not exceed total units
+    const totalUnits = Math.max(inventoryUnits.length, product.stockOnHand);
+    if (unitIndexNum > totalUnits) {
+      return error(c, 400, 'UNIT_OUT_OF_RANGE', `Unit ${unitIndexNum} out of range. Product has ${totalUnits} unit(s).`);
+    }
+  }
 
   if (unitIndexNum && !resolvedUnitId) {
     const matchedUnit = inventoryUnits.find((u) => u.unitIndex === unitIndexNum);
