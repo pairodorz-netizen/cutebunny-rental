@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, type AdminProductDetail, type StockLog, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,13 +29,25 @@ export function ProductDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [calMonth, setCalMonth] = useState(() => new Date());
 
-  // FEAT-302: Per-unit calendar navigation state
-  // 'all' = aggregated view, '1','2',... = specific unit index
-  const [calUnitFilter, setCalUnitFilter] = useState<string>('all');
+  // OQ-W3-01: Per-unit calendar filter synced with URL ?unit= param
+  // Survives refresh/share — 'all' | '1' | '2' | ...
+  const calUnitFilter = searchParams.get('unit') || 'all';
+  const setCalUnitFilter = useCallback((unit: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (unit === 'all') {
+        next.delete('unit');
+      } else {
+        next.set('unit', unit);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Stock management state
   const [showAddStock, setShowAddStock] = useState(false);
@@ -243,29 +255,54 @@ export function ProductDetailPage() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
 
-  function getDayStatus(day: number): string | null {
+  // OQ-W3-02: Return status + order ref for tooltip
+  function getDayInfo(day: number): { status: string | null; orderId: string | null } {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     // FEAT-302: Use per-unit calendar data if available
     if (perUnitCal) {
       if (calUnitFilter === 'all' && perUnitCal.aggregated_days) {
         const dayData = perUnitCal.aggregated_days.find((d) => d.date === dateStr);
-        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+        return {
+          status: dayData?.status === 'available' ? null : (dayData?.status ?? null),
+          orderId: dayData?.order_id ?? null,
+        };
       }
       if (perUnitCal.calendars.length > 0) {
         const cal = perUnitCal.calendars[0];
         const dayData = cal.days.find((d) => d.date === dateStr);
-        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+        return {
+          status: dayData?.status === 'available' ? null : (dayData?.status ?? null),
+          orderId: dayData?.order_id ?? null,
+        };
       }
     }
 
     // Fallback: use product.calendar (order-derived)
     for (const cal of product!.calendar) {
       if (dateStr >= cal.start && dateStr <= cal.end) {
-        return cal.status;
+        return { status: cal.status, orderId: null };
       }
     }
-    return null;
+    return { status: null, orderId: null };
+  }
+
+  function buildTooltip(day: number): string {
+    const { status, orderId } = getDayInfo(day);
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const parts: string[] = [dateStr];
+    if (!status) {
+      parts.push(t('products.available'));
+    } else {
+      parts.push(status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' '));
+    }
+    if (orderId) {
+      parts.push(`Order: ${orderId.slice(0, 8)}...`);
+    }
+    if (calUnitFilter !== 'all') {
+      parts.push(`Unit ${calUnitFilter}`);
+    }
+    return parts.join(' · ');
   }
 
   function prevMonth() {
@@ -437,15 +474,16 @@ export function ProductDetailPage() {
               ))}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1;
-                const status = getDayStatus(day);
+                const { status } = getDayInfo(day);
                 const colorClass = status
                   ? (CALENDAR_COLORS[status] ?? 'bg-gray-300')
                   : 'bg-green-200';
                 return (
                   <div
                     key={day}
-                    className={`py-1 rounded text-xs ${colorClass}`}
-                    title={status ?? 'available'}
+                    className={`py-1 rounded text-xs cursor-default ${colorClass}`}
+                    title={buildTooltip(day)}
+                    data-testid={`cal-day-${day}`}
                   >
                     {day}
                   </div>
@@ -537,6 +575,29 @@ export function ProductDetailPage() {
                     placeholder={t('stock.notePlaceholder')}
                   />
                 </div>
+                {/* Live preview: show projected stock after add */}
+                {stockQty && parseInt(stockQty, 10) > 0 && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm" data-testid="add-stock-preview">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">{t('stock.currentStock')}</span>
+                      <span className="font-medium">{product.stock_on_hand ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">+ {t('stock.adding')}</span>
+                      <span className="font-medium text-green-600">+{parseInt(stockQty, 10)}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-blue-200 pt-1 mt-1">
+                      <span className="font-semibold">{t('stock.newTotal')}</span>
+                      <span className="font-bold text-blue-700">{(product.stock_on_hand ?? 0) + parseInt(stockQty, 10)}</span>
+                    </div>
+                    {stockUnitCost && parseInt(stockUnitCost, 10) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                        <span>{t('stock.totalCost')}</span>
+                        <span>{(parseInt(stockQty, 10) * parseInt(stockUnitCost, 10)).toLocaleString()} THB</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {stockError && (
                   <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                     <AlertCircle className="inline h-4 w-4 mr-1" /> {stockError}
@@ -594,13 +655,14 @@ export function ProductDetailPage() {
           />
         </div>
 
-        {/* B3: Stock History Log with Infinite Scroll + Color Chips */}
+        {/* B3: Stock History Log with Infinite Scroll + Color Chips + Running Balance */}
         <div className="rounded-lg border overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 text-xs font-medium">{t('stock.logType')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.quantity')}</th>
+                <th className="text-right p-3 text-xs font-medium">{t('stock.runningBalance')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.unitCost')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.totalCost')}</th>
                 <th className="text-left p-3 text-xs font-medium">{t('stock.note')}</th>
@@ -609,8 +671,12 @@ export function ProductDetailPage() {
             </thead>
             <tbody className="divide-y">
               {allStockLogs.length === 0 && !isLoadingLogs ? (
-                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
-              ) : allStockLogs.map((log) => (
+                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
+              ) : allStockLogs.map((log, idx) => {
+                // Running balance: start from current stock, subtract quantities going back in time
+                // Logs are ordered desc (newest first), so balance = current - sum(quantities of logs before this one)
+                const balanceAfter = (product.stock_on_hand ?? 0) - allStockLogs.slice(0, idx).reduce((sum, l) => sum + l.quantity, 0);
+                return (
                 <tr key={log.id} className="hover:bg-muted/30">
                   <td className="p-3 text-xs">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -628,12 +694,16 @@ export function ProductDetailPage() {
                   <td className={`p-3 text-sm text-right font-medium ${log.quantity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {log.quantity >= 0 ? '+' : ''}{log.quantity}
                   </td>
+                  <td className="p-3 text-sm text-right font-medium" data-testid={`balance-${log.id}`}>
+                    {balanceAfter}
+                  </td>
                   <td className="p-3 text-sm text-right">{log.unit_cost > 0 ? log.unit_cost.toLocaleString() : '-'}</td>
                   <td className="p-3 text-sm text-right">{log.total_cost > 0 ? log.total_cost.toLocaleString() : '-'}</td>
                   <td className="p-3 text-xs text-muted-foreground">{log.note ?? '-'}</td>
                   <td className="p-3 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString()}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {/* B3: Infinite scroll sentinel */}

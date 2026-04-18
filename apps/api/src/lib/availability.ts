@@ -3,6 +3,7 @@ import type { PrismaClient, SlotStatus } from '@prisma/client';
 export interface DayAvailability {
   date: string;
   status: SlotStatus;
+  order_id?: string | null;
 }
 
 export interface DayAvailabilityMultiUnit {
@@ -160,12 +161,15 @@ export async function getMonthAvailabilityPerUnit(
     orderBy: { calendarDate: 'asc' },
   });
 
-  // Group slots by unitId
-  const slotsByUnit = new Map<string, Map<string, SlotStatus>>();
+  // Group slots by unitId → date → { status, orderId }
+  const slotsByUnit = new Map<string, Map<string, { status: SlotStatus; orderId: string | null }>>();
   for (const slot of slots) {
     const uid = slot.unitId ?? '__legacy__';
     if (!slotsByUnit.has(uid)) slotsByUnit.set(uid, new Map());
-    slotsByUnit.get(uid)!.set(slot.calendarDate.toISOString().split('T')[0], slot.slotStatus);
+    slotsByUnit.get(uid)!.set(slot.calendarDate.toISOString().split('T')[0], {
+      status: slot.slotStatus,
+      orderId: slot.orderId,
+    });
   }
 
   const daysInMonth = endDate.getDate();
@@ -177,9 +181,11 @@ export async function getMonthAvailabilityPerUnit(
       const days: DayAvailability[] = [];
       for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const slotData = unitSlots.get(dateStr);
         days.push({
           date: dateStr,
-          status: unitSlots.get(dateStr) ?? 'available',
+          status: slotData?.status ?? 'available',
+          order_id: slotData?.orderId ?? null,
         });
       }
       return {

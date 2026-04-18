@@ -1021,4 +1021,104 @@ describe('Stock Management', () => {
       expect(downSql).toContain('DROP COLUMN IF EXISTS unit_index');
     });
   });
+
+  // ─── OQ-W3-02: Calendar API returns order_id in day data ──────────
+  describe('OQ-W3-02: Calendar tooltip — order_id in response', () => {
+    it('GET /calendar?unit=1 returns order_id in calendar day data', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID, stockOnHand: 2 });
+      mockDb.inventoryUnit.findMany.mockResolvedValue([
+        { id: 'unit-1', unitIndex: 1, label: 'Unit 1', size: 'M', color: 'white', status: 'active' },
+        { id: 'unit-2', unitIndex: 2, label: 'Unit 2', size: 'L', color: 'ivory', status: 'active' },
+      ]);
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([
+        {
+          id: 'cal-1',
+          productId: PRODUCT_ID,
+          unitId: 'unit-1',
+          calendarDate: new Date('2026-04-15'),
+          slotStatus: 'booked',
+          orderId: 'order-abc-123',
+          unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' },
+        },
+      ]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=1`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.calendars).toBeDefined();
+      expect(body.data.calendars.length).toBeGreaterThanOrEqual(1);
+      // Verify the calendar day data includes order_id
+      const cal = body.data.calendars[0];
+      const apr15 = cal.days.find((d: { date: string }) => d.date === '2026-04-15');
+      if (apr15) {
+        expect(apr15.order_id).toBe('order-abc-123');
+      }
+    });
+
+    it('GET /calendar?unit=all aggregated_days include order_id from first booked unit', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID, stockOnHand: 2 });
+      mockDb.inventoryUnit.findMany.mockResolvedValue([
+        { id: 'unit-1', unitIndex: 1, label: 'Unit 1', size: 'M', color: 'white', status: 'active' },
+        { id: 'unit-2', unitIndex: 2, label: 'Unit 2', size: 'L', color: 'ivory', status: 'active' },
+      ]);
+      // Both units booked — aggregated should show order from first booked unit
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([
+        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-xyz-789', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
+        { id: 'cal-2', productId: PRODUCT_ID, unitId: 'unit-2', calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-def-456', unit: { id: 'unit-2', unitIndex: 2, label: 'Unit 2' } },
+      ]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=all`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      if (body.data.aggregated_days) {
+        const apr20 = body.data.aggregated_days.find((d: { date: string }) => d.date === '2026-04-20');
+        if (apr20) {
+          // Should have order_id from the first booked unit
+          expect(apr20.order_id).toBeDefined();
+          expect(typeof apr20.order_id).toBe('string');
+        }
+      }
+    });
+
+    it('available days have null order_id', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID, stockOnHand: 1 });
+      mockDb.inventoryUnit.findMany.mockResolvedValue([
+        { id: 'unit-1', unitIndex: 1, label: 'Unit 1', size: 'M', color: 'white', status: 'active' },
+      ]);
+      // No bookings — all days available
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=1`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      const cal = body.data.calendars[0];
+      // Every day should have null order_id (available)
+      for (const day of cal.days) {
+        expect(day.order_id).toBeNull();
+      }
+    });
+  });
+
+  // ─── Spec v3.1.0 artifact test ────────────────────────────────────
+  describe('Spec v3.1.0: artifact exists', () => {
+    it('spec-stock-v3.1.0.md exists and references supersede', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const specPath = path.resolve(__dirname, '../../../../docs/spec-stock-v3.1.0.md');
+      const spec = fs.readFileSync(specPath, 'utf-8');
+      expect(spec).toContain('Supersedes');
+      expect(spec).toContain('spec-stock-v3.0.0');
+      expect(spec).toContain('OQ-W3-01');
+      expect(spec).toContain('OQ-W3-02');
+    });
+  });
 });

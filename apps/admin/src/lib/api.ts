@@ -343,11 +343,11 @@ export interface PerUnitCalendarResponse {
     color: string | null;
     status: string;
   }>;
-  aggregated_days: Array<{ date: string; status: string }> | null;
+  aggregated_days: Array<{ date: string; status: string; order_id?: string | null }> | null;
   calendars: Array<{
     unit_id: string | null;
     unit_label: string;
-    days: Array<{ date: string; status: string }>;
+    days: Array<{ date: string; status: string; order_id?: string | null }>;
   }>;
 }
 
