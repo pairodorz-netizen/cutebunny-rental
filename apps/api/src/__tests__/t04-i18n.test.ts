@@ -14,6 +14,8 @@ const mockDb = vi.hoisted(() => {
     'paymentSlip', 'customer', 'customerDocument', 'availabilityCalendar',
     'inventoryStatusLog', 'shippingZone', 'shippingProvinceConfig',
     'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
+    'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
+    'financeCategory', 'systemConfig', 'notificationLog',
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
@@ -168,7 +170,7 @@ describe('T04: i18n Tests', () => {
       expect(res.status).toBe(200);
 
       const body = await res.json();
-      expect(body.data.brand.name).toBe('泰国新娘');
+      expect(body.data.brand).toBe('泰国新娘');
     });
 
     it('localizes related product names', async () => {

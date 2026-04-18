@@ -5,6 +5,8 @@ const DB_MODELS = [
   'paymentSlip', 'customer', 'customerDocument', 'availabilityCalendar',
   'inventoryStatusLog', 'shippingZone', 'shippingProvinceConfig',
   'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
+  'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
+  'financeCategory', 'systemConfig', 'notificationLog',
 ] as const;
 
 /**

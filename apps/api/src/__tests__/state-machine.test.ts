@@ -35,57 +35,67 @@ describe('Order State Machine', () => {
       expect(isValidTransition('unpaid', 'shipped')).toBe(false);
     });
 
-    it('rejects shipped → ready (skipping returned/cleaning)', () => {
-      expect(isValidTransition('shipped', 'finished')).toBe(false);
+    it('allows shipped → finished (skip forward)', () => {
+      expect(isValidTransition('shipped', 'finished')).toBe(true);
     });
 
-    it('rejects ready → unpaid (backward transition)', () => {
+    it('allows finished → cleaning (reopen for cleaning)', () => {
+      expect(isValidTransition('finished', 'cleaning')).toBe(true);
+    });
+
+    it('rejects finished → unpaid (not allowed)', () => {
       expect(isValidTransition('finished', 'unpaid')).toBe(false);
     });
 
-    it('rejects paid_locked → returned (skipping shipped)', () => {
-      expect(isValidTransition('paid_locked', 'returned')).toBe(false);
-    });
-
-    it('rejects returned → shipped (backward transition)', () => {
-      expect(isValidTransition('returned', 'shipped')).toBe(false);
+    it('rejects cancelled → any (terminal)', () => {
+      expect(isValidTransition('cancelled', 'unpaid')).toBe(false);
     });
   });
 
   describe('getAllowedTransitions', () => {
-    it('returns [paid_locked] for unpaid', () => {
-      expect(getAllowedTransitions('unpaid')).toEqual(['paid_locked']);
+    it('returns transitions for unpaid', () => {
+      expect(getAllowedTransitions('unpaid')).toEqual(['paid_locked', 'finished', 'cancelled']);
     });
 
-    it('returns [shipped] for paid_locked', () => {
-      expect(getAllowedTransitions('paid_locked')).toEqual(['shipped']);
+    it('returns transitions for paid_locked', () => {
+      expect(getAllowedTransitions('paid_locked')).toEqual(['shipped', 'unpaid', 'finished', 'cancelled']);
     });
 
-    it('returns [returned] for shipped', () => {
-      expect(getAllowedTransitions('shipped')).toEqual(['returned']);
+    it('returns transitions for shipped', () => {
+      expect(getAllowedTransitions('shipped')).toEqual(['returned', 'paid_locked', 'finished', 'cancelled']);
     });
 
-    it('returns [cleaning] for returned', () => {
-      expect(getAllowedTransitions('returned')).toEqual(['cleaning']);
+    it('returns transitions for returned', () => {
+      expect(getAllowedTransitions('returned')).toEqual(['cleaning', 'shipped', 'finished', 'cancelled']);
     });
 
-    it('returns [repair, ready] for cleaning', () => {
-      expect(getAllowedTransitions('cleaning')).toEqual(['repair', 'finished']);
+    it('returns transitions for cleaning', () => {
+      expect(getAllowedTransitions('cleaning')).toEqual(['repair', 'finished', 'returned', 'cancelled']);
     });
 
-    it('returns [ready] for repair', () => {
-      expect(getAllowedTransitions('repair')).toEqual(['finished']);
+    it('returns transitions for repair', () => {
+      expect(getAllowedTransitions('repair')).toEqual(['finished', 'cleaning', 'cancelled']);
     });
 
-    it('returns [] for ready (terminal state)', () => {
-      expect(getAllowedTransitions('finished')).toEqual([]);
+    it('returns transitions for finished (non-terminal, can reopen)', () => {
+      expect(getAllowedTransitions('finished')).toEqual(['cleaning', 'repair', 'cancelled']);
+    });
+
+    it('returns [] for cancelled (terminal state)', () => {
+      expect(getAllowedTransitions('cancelled')).toEqual([]);
     });
   });
 
   describe('getTransitionError', () => {
-    it('returns terminal state message for ready', () => {
-      const msg = getTransitionError('finished', 'unpaid');
+    it('returns terminal state message for cancelled', () => {
+      const msg = getTransitionError('cancelled', 'unpaid');
       expect(msg).toContain('terminal state');
+    });
+
+    it('returns invalid transition message for finished → unpaid', () => {
+      const msg = getTransitionError('finished', 'unpaid');
+      expect(msg).toContain('Invalid transition');
+      expect(msg).toContain('cleaning');
     });
 
     it('returns allowed transitions for invalid transition', () => {
