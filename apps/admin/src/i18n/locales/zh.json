@@ -287,7 +287,11 @@
     "dateTo": "到",
     "loadMore": "加载更多",
     "noMoreLogs": "没有更多记录",
-    "orphanedComboWarning": "警告：删除此产品将导致 {{count}} 个套装不完整"
+    "orphanedComboWarning": "警告：删除此产品将导致 {{count}} 个套装不完整",
+    "currentStock": "当前库存",
+    "adding": "添加",
+    "newTotal": "新总数",
+    "runningBalance": "余额"
   },
   "lowStockWidget": {
     "title": "低库存警报",

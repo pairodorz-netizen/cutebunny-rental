@@ -287,7 +287,11 @@
     "dateTo": "To",
     "loadMore": "Load More",
     "noMoreLogs": "No more logs to load",
-    "orphanedComboWarning": "Warning: Deleting this product will orphan {{count}} combo set(s)"
+    "orphanedComboWarning": "Warning: Deleting this product will orphan {{count}} combo set(s)",
+    "currentStock": "Current Stock",
+    "adding": "Adding",
+    "newTotal": "New Total",
+    "runningBalance": "Balance"
   },
   "lowStockWidget": {
     "title": "Low Stock Alert",

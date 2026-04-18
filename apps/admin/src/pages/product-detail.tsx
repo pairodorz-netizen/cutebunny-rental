@@ -575,6 +575,29 @@ export function ProductDetailPage() {
                     placeholder={t('stock.notePlaceholder')}
                   />
                 </div>
+                {/* Live preview: show projected stock after add */}
+                {stockQty && parseInt(stockQty, 10) > 0 && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm" data-testid="add-stock-preview">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">{t('stock.currentStock')}</span>
+                      <span className="font-medium">{product.stock_on_hand ?? 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">+ {t('stock.adding')}</span>
+                      <span className="font-medium text-green-600">+{parseInt(stockQty, 10)}</span>
+                    </div>
+                    <div className="flex justify-between items-center border-t border-blue-200 pt-1 mt-1">
+                      <span className="font-semibold">{t('stock.newTotal')}</span>
+                      <span className="font-bold text-blue-700">{(product.stock_on_hand ?? 0) + parseInt(stockQty, 10)}</span>
+                    </div>
+                    {stockUnitCost && parseInt(stockUnitCost, 10) > 0 && (
+                      <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                        <span>{t('stock.totalCost')}</span>
+                        <span>{(parseInt(stockQty, 10) * parseInt(stockUnitCost, 10)).toLocaleString()} THB</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {stockError && (
                   <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                     <AlertCircle className="inline h-4 w-4 mr-1" /> {stockError}
@@ -632,13 +655,14 @@ export function ProductDetailPage() {
           />
         </div>
 
-        {/* B3: Stock History Log with Infinite Scroll + Color Chips */}
+        {/* B3: Stock History Log with Infinite Scroll + Color Chips + Running Balance */}
         <div className="rounded-lg border overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full">
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 text-xs font-medium">{t('stock.logType')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.quantity')}</th>
+                <th className="text-right p-3 text-xs font-medium">{t('stock.runningBalance')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.unitCost')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.totalCost')}</th>
                 <th className="text-left p-3 text-xs font-medium">{t('stock.note')}</th>
@@ -647,8 +671,12 @@ export function ProductDetailPage() {
             </thead>
             <tbody className="divide-y">
               {allStockLogs.length === 0 && !isLoadingLogs ? (
-                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
-              ) : allStockLogs.map((log) => (
+                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
+              ) : allStockLogs.map((log, idx) => {
+                // Running balance: start from current stock, subtract quantities going back in time
+                // Logs are ordered desc (newest first), so balance = current - sum(quantities of logs before this one)
+                const balanceAfter = (product.stock_on_hand ?? 0) - allStockLogs.slice(0, idx).reduce((sum, l) => sum + l.quantity, 0);
+                return (
                 <tr key={log.id} className="hover:bg-muted/30">
                   <td className="p-3 text-xs">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -666,12 +694,16 @@ export function ProductDetailPage() {
                   <td className={`p-3 text-sm text-right font-medium ${log.quantity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {log.quantity >= 0 ? '+' : ''}{log.quantity}
                   </td>
+                  <td className="p-3 text-sm text-right font-medium" data-testid={`balance-${log.id}`}>
+                    {balanceAfter}
+                  </td>
                   <td className="p-3 text-sm text-right">{log.unit_cost > 0 ? log.unit_cost.toLocaleString() : '-'}</td>
                   <td className="p-3 text-sm text-right">{log.total_cost > 0 ? log.total_cost.toLocaleString() : '-'}</td>
                   <td className="p-3 text-xs text-muted-foreground">{log.note ?? '-'}</td>
                   <td className="p-3 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString()}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {/* B3: Infinite scroll sentinel */}

@@ -287,7 +287,11 @@
     "dateTo": "ถึง",
     "loadMore": "โหลดเพิ่ม",
     "noMoreLogs": "ไม่มีประวัติเพิ่มเติม",
-    "orphanedComboWarning": "คำเตือน: การลบสินค้านี้จะทำให้ชุดคอมโบ {{count}} ชุดไม่สมบูรณ์"
+    "orphanedComboWarning": "คำเตือน: การลบสินค้านี้จะทำให้ชุดคอมโบ {{count}} ชุดไม่สมบูรณ์",
+    "currentStock": "สต็อกปัจจุบัน",
+    "adding": "เพิ่ม",
+    "newTotal": "ยอดรวมใหม่",
+    "runningBalance": "ยอดคงเหลือ"
   },
   "lowStockWidget": {
     "title": "แจ้งเตือนสต็อกต่ำ",
