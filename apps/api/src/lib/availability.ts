@@ -233,9 +233,10 @@ export async function createTentativeHolds(
 
     await db.availabilityCalendar.upsert({
       where: {
-        product_date_unique: {
+        product_date_unit_unique: {
           productId,
           calendarDate: dateOnly,
+          unitIndex: 1,
         },
       },
       update: {
@@ -245,6 +246,7 @@ export async function createTentativeHolds(
       create: {
         productId,
         calendarDate: dateOnly,
+        unitIndex: 1,
         slotStatus: 'tentative',
         orderId: orderId ?? null,
       },
@@ -266,9 +268,10 @@ export async function confirmHolds(
 
     await db.availabilityCalendar.upsert({
       where: {
-        product_date_unique: {
+        product_date_unit_unique: {
           productId,
           calendarDate: dateOnly,
+          unitIndex: 1,
         },
       },
       update: {
@@ -278,6 +281,7 @@ export async function confirmHolds(
       create: {
         productId,
         calendarDate: dateOnly,
+        unitIndex: 1,
         slotStatus: 'booked',
         orderId,
       },

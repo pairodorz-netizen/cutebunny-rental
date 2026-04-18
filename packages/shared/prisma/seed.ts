@@ -470,9 +470,10 @@ async function main() {
       const calDate = dateOnly(futureDate(d));
       const existing = await prisma.availabilityCalendar.findUnique({
         where: {
-          product_date_unique: {
+          product_date_unit_unique: {
             productId: products[pi].id,
             calendarDate: calDate,
+            unitIndex: 1,
           },
         },
       });
@@ -484,6 +485,7 @@ async function main() {
           data: {
             productId: products[pi].id,
             calendarDate: calDate,
+            unitIndex: 1,
             slotStatus,
           },
         });
