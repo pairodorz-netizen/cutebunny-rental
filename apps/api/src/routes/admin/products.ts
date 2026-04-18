@@ -1215,7 +1215,8 @@ adminProducts.get('/:id/calendar', async (c) => {
   const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, resolvedUnitId);
 
   // FEAT-302: For "all" view, also compute an aggregate calendar
-  let aggregatedDays: { date: string; status: string }[] | null = null;
+  // OQ-W3-02: Include order_id from first booked unit for tooltip
+  let aggregatedDays: { date: string; status: string; order_id: string | null }[] | null = null;
   if (unitParam === 'all' && units.length > 1) {
     const daysInMonth = new Date(parsed.data.year, parsed.data.month, 0).getDate();
     aggregatedDays = [];
@@ -1230,9 +1231,11 @@ adminProducts.get('/:id/calendar', async (c) => {
         const dayData = u.days.find((d) => d.date === dateStr);
         return dayData && dayData.status !== 'available';
       });
+      const firstBookedDay = firstBooked?.days.find((d) => d.date === dateStr);
       aggregatedDays.push({
         date: dateStr,
-        status: anyFree ? 'available' : (firstBooked?.days.find((d) => d.date === dateStr)?.status ?? 'booked'),
+        status: anyFree ? 'available' : (firstBookedDay?.status ?? 'booked'),
+        order_id: firstBookedDay?.order_id ?? null,
       });
     }
   }

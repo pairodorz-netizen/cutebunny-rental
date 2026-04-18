@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, type AdminProductDetail, type StockLog, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,13 +29,25 @@ export function ProductDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [calMonth, setCalMonth] = useState(() => new Date());
 
-  // FEAT-302: Per-unit calendar navigation state
-  // 'all' = aggregated view, '1','2',... = specific unit index
-  const [calUnitFilter, setCalUnitFilter] = useState<string>('all');
+  // OQ-W3-01: Per-unit calendar filter synced with URL ?unit= param
+  // Survives refresh/share — 'all' | '1' | '2' | ...
+  const calUnitFilter = searchParams.get('unit') || 'all';
+  const setCalUnitFilter = useCallback((unit: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (unit === 'all') {
+        next.delete('unit');
+      } else {
+        next.set('unit', unit);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Stock management state
   const [showAddStock, setShowAddStock] = useState(false);
@@ -243,29 +255,54 @@ export function ProductDetailPage() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfWeek = new Date(year, month, 1).getDay();
 
-  function getDayStatus(day: number): string | null {
+  // OQ-W3-02: Return status + order ref for tooltip
+  function getDayInfo(day: number): { status: string | null; orderId: string | null } {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
     // FEAT-302: Use per-unit calendar data if available
     if (perUnitCal) {
       if (calUnitFilter === 'all' && perUnitCal.aggregated_days) {
         const dayData = perUnitCal.aggregated_days.find((d) => d.date === dateStr);
-        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+        return {
+          status: dayData?.status === 'available' ? null : (dayData?.status ?? null),
+          orderId: dayData?.order_id ?? null,
+        };
       }
       if (perUnitCal.calendars.length > 0) {
         const cal = perUnitCal.calendars[0];
         const dayData = cal.days.find((d) => d.date === dateStr);
-        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+        return {
+          status: dayData?.status === 'available' ? null : (dayData?.status ?? null),
+          orderId: dayData?.order_id ?? null,
+        };
       }
     }
 
     // Fallback: use product.calendar (order-derived)
     for (const cal of product!.calendar) {
       if (dateStr >= cal.start && dateStr <= cal.end) {
-        return cal.status;
+        return { status: cal.status, orderId: null };
       }
     }
-    return null;
+    return { status: null, orderId: null };
+  }
+
+  function buildTooltip(day: number): string {
+    const { status, orderId } = getDayInfo(day);
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const parts: string[] = [dateStr];
+    if (!status) {
+      parts.push(t('products.available'));
+    } else {
+      parts.push(status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' '));
+    }
+    if (orderId) {
+      parts.push(`Order: ${orderId.slice(0, 8)}...`);
+    }
+    if (calUnitFilter !== 'all') {
+      parts.push(`Unit ${calUnitFilter}`);
+    }
+    return parts.join(' · ');
   }
 
   function prevMonth() {
@@ -437,15 +474,16 @@ export function ProductDetailPage() {
               ))}
               {Array.from({ length: daysInMonth }).map((_, i) => {
                 const day = i + 1;
-                const status = getDayStatus(day);
+                const { status } = getDayInfo(day);
                 const colorClass = status
                   ? (CALENDAR_COLORS[status] ?? 'bg-gray-300')
                   : 'bg-green-200';
                 return (
                   <div
                     key={day}
-                    className={`py-1 rounded text-xs ${colorClass}`}
-                    title={status ?? 'available'}
+                    className={`py-1 rounded text-xs cursor-default ${colorClass}`}
+                    title={buildTooltip(day)}
+                    data-testid={`cal-day-${day}`}
                   >
                     {day}
                   </div>
