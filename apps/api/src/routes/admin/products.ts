@@ -1158,12 +1158,14 @@ adminProducts.post('/:id/restore', async (c) => {
 });
 
 // GET /api/v1/admin/products/:id/calendar — Per-unit calendar for admin
+// FEAT-302: Accepts unit=all|1|2|... to filter by unit_index
 adminProducts.get('/:id/calendar', async (c) => {
   const db = getDb();
   const id = c.req.param('id');
   const yearStr = c.req.query('year');
   const monthStr = c.req.query('month');
-  const unitFilter = c.req.query('unit_id') || undefined;
+  const unitParam = c.req.query('unit') || 'all'; // FEAT-302: 'all' | '1' | '2' | ...
+  const unitIdFilter = c.req.query('unit_id') || undefined; // legacy support
 
   const schema = z.object({
     year: z.coerce.number().int().min(2024).max(2030),
@@ -1175,13 +1177,10 @@ adminProducts.get('/:id/calendar', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid year or month', parsed.error.flatten());
   }
 
-  const product = await db.product.findUnique({ where: { id }, select: { id: true } });
+  const product = await db.product.findUnique({ where: { id }, select: { id: true, stockOnHand: true } });
   if (!product) {
     return error(c, 404, 'NOT_FOUND', 'Product not found');
   }
-
-  const { getMonthAvailabilityPerUnit } = await import('../../lib/availability');
-  const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, unitFilter);
 
   // Also fetch inventory units metadata
   const inventoryUnits = await db.inventoryUnit.findMany({
@@ -1190,10 +1189,60 @@ adminProducts.get('/:id/calendar', async (c) => {
     select: { id: true, unitIndex: true, label: true, size: true, color: true, status: true },
   }).catch(() => []);
 
+  // FEAT-302: Validate + resolve unit filter
+  let resolvedUnitId: string | undefined = unitIdFilter;
+  let unitIndexNum: number | null = null;
+
+  if (unitParam !== 'all') {
+    unitIndexNum = parseInt(unitParam, 10);
+    // Validate: must be a positive integer
+    if (isNaN(unitIndexNum) || unitIndexNum < 1 || !Number.isInteger(unitIndexNum)) {
+      return error(c, 400, 'VALIDATION_ERROR', `Invalid unit parameter: "${unitParam}". Must be "all" or a positive integer.`);
+    }
+    // Validate: must not exceed total units
+    const totalUnits = Math.max(inventoryUnits.length, product.stockOnHand);
+    if (unitIndexNum > totalUnits) {
+      return error(c, 400, 'UNIT_OUT_OF_RANGE', `Unit ${unitIndexNum} out of range. Product has ${totalUnits} unit(s).`);
+    }
+  }
+
+  if (unitIndexNum && !resolvedUnitId) {
+    const matchedUnit = inventoryUnits.find((u) => u.unitIndex === unitIndexNum);
+    if (matchedUnit) resolvedUnitId = matchedUnit.id;
+  }
+
+  const { getMonthAvailabilityPerUnit } = await import('../../lib/availability');
+  const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, resolvedUnitId);
+
+  // FEAT-302: For "all" view, also compute an aggregate calendar
+  let aggregatedDays: { date: string; status: string }[] | null = null;
+  if (unitParam === 'all' && units.length > 1) {
+    const daysInMonth = new Date(parsed.data.year, parsed.data.month, 0).getDate();
+    aggregatedDays = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${parsed.data.year}-${String(parsed.data.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      // Day is "available" if ANY unit is free on that day
+      const anyFree = units.some((u) => {
+        const dayData = u.days.find((d) => d.date === dateStr);
+        return !dayData || dayData.status === 'available';
+      });
+      const firstBooked = units.find((u) => {
+        const dayData = u.days.find((d) => d.date === dateStr);
+        return dayData && dayData.status !== 'available';
+      });
+      aggregatedDays.push({
+        date: dateStr,
+        status: anyFree ? 'available' : (firstBooked?.days.find((d) => d.date === dateStr)?.status ?? 'booked'),
+      });
+    }
+  }
+
   return success(c, {
     product_id: id,
     year: parsed.data.year,
     month: parsed.data.month,
+    unit_filter: unitParam,
+    total_units: Math.max(inventoryUnits.length, product.stockOnHand),
     inventory_units: inventoryUnits.map((u) => ({
       id: u.id,
       unit_index: u.unitIndex,
@@ -1202,6 +1251,7 @@ adminProducts.get('/:id/calendar', async (c) => {
       color: u.color,
       status: u.status,
     })),
+    aggregated_days: aggregatedDays,
     calendars: units,
   });
 });

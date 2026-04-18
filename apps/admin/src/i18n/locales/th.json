@@ -328,6 +328,10 @@
   "calendar": {
     "title": "ปฏิทิน",
     "noData": "ไม่มีข้อมูลปฏิทิน",
+    "allUnits": "ทุกชุด",
+    "unitXofN": "ชุดที่ {{x}} จาก {{n}}",
+    "prevUnit": "ชุดก่อนหน้า",
+    "nextUnit": "ชุดถัดไป",
     "status": {
       "available": "ว่าง",
       "booked": "จองแล้ว",

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { adminApi, type AdminProductDetail, type StockLog } from '@/lib/api';
+import { adminApi, type AdminProductDetail, type StockLog, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter } from 'lucide-react';
@@ -33,6 +33,10 @@ export function ProductDetailPage() {
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [calMonth, setCalMonth] = useState(() => new Date());
 
+  // FEAT-302: Per-unit calendar navigation state
+  // 'all' = aggregated view, '1','2',... = specific unit index
+  const [calUnitFilter, setCalUnitFilter] = useState<string>('all');
+
   // Stock management state
   const [showAddStock, setShowAddStock] = useState(false);
   const [stockQty, setStockQty] = useState('');
@@ -52,6 +56,7 @@ export function ProductDetailPage() {
   const [hasMoreLogs, setHasMoreLogs] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const logFetchRef = useRef(0); // BUG-301: guard against concurrent/duplicate fetches
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-detail', id],
@@ -60,6 +65,38 @@ export function ProductDetailPage() {
   });
 
   const product: AdminProductDetail | undefined = data?.data;
+
+  // FEAT-302: Per-unit calendar query
+  const calYear = calMonth.getFullYear();
+  const calMonthNum = calMonth.getMonth() + 1;
+  const { data: calendarData } = useQuery({
+    queryKey: ['product-calendar', id, calYear, calMonthNum, calUnitFilter],
+    queryFn: () => adminApi.products.perUnitCalendar(id!, { year: calYear, month: calMonthNum, unit: calUnitFilter }),
+    enabled: !!id && !!product,
+  });
+  const perUnitCal: PerUnitCalendarResponse | undefined = calendarData?.data;
+  const totalUnits = perUnitCal?.total_units ?? Math.max(product?.stock_on_hand ?? 0, 1);
+
+  // FEAT-302: Chevron navigation — cycle: all → 1 → 2 → ... → N → all
+  function calUnitPrev() {
+    if (calUnitFilter === 'all') {
+      setCalUnitFilter(String(totalUnits));
+    } else {
+      const cur = parseInt(calUnitFilter, 10);
+      setCalUnitFilter(cur <= 1 ? 'all' : String(cur - 1));
+    }
+  }
+  function calUnitNext() {
+    if (calUnitFilter === 'all') {
+      setCalUnitFilter(totalUnits > 0 ? '1' : 'all');
+    } else {
+      const cur = parseInt(calUnitFilter, 10);
+      setCalUnitFilter(cur >= totalUnits ? 'all' : String(cur + 1));
+    }
+  }
+  const calUnitLabel = calUnitFilter === 'all'
+    ? t('calendar.allUnits')
+    : t('calendar.unitXofN', { x: calUnitFilter, n: totalUnits });
 
   // B3: Load stock logs with cursor pagination
   const loadStockLogs = useCallback(async (reset = false) => {
@@ -75,9 +112,17 @@ export function ProductDetailPage() {
       const res = await adminApi.products.stockLogs(id, params);
       const newLogs = res.data ?? [];
       if (reset) {
-        setAllStockLogs(newLogs);
+        // BUG-301: Dedup by log.id via Map
+        const dedupMap = new Map<string, StockLog>();
+        for (const log of newLogs) dedupMap.set(log.id, log);
+        setAllStockLogs(Array.from(dedupMap.values()));
       } else {
-        setAllStockLogs((prev) => [...prev, ...newLogs]);
+        setAllStockLogs((prev) => {
+          const dedupMap = new Map<string, StockLog>();
+          for (const log of prev) dedupMap.set(log.id, log);
+          for (const log of newLogs) dedupMap.set(log.id, log);
+          return Array.from(dedupMap.values());
+        });
       }
       setLogCursor((res.meta?.cursor as string) ?? null);
       setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
@@ -89,19 +134,26 @@ export function ProductDetailPage() {
   }, [id, logCursor, logTypeFilter, logDateFrom, logDateTo, isLoadingLogs]);
 
   // Load initial logs when product loads or filters change
+  // BUG-301: Use fetch generation counter to prevent duplicate/stale fetches
   useEffect(() => {
     if (product && id) {
+      const generation = ++logFetchRef.current;
       setAllStockLogs([]);
       setLogCursor(null);
       setHasMoreLogs(true);
       // Defer the load to next tick so state resets first
       const timer = setTimeout(() => {
+        if (generation !== logFetchRef.current) return; // stale
         const params: Record<string, string> = { limit: '20' };
         if (logTypeFilter) params.type = logTypeFilter;
         if (logDateFrom) params.date_from = logDateFrom;
         if (logDateTo) params.date_to = logDateTo;
         adminApi.products.stockLogs(id, params).then((res) => {
-          setAllStockLogs(res.data ?? []);
+          if (generation !== logFetchRef.current) return; // stale
+          // BUG-301: Dedup by log.id via Map (server is source of truth)
+          const dedupMap = new Map<string, StockLog>();
+          for (const log of (res.data ?? [])) dedupMap.set(log.id, log);
+          setAllStockLogs(Array.from(dedupMap.values()));
           setLogCursor((res.meta?.cursor as string) ?? null);
           setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
         }).catch(() => {});
@@ -134,11 +186,9 @@ export function ProductDetailPage() {
       setStockQty('');
       setStockUnitCost('');
       setStockNote('');
+      // BUG-301: Only invalidate product query — useEffect handles log refetch
+      // Do NOT manually reset allStockLogs here (causes double-fetch / duplication)
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
-      // Reload stock logs
-      setAllStockLogs([]);
-      setLogCursor(null);
-      setHasMoreLogs(true);
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
     },
     onError: (err: Error) => setStockError(err.message),
@@ -195,6 +245,21 @@ export function ProductDetailPage() {
 
   function getDayStatus(day: number): string | null {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    // FEAT-302: Use per-unit calendar data if available
+    if (perUnitCal) {
+      if (calUnitFilter === 'all' && perUnitCal.aggregated_days) {
+        const dayData = perUnitCal.aggregated_days.find((d) => d.date === dateStr);
+        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+      }
+      if (perUnitCal.calendars.length > 0) {
+        const cal = perUnitCal.calendars[0];
+        const dayData = cal.days.find((d) => d.date === dateStr);
+        return dayData?.status === 'available' ? null : (dayData?.status ?? null);
+      }
+    }
+
+    // Fallback: use product.calendar (order-derived)
     for (const cal of product!.calendar) {
       if (dateStr >= cal.start && dateStr <= cal.end) {
         return cal.status;
@@ -339,6 +404,30 @@ export function ProductDetailPage() {
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
+            {/* FEAT-302: Per-unit navigation chevrons */}
+            {totalUnits > 0 && (
+              <div className="flex items-center justify-center gap-2 mb-3 py-1 bg-muted/30 rounded">
+                <button
+                  onClick={calUnitPrev}
+                  className="p-1 hover:bg-muted rounded"
+                  aria-label={t('calendar.prevUnit')}
+                  data-testid="cal-unit-prev"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </button>
+                <span className="text-xs font-medium min-w-[100px] text-center" data-testid="cal-unit-label">
+                  {calUnitLabel}
+                </span>
+                <button
+                  onClick={calUnitNext}
+                  className="p-1 hover:bg-muted rounded"
+                  aria-label={t('calendar.nextUnit')}
+                  data-testid="cal-unit-next"
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-7 gap-1 text-center text-xs">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
                 <div key={d} className="py-1 text-muted-foreground font-medium">{d}</div>

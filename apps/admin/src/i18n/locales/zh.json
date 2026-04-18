@@ -328,6 +328,10 @@
   "calendar": {
     "title": "日历",
     "noData": "暂无日历数据",
+    "allUnits": "全部单位",
+    "unitXofN": "单位 {{x}} / {{n}}",
+    "prevUnit": "上一个单位",
+    "nextUnit": "下一个单位",
     "status": {
       "available": "可用",
       "booked": "已预订",
