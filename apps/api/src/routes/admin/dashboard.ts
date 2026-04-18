@@ -161,4 +161,85 @@ dashboard.get('/overview', async (c) => {
   });
 });
 
+// C2: GET /api/v1/admin/dashboard/low-stock — Low stock widget
+dashboard.get('/low-stock', async (c) => {
+  const db = getDb();
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10)));
+
+  // Products where stock_on_hand <= lowStockThreshold, not deleted
+  const lowStockProducts = await db.product.findMany({
+    where: {
+      deletedAt: null,
+      stockOnHand: { lte: db.product.fields?.lowStockThreshold as unknown as number ?? 5 },
+    },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      thumbnailUrl: true,
+      stockOnHand: true,
+      lowStockThreshold: true,
+    },
+    orderBy: { stockOnHand: 'asc' },
+    take: limit,
+  }).catch(async () => {
+    // Fallback: use raw comparison since Prisma doesn't support field-to-field comparison easily
+    return await db.$queryRaw`
+      SELECT id, sku, name, thumbnail_url as "thumbnailUrl", stock_on_hand as "stockOnHand", low_stock_threshold as "lowStockThreshold"
+      FROM products
+      WHERE deleted_at IS NULL AND stock_on_hand <= low_stock_threshold
+      ORDER BY stock_on_hand ASC
+      LIMIT ${limit}
+    ` as Array<{ id: string; sku: string; name: string; thumbnailUrl: string | null; stockOnHand: number; lowStockThreshold: number }>;
+  });
+
+  return success(c, lowStockProducts.map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    name: p.name,
+    thumbnail_url: p.thumbnailUrl,
+    stock_on_hand: p.stockOnHand,
+    low_stock_threshold: p.lowStockThreshold,
+  })));
+});
+
+// C3: POST /api/v1/admin/dashboard/low-stock-digest — Email digest scaffold (no-op handler)
+dashboard.post('/low-stock-digest', async (c) => {
+  const db = getDb();
+
+  // Scaffold: find low-stock products, but don't actually send email
+  const lowStockProducts = await db.product.findMany({
+    where: {
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      sku: true,
+      name: true,
+      stockOnHand: true,
+      lowStockThreshold: true,
+    },
+  }).catch(() => []);
+
+  const belowThreshold = lowStockProducts.filter(
+    (p) => p.stockOnHand <= p.lowStockThreshold
+  );
+
+  // No-op: log what would be sent
+  const digestPayload = {
+    generated_at: new Date().toISOString(),
+    total_low_stock: belowThreshold.length,
+    products: belowThreshold.map((p) => ({
+      sku: p.sku,
+      name: p.name,
+      stock_on_hand: p.stockOnHand,
+      threshold: p.lowStockThreshold,
+    })),
+    email_sent: false, // scaffold — no actual email integration yet
+    message: 'Email digest scaffold — no email provider configured',
+  };
+
+  return success(c, digestPayload);
+});
+
 export default dashboard;

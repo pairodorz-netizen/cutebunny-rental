@@ -55,8 +55,16 @@ export function DashboardPage() {
     refetchInterval: 60000,
   });
 
+  // C2: Low stock widget query
+  const lowStockQuery = useQuery({
+    queryKey: ['dashboard-low-stock'],
+    queryFn: () => adminApi.dashboard.lowStock(10),
+    refetchInterval: 60000,
+  });
+
   const stats = statsQuery.data?.data;
   const overview = overviewQuery.data?.data;
+  const lowStockProducts = lowStockQuery.data?.data ?? [];
 
   if (statsQuery.isLoading && overviewQuery.isLoading) {
     return (
@@ -141,19 +149,33 @@ export function DashboardPage() {
               </div>
             </div>
 
+            {/* C2: Low Stock Widget */}
             <div className="rounded-lg border">
               <div className="p-4 border-b flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                <h2 className="font-semibold">{t('dashboard.lowStock')}</h2>
+                <h2 className="font-semibold">{t('lowStockWidget.title')}</h2>
               </div>
               <div className="divide-y">
-                {stats.low_stock_alert.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm">{t('dashboard.allGood')}</div>
+                {lowStockProducts.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">{t('lowStockWidget.noItems')}</div>
                 ) : (
-                  stats.low_stock_alert.map((product) => (
+                  lowStockProducts.map((product) => (
                     <div key={product.id} className="flex items-center justify-between p-3">
-                      <span className="text-sm font-medium">{product.name}</span>
-                      <span className="text-sm text-yellow-600 font-medium">{product.stock} {t('dashboard.available')}</span>
+                      <div className="flex items-center gap-2">
+                        {product.thumbnail_url && (
+                          <img src={product.thumbnail_url} alt="" className="w-8 h-8 rounded object-cover" />
+                        )}
+                        <div>
+                          <span className="text-sm font-medium">{product.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{product.sku}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-sm font-bold ${product.stock_on_hand <= 0 ? 'text-red-600' : 'text-yellow-600'}`}>
+                          {product.stock_on_hand}
+                        </span>
+                        <span className="text-xs text-muted-foreground"> / {product.low_stock_threshold}</span>
+                      </div>
                     </div>
                   ))
                 )}

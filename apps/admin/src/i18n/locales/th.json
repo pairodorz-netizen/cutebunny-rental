@@ -272,7 +272,30 @@
     "type_loss": "สูญหาย",
     "type_return_stock": "คืนสต็อก",
     "type_rental_out": "ส่งเช่า",
-    "type_rental_in": "รับคืน"
+    "type_rental_in": "รับคืน",
+    "restore": "กู้คืนสินค้า",
+    "restoreConfirm": "กู้คืนสินค้าที่ถูกลบนี้? สินค้าจะกลับมาพร้อมใช้งานอีกครั้ง",
+    "restored": "กู้คืนสินค้าสำเร็จ",
+    "activeRentalsError": "ไม่สามารถลบสินค้าที่มี {{count}} รายการเช่าที่ยังเปิดอยู่ กรุณาดำเนินการให้เสร็จหรือยกเลิกก่อน",
+    "alreadyDeleted": "สินค้านี้ถูกลบไปแล้ว",
+    "deleteSuccess": "ลบสินค้าสำเร็จ",
+    "threshold": "เกณฑ์สต็อกต่ำ",
+    "belowThreshold": "ต่ำกว่าเกณฑ์",
+    "filterByType": "กรองตามประเภท",
+    "allTypes": "ทุกประเภท",
+    "dateFrom": "จาก",
+    "dateTo": "ถึง",
+    "loadMore": "โหลดเพิ่ม",
+    "noMoreLogs": "ไม่มีประวัติเพิ่มเติม",
+    "orphanedComboWarning": "คำเตือน: การลบสินค้านี้จะทำให้ชุดคอมโบ {{count}} ชุดไม่สมบูรณ์"
+  },
+  "lowStockWidget": {
+    "title": "แจ้งเตือนสต็อกต่ำ",
+    "product": "สินค้า",
+    "onHand": "คงเหลือ",
+    "threshold": "เกณฑ์",
+    "noItems": "สินค้าทั้งหมดมีสต็อกเพียงพอ",
+    "viewAll": "ดูทั้งหมด"
   },
   "customers": {
     "title": "ลูกค้า",

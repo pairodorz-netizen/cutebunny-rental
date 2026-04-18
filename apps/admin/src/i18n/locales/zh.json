@@ -272,7 +272,30 @@
     "type_loss": "损耗",
     "type_return_stock": "退回",
     "type_rental_out": "租出",
-    "type_rental_in": "归还"
+    "type_rental_in": "归还",
+    "restore": "恢复产品",
+    "restoreConfirm": "恢复此已删除产品？产品将重新上架。",
+    "restored": "产品恢复成功",
+    "activeRentalsError": "无法删除有 {{count}} 个活跃租赁的产品。请先完成或取消。",
+    "alreadyDeleted": "此产品已被删除",
+    "deleteSuccess": "产品删除成功",
+    "threshold": "低库存阈值",
+    "belowThreshold": "低于阈值",
+    "filterByType": "按类型筛选",
+    "allTypes": "所有类型",
+    "dateFrom": "从",
+    "dateTo": "到",
+    "loadMore": "加载更多",
+    "noMoreLogs": "没有更多记录",
+    "orphanedComboWarning": "警告：删除此产品将导致 {{count}} 个套装不完整"
+  },
+  "lowStockWidget": {
+    "title": "低库存警报",
+    "product": "产品",
+    "onHand": "现有",
+    "threshold": "阈值",
+    "noItems": "所有产品库存充足",
+    "viewAll": "查看全部"
   },
   "customers": {
     "title": "客户",
