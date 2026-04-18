@@ -1,5 +1,14 @@
 image: node:20-slim
 
+workflow:
+  rules:
+    # Run on merge request events
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Run on push to default/protected branches (but skip if MR already open to avoid duplicates)
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
 variables:
   PNPM_VERSION: "9"
   NODE_ENV: "test"
