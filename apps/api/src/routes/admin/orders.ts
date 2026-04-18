@@ -318,7 +318,7 @@ adminOrders.patch('/:id/edit', async (c) => {
   if (parsed.data.customer_address) {
     await db.customer.update({
       where: { id: order.customerId },
-      data: { address: parsed.data.customer_address },
+      data: { address: parsed.data.customer_address as Record<string, string> },
     });
     changes.push('customer_address updated');
   }

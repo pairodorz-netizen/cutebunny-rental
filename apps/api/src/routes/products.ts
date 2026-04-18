@@ -83,7 +83,8 @@ products.get('/', async (c) => {
   }));
 
   // Fetch combo sets and merge into listing
-  let comboData: typeof productData = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let comboData: any[] = [];
   try {
     const comboSets = await db.comboSet.findMany({
       where: { available: true },

@@ -182,6 +182,7 @@ model Product {
   comboSetItems       ComboSetItem[]
   inventoryUnits      InventoryUnit[]
   stockLogs           ProductStockLog[]
+  financeTransactions FinanceTransaction[]
 
   @@map("products")
 }
@@ -244,6 +245,7 @@ model Customer {
   creditBalance Int         @default(0) @map("credit_balance")
   tags         Json?        @default("[]") @db.JsonB
   address      Json?        @db.JsonB
+  passwordHash String?      @map("password_hash")
   locale       String       @default("en")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
@@ -378,17 +380,58 @@ model ShippingProvinceConfig {
 }
 
 model FinanceTransaction {
-  id        String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  orderId   String?       @map("order_id") @db.Uuid
-  txType    FinanceTxType @map("tx_type")
-  amount    Int
-  note      String?
-  createdBy String?       @map("created_by") @db.Uuid
-  createdAt DateTime      @default(now()) @map("created_at")
+  id         String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderId    String?       @map("order_id") @db.Uuid
+  productId  String?       @map("product_id") @db.Uuid
+  categoryId String?       @map("category_id") @db.Uuid
+  txType     FinanceTxType @map("tx_type")
+  amount     Int
+  note       String?
+  createdBy  String?       @map("created_by") @db.Uuid
+  createdAt  DateTime      @default(now()) @map("created_at")
 
-  order Order? @relation(fields: [orderId], references: [id])
+  order    Order?            @relation(fields: [orderId], references: [id])
+  product  Product?          @relation(fields: [productId], references: [id])
+  category FinanceCategory?  @relation(fields: [categoryId], references: [id])
 
   @@map("finance_transactions")
+}
+
+model FinanceCategory {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  type        String   // income, expense, etc.
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  transactions FinanceTransaction[]
+
+  @@map("finance_categories")
+}
+
+model SystemConfig {
+  id    String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key   String @unique
+  value Json   @db.JsonB
+  label String?
+  group String?
+
+  @@map("system_configs")
+}
+
+model NotificationLog {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  channel      String
+  recipient    String
+  subject      String?
+  body         String?
+  status       String   @default("sent")
+  orderId      String?  @map("order_id") @db.Uuid
+  customerId   String?  @map("customer_id") @db.Uuid
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("notification_logs")
 }
 
 model AfterSalesEvent {
@@ -441,6 +484,7 @@ model AuditLog {
   resource   String?
   resourceId String?  @map("resource_id")
   details    Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address")
   createdAt  DateTime @default(now()) @map("created_at")
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
