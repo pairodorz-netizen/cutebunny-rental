@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - name: ESLint
+        run: |
+          pnpm --filter @cutebunny/api lint
+          pnpm --filter @cutebunny/admin lint
+          pnpm --filter @cutebunny/customer lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - run: pnpm --filter @cutebunny/shared build
+      - name: Typecheck
+        run: |
+          pnpm --filter @cutebunny/api typecheck
+          pnpm --filter @cutebunny/admin typecheck
+          pnpm --filter @cutebunny/customer typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - name: Unit Tests
+        run: pnpm --filter @cutebunny/api test
+
+  build-admin:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - run: pnpm --filter @cutebunny/shared build
+      - name: Build Admin
+        run: pnpm --filter @cutebunny/admin build
+
+  build-customer:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - run: pnpm --filter @cutebunny/shared build
+      - name: Build Customer
+        run: pnpm --filter @cutebunny/customer build
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Security Audit
+        run: pnpm audit --audit-level=critical || true
