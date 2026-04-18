@@ -166,6 +166,17 @@ export interface AdminOrderDetail {
   created_at: string;
 }
 
+export interface StockLog {
+  id: string;
+  type: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface AdminProduct {
   id: string;
   sku: string;
@@ -184,12 +195,15 @@ export interface AdminProduct {
   retail_price: number;
   deposit: number;
   stock: number;
+  stock_on_hand: number;
+  low_stock_threshold: number;
   rental_count: number;
   available: boolean;
   cost_price: number;
   selling_price: number;
   product_status: string;
   sold_at: string | null;
+  deleted_at: string | null;
   variable_cost: number;
   extra_day_rate: number;
   created_at: string;
@@ -218,8 +232,11 @@ export interface AdminProductDetail {
   product_status: string;
   sold_at: string | null;
   stock: number;
+  stock_on_hand: number;
+  low_stock_threshold: number;
   rental_count: number;
   available: boolean;
+  deleted_at: string | null;
   rental_history: Array<{
     order_id: string;
     order_number: string;
@@ -619,6 +636,20 @@ export const adminApi = {
       }),
     detail: (id: string) =>
       request<{ data: AdminProductDetail }>(`/api/v1/admin/products/${id}/detail`),
+    addStock: (id: string, body: { quantity: number; unit_cost: number; note?: string }) =>
+      request<{ data: { stock_on_hand: number; log_id: string; quantity: number; unit_cost: number; total_cost: number } }>(`/api/v1/admin/products/${id}/stock`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    stockLogs: (id: string, params?: Record<string, string>) => {
+      const qs = params ? new URLSearchParams(params).toString() : '';
+      return request<{ data: StockLog[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/products/${id}/stock-logs${qs ? `?${qs}` : ''}`);
+    },
+    adjustStock: (id: string, body: { new_qty: number; reason: string }) =>
+      request<{ data: { previous_qty: number; new_qty: number; adjustment: number; log_id: string } }>(`/api/v1/admin/products/${id}/stock/adjust`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
   },
   comboSets: {
     list: (params?: Record<string, string>) => {

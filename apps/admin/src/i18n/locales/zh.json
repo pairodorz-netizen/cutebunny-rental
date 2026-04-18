@@ -249,7 +249,30 @@
     "rentalDays": "天数",
     "noRentals": "暂无租赁记录",
     "created": "已创建",
-    "updated": "已更新"
+    "updated": "已更新",
+    "delete": "删除",
+    "deleteTitle": "删除产品",
+    "deleteConfirmMessage": "确定要删除此产品吗？产品将从列表中隐藏，但历史记录将保留。"
+  },
+  "stock": {
+    "title": "库存管理",
+    "onHand": "现有库存",
+    "addStock": "添加库存",
+    "quantity": "数量",
+    "unitCost": "单位成本",
+    "totalCost": "总成本",
+    "note": "备注",
+    "notePlaceholder": "例如：供应商新批次",
+    "date": "日期",
+    "logType": "类型",
+    "noLogs": "暂无库存记录",
+    "invalidQuantity": "请输入有效数量（最少1）",
+    "type_purchase": "采购",
+    "type_adjust": "调整",
+    "type_loss": "损耗",
+    "type_return_stock": "退回",
+    "type_rental_out": "租出",
+    "type_rental_in": "归还"
   },
   "customers": {
     "title": "客户",

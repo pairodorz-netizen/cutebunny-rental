@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { adminApi, type AdminProductDetail } from '@/lib/api';
+import { adminApi, type AdminProductDetail, type StockLog } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Image, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2 } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: 'bg-yellow-100 text-yellow-800',
@@ -28,8 +29,18 @@ export function ProductDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [galleryIdx, setGalleryIdx] = useState(0);
   const [calMonth, setCalMonth] = useState(() => new Date());
+
+  // Stock management state
+  const [showAddStock, setShowAddStock] = useState(false);
+  const [stockQty, setStockQty] = useState('');
+  const [stockUnitCost, setStockUnitCost] = useState('');
+  const [stockNote, setStockNote] = useState('');
+  const [stockError, setStockError] = useState<string | null>(null);
+  const [stockSuccess, setStockSuccess] = useState<string | null>(null);
+  const [stockLogPage, setStockLogPage] = useState(1);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-detail', id],
@@ -38,6 +49,41 @@ export function ProductDetailPage() {
   });
 
   const product: AdminProductDetail | undefined = data?.data;
+
+  // Stock logs query
+  const { data: stockLogsData } = useQuery({
+    queryKey: ['stock-logs', id, stockLogPage],
+    queryFn: () => adminApi.products.stockLogs(id!, { page: String(stockLogPage), per_page: '10' }),
+    enabled: !!id && !!product,
+  });
+
+  const stockLogs = stockLogsData?.data ?? [];
+  const stockLogsMeta = stockLogsData?.meta;
+
+  // Add stock mutation
+  const addStockMutation = useMutation({
+    mutationFn: (body: { quantity: number; unit_cost: number; note?: string }) =>
+      adminApi.products.addStock(id!, body),
+    onSuccess: (res) => {
+      setStockSuccess(`Added ${stockQty} units. New stock: ${res.data.stock_on_hand}`);
+      setStockQty('');
+      setStockUnitCost('');
+      setStockNote('');
+      queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['stock-logs', id] });
+      setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
+    },
+    onError: (err: Error) => setStockError(err.message),
+  });
+
+  function handleAddStock() {
+    const qty = parseInt(stockQty, 10);
+    const cost = parseInt(stockUnitCost || '0', 10);
+    if (!qty || qty < 1) { setStockError(t('stock.invalidQuantity')); return; }
+    setStockError(null);
+    setStockSuccess(null);
+    addStockMutation.mutate({ quantity: qty, unit_cost: cost, note: stockNote || undefined });
+  }
 
   if (isLoading) {
     return (
@@ -261,6 +307,134 @@ export function ProductDetailPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Stock Management Section */}
+      <div className="mt-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            <h3 className="text-sm font-semibold">{t('stock.title')}</h3>
+            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${(product.stock_on_hand ?? 0) <= (product.low_stock_threshold ?? 1) ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+              {t('stock.onHand')}: {product.stock_on_hand ?? 0}
+            </span>
+          </div>
+          <Button size="sm" onClick={() => { setShowAddStock(true); setStockError(null); setStockSuccess(null); }}>
+            <Plus className="h-4 w-4 mr-1" /> {t('stock.addStock')}
+          </Button>
+        </div>
+
+        {/* Add Stock Dialog */}
+        {showAddStock && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+              <h3 className="text-lg font-semibold mb-4">{t('stock.addStock')}</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-muted-foreground">{t('stock.quantity')}</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={stockQty}
+                    onChange={(e) => setStockQty(e.target.value)}
+                    placeholder="e.g. 5"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">{t('stock.unitCost')} (THB)</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={stockUnitCost}
+                    onChange={(e) => setStockUnitCost(e.target.value)}
+                    placeholder="e.g. 500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">{t('stock.note')}</label>
+                  <Input
+                    value={stockNote}
+                    onChange={(e) => setStockNote(e.target.value)}
+                    placeholder={t('stock.notePlaceholder')}
+                  />
+                </div>
+                {stockError && (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                    <AlertCircle className="inline h-4 w-4 mr-1" /> {stockError}
+                  </div>
+                )}
+                {stockSuccess && (
+                  <div className="p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                    {stockSuccess}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" size="sm" onClick={() => setShowAddStock(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button size="sm" onClick={handleAddStock} disabled={addStockMutation.isPending}>
+                  {addStockMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                  {t('stock.addStock')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stock History Log */}
+        <div className="rounded-lg border overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 text-xs font-medium">{t('stock.logType')}</th>
+                <th className="text-right p-3 text-xs font-medium">{t('stock.quantity')}</th>
+                <th className="text-right p-3 text-xs font-medium">{t('stock.unitCost')}</th>
+                <th className="text-right p-3 text-xs font-medium">{t('stock.totalCost')}</th>
+                <th className="text-left p-3 text-xs font-medium">{t('stock.note')}</th>
+                <th className="text-left p-3 text-xs font-medium">{t('stock.date')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {stockLogs.length === 0 ? (
+                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
+              ) : stockLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-muted/30">
+                  <td className="p-3 text-xs">
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      log.type === 'purchase' ? 'bg-green-100 text-green-800' :
+                      log.type === 'adjust' ? 'bg-blue-100 text-blue-800' :
+                      log.type === 'loss' ? 'bg-red-100 text-red-800' :
+                      log.type === 'rental_out' ? 'bg-orange-100 text-orange-800' :
+                      log.type === 'rental_in' ? 'bg-teal-100 text-teal-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {t(`stock.type_${log.type}`)}
+                    </span>
+                  </td>
+                  <td className={`p-3 text-sm text-right font-medium ${log.quantity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {log.quantity >= 0 ? '+' : ''}{log.quantity}
+                  </td>
+                  <td className="p-3 text-sm text-right">{log.unit_cost > 0 ? log.unit_cost.toLocaleString() : '-'}</td>
+                  <td className="p-3 text-sm text-right">{log.total_cost > 0 ? log.total_cost.toLocaleString() : '-'}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{log.note ?? '-'}</td>
+                  <td className="p-3 text-xs text-muted-foreground">{new Date(log.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {stockLogsMeta && stockLogsMeta.total_pages > 1 && (
+          <div className="flex justify-center gap-2 mt-3">
+            <Button variant="outline" size="sm" disabled={stockLogPage <= 1} onClick={() => setStockLogPage(stockLogPage - 1)}>
+              ←
+            </Button>
+            <span className="text-sm py-1 px-2">{stockLogPage} / {stockLogsMeta.total_pages}</span>
+            <Button variant="outline" size="sm" disabled={stockLogPage >= stockLogsMeta.total_pages} onClick={() => setStockLogPage(stockLogPage + 1)}>
+              →
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Rental History */}

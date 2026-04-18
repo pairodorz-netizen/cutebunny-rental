@@ -12,6 +12,8 @@ const mockDb = vi.hoisted(() => {
     'paymentSlip', 'customer', 'customerDocument', 'availabilityCalendar',
     'inventoryStatusLog', 'shippingZone', 'shippingProvinceConfig',
     'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
+    'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
+    'financeCategory', 'systemConfig', 'notificationLog',
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
@@ -163,6 +165,7 @@ describe('T03: Admin Happy Path E2E', () => {
 
       mockDb.paymentSlip.findFirst.mockResolvedValue(MOCK_PAYMENT_SLIP);
       mockDb.paymentSlip.update.mockResolvedValue({ ...MOCK_PAYMENT_SLIP, verificationStatus: 'verified' });
+      mockDb.paymentSlip.findMany.mockResolvedValue([{ ...MOCK_PAYMENT_SLIP, verificationStatus: 'verified' }]);
       mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'unpaid' });
       mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'paid_locked' });
       mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-1' });
