@@ -34,6 +34,7 @@ before_script:
   - corepack prepare pnpm@${PNPM_VERSION} --activate
   - pnpm config set store-dir .pnpm-store
   - pnpm install --frozen-lockfile
+  - pnpm --filter @cutebunny/shared db:generate
 
 # ─── Lint Stage ──────────────────────────────────────────────────────────
 lint:eslint:
