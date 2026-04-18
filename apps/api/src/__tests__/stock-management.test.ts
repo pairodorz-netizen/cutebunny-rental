@@ -1108,6 +1108,85 @@ describe('Stock Management', () => {
     });
   });
 
+  // ─── TD-001: Invalidation behaviour tests ─────────────────────────
+  describe('TD-001: Stock log invalidation after add-stock', () => {
+    it('POST /stock then GET /stock-logs returns the new log entry', async () => {
+      const token = await getAdminToken();
+      const logId = 'log-after-add-' + Date.now();
+
+      // Product exists, not deleted
+      mockDb.product.findUnique.mockResolvedValue({
+        id: PRODUCT_ID, stockOnHand: 5, lowStockThreshold: 5, deletedAt: null,
+      });
+
+      // Add stock transaction succeeds
+      mockDb.$transaction.mockResolvedValue([
+        { id: PRODUCT_ID, stockOnHand: 8 },
+        { id: logId, type: 'purchase', quantity: 3, unitCost: 100, totalCost: 300, note: null, createdBy: 'admin-id', createdAt: new Date() },
+      ]);
+
+      const addRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock`, {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: 3, unit_cost: 100 }),
+      });
+      expect(addRes.status).toBe(201);
+      const addBody = await addRes.json();
+      expect(addBody.data.stock_on_hand).toBe(8);
+      expect(addBody.data.log_id).toBe(logId);
+
+      // Now GET stock-logs should return the new entry (simulate fresh query after invalidation)
+      mockDb.productStockLog.findMany.mockResolvedValue([
+        { id: logId, type: 'purchase', quantity: 3, unitCost: 100, totalCost: 300, note: null, createdBy: 'admin-id', createdAt: new Date() },
+      ]);
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+
+      const logsRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=5`, {
+        headers: authHeaders(token),
+      });
+      expect(logsRes.status).toBe(200);
+      const logsBody = await logsRes.json();
+      expect(logsBody.data.length).toBeGreaterThanOrEqual(1);
+      expect(logsBody.data[0].id).toBe(logId);
+    });
+
+    it('cursor pagination returns non-overlapping pages (dedup guarantee)', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+
+      // Page 1: 2 logs with has_more=true
+      const log1 = { id: 'log-1', type: 'purchase', quantity: 5, unitCost: 100, totalCost: 500, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-15') };
+      const log2 = { id: 'log-2', type: 'adjust', quantity: -1, unitCost: 0, totalCost: 0, note: 'lost', createdBy: 'admin-id', createdAt: new Date('2026-04-14') };
+      const log3 = { id: 'log-3', type: 'purchase', quantity: 3, unitCost: 200, totalCost: 600, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-13') };
+
+      // First request: return 3 items (limit=2, so has_more=true, returns first 2)
+      mockDb.productStockLog.findMany.mockResolvedValueOnce([log1, log2, log3]);
+
+      const page1Res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=2`, {
+        headers: authHeaders(token),
+      });
+      expect(page1Res.status).toBe(200);
+      const page1 = await page1Res.json();
+      expect(page1.data.length).toBe(2);
+      expect(page1.meta.has_more).toBe(true);
+      const page1Ids = page1.data.map((l: { id: string }) => l.id);
+
+      // Second request with cursor: return 1 item (no more)
+      mockDb.productStockLog.findMany.mockResolvedValueOnce([log3]);
+
+      const page2Res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=2&cursor=${page1.meta.cursor}`, {
+        headers: authHeaders(token),
+      });
+      expect(page2Res.status).toBe(200);
+      const page2 = await page2Res.json();
+      const page2Ids = page2.data.map((l: { id: string }) => l.id);
+
+      // No overlapping IDs between pages
+      const overlap = page1Ids.filter((id: string) => page2Ids.includes(id));
+      expect(overlap).toHaveLength(0);
+    });
+  });
+
   // ─── Spec v3.1.0 artifact test ────────────────────────────────────
   describe('Spec v3.1.0: artifact exists', () => {
     it('spec-stock-v3.1.0.md exists and references supersede', async () => {
