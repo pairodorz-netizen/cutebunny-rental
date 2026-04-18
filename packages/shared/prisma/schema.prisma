@@ -172,7 +172,7 @@ model Product {
 
   stockOnHand       Int             @default(0) @map("stock_on_hand")
   deletedAt         DateTime?       @map("deleted_at")
-  lowStockThreshold Int             @default(1) @map("low_stock_threshold")
+  lowStockThreshold Int             @default(5) @map("low_stock_threshold")
 
   brand               Brand?               @relation(fields: [brandId], references: [id])
   images              ProductImage[]
@@ -508,6 +508,7 @@ model ComboSet {
   variableCost    Int      @default(0) @map("variable_cost")
   extraDayRate    Int      @default(0) @map("extra_day_rate")
   available       Boolean  @default(true)
+  orphaned        Boolean  @default(false)
   rentalCount     Int      @default(0) @map("rental_count")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { adminApi, type AdminProductDetail, type StockLog } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: 'bg-yellow-100 text-yellow-800',
@@ -40,7 +40,18 @@ export function ProductDetailPage() {
   const [stockNote, setStockNote] = useState('');
   const [stockError, setStockError] = useState<string | null>(null);
   const [stockSuccess, setStockSuccess] = useState<string | null>(null);
-  const [stockLogPage, setStockLogPage] = useState(1);
+
+  // B2: Stock log filters
+  const [logTypeFilter, setLogTypeFilter] = useState<string>('');
+  const [logDateFrom, setLogDateFrom] = useState('');
+  const [logDateTo, setLogDateTo] = useState('');
+
+  // B3: Infinite scroll state
+  const [allStockLogs, setAllStockLogs] = useState<StockLog[]>([]);
+  const [logCursor, setLogCursor] = useState<string | null>(null);
+  const [hasMoreLogs, setHasMoreLogs] = useState(true);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-detail', id],
@@ -50,15 +61,69 @@ export function ProductDetailPage() {
 
   const product: AdminProductDetail | undefined = data?.data;
 
-  // Stock logs query
-  const { data: stockLogsData } = useQuery({
-    queryKey: ['stock-logs', id, stockLogPage],
-    queryFn: () => adminApi.products.stockLogs(id!, { page: String(stockLogPage), per_page: '10' }),
-    enabled: !!id && !!product,
-  });
+  // B3: Load stock logs with cursor pagination
+  const loadStockLogs = useCallback(async (reset = false) => {
+    if (!id || isLoadingLogs) return;
+    setIsLoadingLogs(true);
+    try {
+      const params: Record<string, string> = { limit: '20' };
+      if (!reset && logCursor) params.cursor = logCursor;
+      if (logTypeFilter) params.type = logTypeFilter;
+      if (logDateFrom) params.date_from = logDateFrom;
+      if (logDateTo) params.date_to = logDateTo;
 
-  const stockLogs = stockLogsData?.data ?? [];
-  const stockLogsMeta = stockLogsData?.meta;
+      const res = await adminApi.products.stockLogs(id, params);
+      const newLogs = res.data ?? [];
+      if (reset) {
+        setAllStockLogs(newLogs);
+      } else {
+        setAllStockLogs((prev) => [...prev, ...newLogs]);
+      }
+      setLogCursor((res.meta?.cursor as string) ?? null);
+      setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, [id, logCursor, logTypeFilter, logDateFrom, logDateTo, isLoadingLogs]);
+
+  // Load initial logs when product loads or filters change
+  useEffect(() => {
+    if (product && id) {
+      setAllStockLogs([]);
+      setLogCursor(null);
+      setHasMoreLogs(true);
+      // Defer the load to next tick so state resets first
+      const timer = setTimeout(() => {
+        const params: Record<string, string> = { limit: '20' };
+        if (logTypeFilter) params.type = logTypeFilter;
+        if (logDateFrom) params.date_from = logDateFrom;
+        if (logDateTo) params.date_to = logDateTo;
+        adminApi.products.stockLogs(id, params).then((res) => {
+          setAllStockLogs(res.data ?? []);
+          setLogCursor((res.meta?.cursor as string) ?? null);
+          setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
+        }).catch(() => {});
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [product, id, logTypeFilter, logDateFrom, logDateTo]);
+
+  // B3: Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!logsEndRef.current || !hasMoreLogs || isLoadingLogs) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreLogs && !isLoadingLogs) {
+          loadStockLogs(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(logsEndRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreLogs, isLoadingLogs, loadStockLogs]);
 
   // Add stock mutation
   const addStockMutation = useMutation({
@@ -70,10 +135,22 @@ export function ProductDetailPage() {
       setStockUnitCost('');
       setStockNote('');
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['stock-logs', id] });
+      // Reload stock logs
+      setAllStockLogs([]);
+      setLogCursor(null);
+      setHasMoreLogs(true);
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
     },
     onError: (err: Error) => setStockError(err.message),
+  });
+
+  // A2: Restore mutation
+  const restoreMutation = useMutation({
+    mutationFn: () => adminApi.products.restore(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
   });
 
   function handleAddStock() {
@@ -151,6 +228,19 @@ export function ProductDetailPage() {
           <span className="ml-auto px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full font-medium">
             {t('products.sold')}
           </span>
+        )}
+        {product.deleted_at && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-full font-medium">
+              Deleted
+            </span>
+            <Button size="sm" variant="outline" onClick={() => {
+              if (confirm(t('stock.restoreConfirm'))) restoreMutation.mutate();
+            }} disabled={restoreMutation.isPending}>
+              {restoreMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+              {t('stock.restore')}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -382,10 +472,43 @@ export function ProductDetailPage() {
           </div>
         )}
 
-        {/* Stock History Log */}
-        <div className="rounded-lg border overflow-x-auto">
+        {/* B2: Stock Log Filters */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <select
+            className="text-xs border rounded px-2 py-1"
+            value={logTypeFilter}
+            onChange={(e) => setLogTypeFilter(e.target.value)}
+          >
+            <option value="">{t('stock.allTypes')}</option>
+            <option value="purchase">{t('stock.type_purchase')}</option>
+            <option value="adjust">{t('stock.type_adjust')}</option>
+            <option value="loss">{t('stock.type_loss')}</option>
+            <option value="return_stock">{t('stock.type_return_stock')}</option>
+            <option value="rental_out">{t('stock.type_rental_out')}</option>
+            <option value="rental_in">{t('stock.type_rental_in')}</option>
+          </select>
+          <Input
+            type="date"
+            className="h-7 w-36 text-xs"
+            value={logDateFrom}
+            onChange={(e) => setLogDateFrom(e.target.value)}
+            placeholder={t('stock.dateFrom')}
+          />
+          <span className="text-xs text-muted-foreground">→</span>
+          <Input
+            type="date"
+            className="h-7 w-36 text-xs"
+            value={logDateTo}
+            onChange={(e) => setLogDateTo(e.target.value)}
+            placeholder={t('stock.dateTo')}
+          />
+        </div>
+
+        {/* B3: Stock History Log with Infinite Scroll + Color Chips */}
+        <div className="rounded-lg border overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full">
-            <thead>
+            <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 text-xs font-medium">{t('stock.logType')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.quantity')}</th>
@@ -396,9 +519,9 @@ export function ProductDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {stockLogs.length === 0 ? (
+              {allStockLogs.length === 0 && !isLoadingLogs ? (
                 <tr><td colSpan={6} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
-              ) : stockLogs.map((log) => (
+              ) : allStockLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-muted/30">
                   <td className="p-3 text-xs">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -407,6 +530,7 @@ export function ProductDetailPage() {
                       log.type === 'loss' ? 'bg-red-100 text-red-800' :
                       log.type === 'rental_out' ? 'bg-orange-100 text-orange-800' :
                       log.type === 'rental_in' ? 'bg-teal-100 text-teal-800' :
+                      log.type === 'return_stock' ? 'bg-purple-100 text-purple-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {t(`stock.type_${log.type}`)}
@@ -423,18 +547,14 @@ export function ProductDetailPage() {
               ))}
             </tbody>
           </table>
-        </div>
-        {stockLogsMeta && stockLogsMeta.total_pages > 1 && (
-          <div className="flex justify-center gap-2 mt-3">
-            <Button variant="outline" size="sm" disabled={stockLogPage <= 1} onClick={() => setStockLogPage(stockLogPage - 1)}>
-              ←
-            </Button>
-            <span className="text-sm py-1 px-2">{stockLogPage} / {stockLogsMeta.total_pages}</span>
-            <Button variant="outline" size="sm" disabled={stockLogPage >= stockLogsMeta.total_pages} onClick={() => setStockLogPage(stockLogPage + 1)}>
-              →
-            </Button>
+          {/* B3: Infinite scroll sentinel */}
+          <div ref={logsEndRef} className="p-2 text-center">
+            {isLoadingLogs && <Loader2 className="h-4 w-4 animate-spin inline" />}
+            {!hasMoreLogs && allStockLogs.length > 0 && (
+              <span className="text-xs text-muted-foreground">{t('stock.noMoreLogs')}</span>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Rental History */}

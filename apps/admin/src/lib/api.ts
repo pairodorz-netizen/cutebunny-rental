@@ -544,6 +544,8 @@ export const adminApi = {
   dashboard: {
     stats: () => request<{ data: DashboardStats }>('/api/v1/admin/dashboard/stats'),
     overview: () => request<{ data: DashboardOverview }>('/api/v1/admin/dashboard/overview'),
+    lowStock: (limit = 10) => request<{ data: Array<{ id: string; sku: string; name: string; thumbnail_url: string | null; stock_on_hand: number; low_stock_threshold: number }> }>(`/api/v1/admin/dashboard/low-stock?limit=${limit}`),
+    lowStockDigest: () => request<{ data: { generated_at: string; total_low_stock: number; products: Array<{ sku: string; name: string; stock_on_hand: number; threshold: number }>; email_sent: boolean; message: string } }>('/api/v1/admin/dashboard/low-stock-digest', { method: 'POST' }),
   },
   orders: {
     list: (params: Record<string, string>) => {
@@ -643,13 +645,15 @@ export const adminApi = {
       }),
     stockLogs: (id: string, params?: Record<string, string>) => {
       const qs = params ? new URLSearchParams(params).toString() : '';
-      return request<{ data: StockLog[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/products/${id}/stock-logs${qs ? `?${qs}` : ''}`);
+      return request<{ data: StockLog[]; meta: Record<string, unknown> }>(`/api/v1/admin/products/${id}/stock-logs${qs ? `?${qs}` : ''}`);
     },
     adjustStock: (id: string, body: { new_qty: number; reason: string }) =>
       request<{ data: { previous_qty: number; new_qty: number; adjustment: number; log_id: string } }>(`/api/v1/admin/products/${id}/stock/adjust`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    restore: (id: string) =>
+      request<{ data: { id: string; restored: boolean } }>(`/api/v1/admin/products/${id}/restore`, { method: 'POST' }),
   },
   comboSets: {
     list: (params?: Record<string, string>) => {

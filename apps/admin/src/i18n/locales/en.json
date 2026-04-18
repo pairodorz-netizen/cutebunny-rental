@@ -272,7 +272,30 @@
     "type_loss": "Loss",
     "type_return_stock": "Return",
     "type_rental_out": "Rental Out",
-    "type_rental_in": "Rental In"
+    "type_rental_in": "Rental In",
+    "restore": "Restore Product",
+    "restoreConfirm": "Restore this deleted product? It will become available again.",
+    "restored": "Product restored successfully",
+    "activeRentalsError": "Cannot delete product with {{count}} active rental(s). Complete or cancel them first.",
+    "alreadyDeleted": "This product is already deleted",
+    "deleteSuccess": "Product deleted successfully",
+    "threshold": "Low Stock Threshold",
+    "belowThreshold": "Below threshold",
+    "filterByType": "Filter by type",
+    "allTypes": "All Types",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "loadMore": "Load More",
+    "noMoreLogs": "No more logs to load",
+    "orphanedComboWarning": "Warning: Deleting this product will orphan {{count}} combo set(s)"
+  },
+  "lowStockWidget": {
+    "title": "Low Stock Alert",
+    "product": "Product",
+    "onHand": "On Hand",
+    "threshold": "Threshold",
+    "noItems": "All products are well stocked",
+    "viewAll": "View All"
   },
   "customers": {
     "title": "Customers",

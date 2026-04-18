@@ -1020,7 +1020,7 @@ adminProducts.get('/popularity', async (c) => {
   })), { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) });
 });
 
-// A02: DELETE /api/v1/admin/products/:id — Soft delete (mark unavailable)
+// A1: DELETE /api/v1/admin/products/:id — Soft delete with 409 contract + combo orphan cascade
 adminProducts.delete('/:id', async (c) => {
   const db = getDb();
   const id = c.req.param('id');
@@ -1046,8 +1046,15 @@ adminProducts.delete('/:id', async (c) => {
   });
 
   if (activeRentals > 0) {
-    return error(c, 409, 'ACTIVE_RENTALS', `Cannot delete product with ${activeRentals} active rental(s). Complete or cancel them first.`);
+    return error(c, 409, 'ACTIVE_RENTALS', `Cannot delete product with ${activeRentals} active rental(s). Complete or cancel them first.`, { count: activeRentals });
   }
+
+  // A3: Check combo sets that include this product — mark as orphaned
+  const affectedComboItems = await db.comboSetItem.findMany({
+    where: { productId: id },
+    select: { comboSetId: true },
+  });
+  const orphanedComboSetIds = [...new Set(affectedComboItems.map((ci) => ci.comboSetId))];
 
   // Soft delete: set deletedAt + mark unavailable
   await db.product.update({
@@ -1057,6 +1064,14 @@ adminProducts.delete('/:id', async (c) => {
       available: false,
     },
   });
+
+  // A3: Mark affected combo sets as orphaned + unavailable
+  if (orphanedComboSetIds.length > 0) {
+    await db.comboSet.updateMany({
+      where: { id: { in: orphanedComboSetIds } },
+      data: { orphaned: true, available: false },
+    });
+  }
 
   // Audit log via inventory status
   await db.inventoryStatusLog.create({
@@ -1068,22 +1083,78 @@ adminProducts.delete('/:id', async (c) => {
     },
   });
 
-  // Audit log for product deletion (non-blocking)
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          adminId: admin.sub,
-          action: 'DELETE',
-          resource: 'product',
-          resourceId: id,
-          details: { sku: product.sku, name: product.name },
-        },
+  // Audit log
+  await db.auditLog.create({
+    data: {
+      adminId: admin.sub,
+      action: 'DELETE',
+      resource: 'product',
+      resourceId: id,
+      details: { sku: product.sku, name: product.name, orphaned_combo_sets: orphanedComboSetIds },
+    },
+  });
+
+  return success(c, { id, deleted: true, orphaned_combo_sets: orphanedComboSetIds.length });
+});
+
+// A2: POST /api/v1/admin/products/:id/restore — Restore soft-deleted product
+adminProducts.post('/:id/restore', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const admin = getAdmin(c);
+
+  const product = await db.product.findUnique({ where: { id } });
+  if (!product) {
+    return error(c, 404, 'NOT_FOUND', 'Product not found');
+  }
+
+  if (!product.deletedAt) {
+    return error(c, 400, 'NOT_DELETED', 'Product is not deleted');
+  }
+
+  // Restore: clear deletedAt + mark available
+  await db.product.update({
+    where: { id },
+    data: {
+      deletedAt: null,
+      available: true,
+    },
+  });
+
+  // Check if any orphaned combo sets can be un-orphaned
+  // A combo set is un-orphaned if ALL its component products are active (deletedAt = null)
+  const comboItems = await db.comboSetItem.findMany({
+    where: { productId: id },
+    select: { comboSetId: true },
+  });
+  const comboSetIds = [...new Set(comboItems.map((ci) => ci.comboSetId))];
+
+  for (const csId of comboSetIds) {
+    const allItems = await db.comboSetItem.findMany({
+      where: { comboSetId: csId },
+      include: { product: { select: { deletedAt: true } } },
+    });
+    const allActive = allItems.every((item) => item.product.deletedAt === null);
+    if (allActive) {
+      await db.comboSet.update({
+        where: { id: csId },
+        data: { orphaned: false, available: true },
       });
     }
-  } catch { /* audit failure should not block */ }
+  }
 
-  return success(c, { id, deleted: true });
+  // Audit log
+  await db.auditLog.create({
+    data: {
+      adminId: admin.sub,
+      action: 'RESTORE',
+      resource: 'product',
+      resourceId: id,
+      details: { sku: product.sku, name: product.name },
+    },
+  });
+
+  return success(c, { id, restored: true });
 });
 
 // GET /api/v1/admin/products/:id/calendar — Per-unit calendar for admin
@@ -1241,11 +1312,18 @@ adminProducts.post('/:id/stock', async (c) => {
   });
 });
 
-// GET /api/v1/admin/products/:id/stock-logs — Paginated stock history
+// B1+B2: GET /api/v1/admin/products/:id/stock-logs — Cursor-paginated stock history with filters
 adminProducts.get('/:id/stock-logs', async (c) => {
   const db = getDb();
   const id = c.req.param('id');
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10));
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '20', 10)));
+  const cursor = c.req.query('cursor') || undefined; // cursor = last log id
+  const typeFilter = c.req.query('type') || undefined; // B2: filter by StockLogType
+  const dateFrom = c.req.query('date_from') || undefined; // B2: ISO date string
+  const dateTo = c.req.query('date_to') || undefined; // B2: ISO date string
+
+  // Also support legacy page-based pagination
+  const page = c.req.query('page') ? Math.max(1, parseInt(c.req.query('page')!, 10)) : undefined;
   const perPage = Math.min(50, Math.max(1, parseInt(c.req.query('per_page') ?? '20', 10)));
 
   const product = await db.product.findUnique({ where: { id }, select: { id: true } });
@@ -1253,17 +1331,85 @@ adminProducts.get('/:id/stock-logs', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Product not found');
   }
 
-  const [logs, total] = await Promise.all([
-    db.productStockLog.findMany({
-      where: { productId: id },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * perPage,
-      take: perPage,
-    }),
-    db.productStockLog.count({ where: { productId: id } }),
-  ]);
+  // Build where clause with filters
+  const where: Record<string, unknown> = { productId: id };
+  if (typeFilter) {
+    where.type = typeFilter;
+  }
+  if (dateFrom || dateTo) {
+    const createdAtFilter: Record<string, Date> = {};
+    if (dateFrom) createdAtFilter.gte = new Date(dateFrom);
+    if (dateTo) {
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      createdAtFilter.lte = endDate;
+    }
+    where.createdAt = createdAtFilter;
+  }
 
-  const data = logs.map((l) => ({
+  // Cursor-based pagination (B1)
+  if (cursor && !page) {
+    const logs = await db.productStockLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1, // fetch one extra to determine has_more
+      cursor: { id: cursor },
+      skip: 1, // skip the cursor item itself
+    });
+
+    const hasMore = logs.length > limit;
+    const items = hasMore ? logs.slice(0, limit) : logs;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+    return success(c, items.map((l) => ({
+      id: l.id,
+      type: l.type,
+      quantity: l.quantity,
+      unit_cost: l.unitCost,
+      total_cost: l.totalCost,
+      note: l.note,
+      created_by: l.createdBy,
+      created_at: l.createdAt.toISOString(),
+    })), { cursor: nextCursor, has_more: hasMore, limit });
+  }
+
+  // First page (no cursor) or legacy page-based
+  if (page) {
+    // Legacy page-based pagination
+    const [logs, total] = await Promise.all([
+      db.productStockLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      db.productStockLog.count({ where }),
+    ]);
+
+    return success(c, logs.map((l) => ({
+      id: l.id,
+      type: l.type,
+      quantity: l.quantity,
+      unit_cost: l.unitCost,
+      total_cost: l.totalCost,
+      note: l.note,
+      created_by: l.createdBy,
+      created_at: l.createdAt.toISOString(),
+    })), { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) });
+  }
+
+  // Default: cursor-based first page
+  const logs = await db.productStockLog.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: limit + 1,
+  });
+
+  const hasMore = logs.length > limit;
+  const items = hasMore ? logs.slice(0, limit) : logs;
+  const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+  return success(c, items.map((l) => ({
     id: l.id,
     type: l.type,
     quantity: l.quantity,
@@ -1272,14 +1418,7 @@ adminProducts.get('/:id/stock-logs', async (c) => {
     note: l.note,
     created_by: l.createdBy,
     created_at: l.createdAt.toISOString(),
-  }));
-
-  return success(c, data, {
-    page,
-    per_page: perPage,
-    total,
-    total_pages: Math.ceil(total / perPage),
-  });
+  })), { cursor: nextCursor, has_more: hasMore, limit });
 });
 
 // PATCH /api/v1/admin/products/:id/stock/adjust — Adjust stock quantity

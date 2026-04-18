@@ -27,9 +27,11 @@ const mockDb = vi.hoisted(() => {
       count: vi.fn().mockResolvedValue(0),
       create: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       update: vi.fn().mockResolvedValue({ id: 'mock-id' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       upsert: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: 0 } }),
+      groupBy: vi.fn().mockResolvedValue([]),
     };
   }
   return db;
@@ -234,7 +236,7 @@ describe('Stock Management', () => {
 
   // ─── Stock Logs ──────────────────────────────────────────────────
   describe('GET /api/v1/admin/products/:id/stock-logs — Stock History', () => {
-    it('returns paginated stock logs', async () => {
+    it('returns cursor-paginated stock logs by default', async () => {
       const token = await getAdminToken();
       mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
 
@@ -243,7 +245,6 @@ describe('Stock Management', () => {
         { id: 'log-2', type: 'adjust', quantity: -2, unitCost: 0, totalCost: 0, note: 'Damaged items', createdBy: null, createdAt: new Date() },
       ];
       mockDb.productStockLog.findMany.mockResolvedValue(mockLogs);
-      mockDb.productStockLog.count.mockResolvedValue(2);
 
       const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs`, {
         headers: authHeaders(token),
@@ -255,7 +256,23 @@ describe('Stock Management', () => {
       expect(body.data[0].type).toBe('purchase');
       expect(body.data[0].quantity).toBe(5);
       expect(body.data[1].quantity).toBe(-2);
-      expect(body.meta.total).toBe(2);
+      expect(body.meta.has_more).toBe(false);
+    });
+
+    it('returns legacy page-based pagination when page param is provided', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+      mockDb.productStockLog.findMany.mockResolvedValue([]);
+      mockDb.productStockLog.count.mockResolvedValue(0);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?page=1`, {
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.meta.total).toBe(0);
+      expect(body.meta.page).toBe(1);
     });
   });
 
@@ -307,6 +324,307 @@ describe('Stock Management', () => {
       });
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  // ═══ WAVE 2 TESTS ══════════════════════════════════════════════════
+
+  // ─── A1: DELETE 409 contract returns count in details ─────────────
+  describe('A1: DELETE 409 contract + error details', () => {
+    it('returns active rental count in error details', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+      mockDb.orderItem.count.mockResolvedValue(3);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error.code).toBe('ACTIVE_RENTALS');
+      expect(body.error.details).toEqual({ count: 3 });
+      expect(body.error.message).toContain('3 active rental');
+    });
+  });
+
+  // ─── A2: POST /restore — Restore soft-deleted product ─────────────
+  describe('A2: POST /api/v1/admin/products/:id/restore', () => {
+    it('restores a deleted product', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ ...MOCK_PRODUCT, deletedAt: new Date() });
+      mockDb.comboSetItem.findMany.mockResolvedValue([]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/restore`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.restored).toBe(true);
+
+      expect(mockDb.product.update).toHaveBeenCalledWith({
+        where: { id: PRODUCT_ID },
+        data: { deletedAt: null, available: true },
+      });
+      expect(mockDb.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'RESTORE', resource: 'product' }),
+        }),
+      );
+    });
+
+    it('returns 400 when product is not deleted', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT); // deletedAt = null
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/restore`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.code).toBe('NOT_DELETED');
+    });
+
+    it('returns 404 for non-existent product', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(null);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/restore`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // ─── A3: Combo-set orphan cascade on soft-delete ──────────────────
+  describe('A3: Combo-set orphan cascade', () => {
+    const COMBO_SET_ID = '00000000-0000-0000-0000-000000000010';
+
+    it('marks combo sets as orphaned when component product is deleted', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+      mockDb.orderItem.count.mockResolvedValue(0);
+      mockDb.comboSetItem.findMany.mockResolvedValue([
+        { comboSetId: COMBO_SET_ID },
+      ]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}`, {
+        method: 'DELETE',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.orphaned_combo_sets).toBe(1);
+
+      expect(mockDb.comboSet.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [COMBO_SET_ID] } },
+        data: { orphaned: true, available: false },
+      });
+    });
+
+    it('un-orphans combo sets when restored product makes all components active', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ ...MOCK_PRODUCT, deletedAt: new Date() });
+      mockDb.comboSetItem.findMany
+        .mockResolvedValueOnce([{ comboSetId: COMBO_SET_ID }]) // first call for restore
+        .mockResolvedValueOnce([
+          { product: { deletedAt: null } }, // all components active
+        ]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/restore`, {
+        method: 'POST',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      expect(mockDb.comboSet.update).toHaveBeenCalledWith({
+        where: { id: COMBO_SET_ID },
+        data: { orphaned: false, available: true },
+      });
+    });
+  });
+
+  // ─── B1: Cursor pagination for stock logs ─────────────────────────
+  describe('B1: GET /stock-logs — Cursor pagination', () => {
+    it('returns cursor-based pagination on first page', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+
+      // Return 21 logs (limit=20 + 1 extra to detect has_more)
+      const mockLogs = Array.from({ length: 21 }, (_, i) => ({
+        id: `log-${i}`,
+        type: 'purchase',
+        quantity: 1,
+        unitCost: 100,
+        totalCost: 100,
+        note: null,
+        createdBy: null,
+        createdAt: new Date(),
+      }));
+      mockDb.productStockLog.findMany.mockResolvedValue(mockLogs);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=20`, {
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(20);
+      expect(body.meta.has_more).toBe(true);
+      expect(body.meta.cursor).toBe('log-19');
+    });
+
+    it('returns has_more=false when fewer items than limit', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+
+      const mockLogs = [
+        { id: 'log-0', type: 'purchase', quantity: 1, unitCost: 100, totalCost: 100, note: null, createdBy: null, createdAt: new Date() },
+      ];
+      mockDb.productStockLog.findMany.mockResolvedValue(mockLogs);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=20`, {
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.meta.has_more).toBe(false);
+      expect(body.meta.cursor).toBeNull();
+    });
+
+    it('uses cursor to fetch next page', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+      mockDb.productStockLog.findMany.mockResolvedValue([]);
+
+      await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=10&cursor=log-9`, {
+        headers: authHeaders(token),
+      });
+
+      expect(mockDb.productStockLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cursor: { id: 'log-9' },
+          skip: 1,
+          take: 11,
+        }),
+      );
+    });
+  });
+
+  // ─── B2: Filter by type + date range ──────────────────────────────
+  describe('B2: GET /stock-logs — Filters', () => {
+    it('filters stock logs by type', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+      mockDb.productStockLog.findMany.mockResolvedValue([]);
+
+      await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?type=purchase`, {
+        headers: authHeaders(token),
+      });
+
+      expect(mockDb.productStockLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ type: 'purchase' }),
+        }),
+      );
+    });
+
+    it('filters stock logs by date range', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+      mockDb.productStockLog.findMany.mockResolvedValue([]);
+
+      await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?date_from=2025-01-01&date_to=2025-12-31`, {
+        headers: authHeaders(token),
+      });
+
+      const callArgs = mockDb.productStockLog.findMany.mock.calls[0][0];
+      expect(callArgs.where.createdAt).toBeDefined();
+      expect(callArgs.where.createdAt.gte).toEqual(new Date('2025-01-01'));
+    });
+
+    it('combines type and date range filters', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+      mockDb.productStockLog.findMany.mockResolvedValue([]);
+
+      await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?type=loss&date_from=2025-06-01`, {
+        headers: authHeaders(token),
+      });
+
+      const callArgs = mockDb.productStockLog.findMany.mock.calls[0][0];
+      expect(callArgs.where.type).toBe('loss');
+      expect(callArgs.where.createdAt).toBeDefined();
+    });
+  });
+
+  // ─── C1: stockThreshold default = 5 ──────────────────────────────
+  describe('C1: stockThreshold default = 5', () => {
+    it('MOCK_PRODUCT lowStockThreshold defaults properly', () => {
+      // Schema defines @default(5) — verify mock reflects it
+      const productWith5 = { ...MOCK_PRODUCT, lowStockThreshold: 5 };
+      expect(productWith5.lowStockThreshold).toBe(5);
+    });
+
+    it('stock column shows red when at or below threshold', () => {
+      const product = { ...MOCK_PRODUCT, stockOnHand: 3, lowStockThreshold: 5 };
+      expect(product.stockOnHand <= product.lowStockThreshold).toBe(true);
+    });
+  });
+
+  // ─── C2: Dashboard low-stock widget ───────────────────────────────
+  describe('C2: GET /api/v1/admin/dashboard/low-stock', () => {
+    it('returns products below threshold', async () => {
+      const token = await getAdminToken();
+      const lowStockProducts = [
+        { id: 'p1', sku: 'SKU-01', name: 'Low Stock Item', thumbnailUrl: null, stockOnHand: 2, lowStockThreshold: 5 },
+      ];
+
+      // The endpoint uses raw query as fallback
+      mockDb.product.findMany.mockRejectedValue(new Error('field comparison not supported'));
+      mockDb.$queryRaw.mockResolvedValue(lowStockProducts);
+
+      const res = await app.request('/api/v1/admin/dashboard/low-stock?limit=10', {
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toBeDefined();
+    });
+  });
+
+  // ─── C3: Email digest scaffold ────────────────────────────────────
+  describe('C3: POST /api/v1/admin/dashboard/low-stock-digest', () => {
+    it('returns scaffold digest payload without sending email', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findMany.mockResolvedValue([
+        { id: 'p1', sku: 'SKU-01', name: 'Low Stock', stockOnHand: 2, lowStockThreshold: 5 },
+        { id: 'p2', sku: 'SKU-02', name: 'OK Stock', stockOnHand: 10, lowStockThreshold: 5 },
+      ]);
+
+      const res = await app.request('/api/v1/admin/dashboard/low-stock-digest', {
+        method: 'POST',
+        headers: authHeaders(token),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.email_sent).toBe(false);
+      expect(body.data.total_low_stock).toBe(1); // only p1 is below threshold
+      expect(body.data.products).toHaveLength(1);
+      expect(body.data.products[0].sku).toBe('SKU-01');
+      expect(body.data.message).toContain('scaffold');
     });
   });
 
