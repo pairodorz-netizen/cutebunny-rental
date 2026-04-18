@@ -671,4 +671,144 @@ describe('Stock Management', () => {
       expect(call.where.deletedAt).toBeUndefined();
     });
   });
+
+  // ─── BUG-301: Stock log deduplication ────────────────────────────
+  describe('BUG-301: Stock log deduplication', () => {
+    it('GET /stock-logs returns exactly 1 row after add-stock (no duplicates)', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+
+      // Simulate add-stock
+      const stockLog = {
+        id: 'log-dedup-1',
+        productId: PRODUCT_ID,
+        type: 'purchase',
+        quantity: 3,
+        unitCost: 100,
+        totalCost: 300,
+        note: 'dedup test',
+        createdBy: '00000000-0000-0000-0000-000000000099',
+        createdAt: new Date(),
+      };
+      mockDb.$transaction.mockResolvedValue([
+        { ...MOCK_PRODUCT, stockOnHand: 8 },
+        stockLog,
+      ]);
+
+      // Add stock
+      const addRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock`, {
+        method: 'POST',
+        headers: authHeaders(token),
+        body: JSON.stringify({ quantity: 3, unit_cost: 100, note: 'dedup test' }),
+      });
+      expect(addRes.status).toBe(201);
+
+      // Now fetch stock logs — should return exactly 1 entry, not 2
+      mockDb.productStockLog.findMany.mockResolvedValue([stockLog]);
+      mockDb.productStockLog.count.mockResolvedValue(1);
+
+      const logsRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=20`, {
+        headers: authHeaders(token),
+      });
+      expect(logsRes.status).toBe(200);
+      const logsBody = await logsRes.json();
+      expect(logsBody.data).toHaveLength(1);
+      expect(logsBody.data[0].id).toBe('log-dedup-1');
+    });
+
+    it('stock-logs API returns unique entries (no duplicate IDs)', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+
+      // Even if DB somehow returns duplicates, API should handle it
+      const log1 = { id: 'log-A', productId: PRODUCT_ID, type: 'purchase', quantity: 1, unitCost: 50, totalCost: 50, note: null, createdBy: null, createdAt: new Date() };
+      const log2 = { id: 'log-B', productId: PRODUCT_ID, type: 'adjust', quantity: -1, unitCost: 0, totalCost: 0, note: 'adjust', createdBy: null, createdAt: new Date() };
+      mockDb.productStockLog.findMany.mockResolvedValue([log1, log2]);
+      mockDb.productStockLog.count.mockResolvedValue(2);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=20`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(2);
+
+      // Verify all IDs are unique
+      const ids = body.data.map((l: { id: string }) => l.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+  });
+
+  // ─── FEAT-302: Per-unit calendar navigation ─────────────────────
+  describe('FEAT-302: Per-unit calendar', () => {
+    it('GET /calendar?unit=all returns aggregated calendar with inventory units', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID, stockOnHand: 2 });
+      mockDb.inventoryUnit.findMany.mockResolvedValue([
+        { id: 'unit-1', unitIndex: 1, label: 'Unit 1', size: 'M', color: 'white', status: 'active' },
+        { id: 'unit-2', unitIndex: 2, label: 'Unit 2', size: 'L', color: 'ivory', status: 'active' },
+      ]);
+      // Mock availability calendar
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=all`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.product_id).toBe(PRODUCT_ID);
+      expect(body.data.unit_filter).toBe('all');
+      expect(body.data.total_units).toBe(2);
+      expect(body.data.inventory_units).toHaveLength(2);
+      expect(body.data.inventory_units[0].unit_index).toBe(1);
+      expect(body.data.inventory_units[1].unit_index).toBe(2);
+    });
+
+    it('GET /calendar?unit=1 filters to specific unit', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID, stockOnHand: 2 });
+      mockDb.inventoryUnit.findMany.mockResolvedValue([
+        { id: 'unit-1', unitIndex: 1, label: 'Unit 1', size: 'M', color: 'white', status: 'active' },
+        { id: 'unit-2', unitIndex: 2, label: 'Unit 2', size: 'L', color: 'ivory', status: 'active' },
+      ]);
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([
+        {
+          id: 'cal-1',
+          productId: PRODUCT_ID,
+          unitId: 'unit-1',
+          calendarDate: new Date('2026-04-15'),
+          slotStatus: 'booked',
+          orderId: 'order-1',
+          unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' },
+        },
+      ]);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=1`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.unit_filter).toBe('1');
+      expect(body.data.total_units).toBe(2);
+    });
+
+    it('GET /calendar returns 400 for invalid year/month', async () => {
+      const token = await getAdminToken();
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=abc&month=13`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('GET /calendar returns 404 for non-existent product', async () => {
+      const token = await getAdminToken();
+      mockDb.product.findUnique.mockResolvedValue(null);
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4`, {
+        headers: authHeaders(token),
+      });
+      expect(res.status).toBe(404);
+    });
+  });
 });

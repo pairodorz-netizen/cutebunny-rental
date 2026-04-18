@@ -220,6 +220,7 @@ model AvailabilityCalendar {
   slotStatus   SlotStatus @default(available) @map("slot_status")
   orderId      String?    @map("order_id") @db.Uuid
   unitId       String?    @map("unit_id") @db.Uuid
+  unitIndex    Int?       @map("unit_index") // FEAT-302: 1..stock_on_hand, NULL = legacy/unassigned
   note         String?
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
@@ -228,7 +229,7 @@ model AvailabilityCalendar {
   order   Order?         @relation(fields: [orderId], references: [id])
   unit    InventoryUnit? @relation(fields: [unitId], references: [id])
 
-  @@unique([productId, calendarDate], name: "product_date_unique")
+  @@unique([productId, calendarDate, unitIndex], name: "product_date_unit_unique")
   @@map("availability_calendar")
 }
 

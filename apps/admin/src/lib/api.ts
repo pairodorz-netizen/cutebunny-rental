@@ -328,6 +328,29 @@ export interface CalendarProduct {
   slots: Array<{ date: string; status: string; order_id: string | null }>;
 }
 
+// FEAT-302: Per-unit calendar response
+export interface PerUnitCalendarResponse {
+  product_id: string;
+  year: number;
+  month: number;
+  unit_filter: string;
+  total_units: number;
+  inventory_units: Array<{
+    id: string;
+    unit_index: number;
+    label: string;
+    size: string | null;
+    color: string | null;
+    status: string;
+  }>;
+  aggregated_days: Array<{ date: string; status: string }> | null;
+  calendars: Array<{
+    unit_id: string | null;
+    unit_label: string;
+    days: Array<{ date: string; status: string }>;
+  }>;
+}
+
 export interface FinanceReport {
   period: { year: number; month: number | null; start: string; end: string };
   summary: {
@@ -654,6 +677,15 @@ export const adminApi = {
       }),
     restore: (id: string) =>
       request<{ data: { id: string; restored: boolean } }>(`/api/v1/admin/products/${id}/restore`, { method: 'POST' }),
+    // FEAT-302: Per-unit calendar
+    perUnitCalendar: (id: string, params: { year: number; month: number; unit?: string }) => {
+      const qs = new URLSearchParams({
+        year: String(params.year),
+        month: String(params.month),
+        ...(params.unit ? { unit: params.unit } : {}),
+      }).toString();
+      return request<{ data: PerUnitCalendarResponse }>(`/api/v1/admin/products/${id}/calendar?${qs}`);
+    },
   },
   comboSets: {
     list: (params?: Record<string, string>) => {

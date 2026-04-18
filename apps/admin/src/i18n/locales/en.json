@@ -328,6 +328,10 @@
   "calendar": {
     "title": "Calendar",
     "noData": "No calendar data available",
+    "allUnits": "All Units",
+    "unitXofN": "Unit {{x}} of {{n}}",
+    "prevUnit": "Previous unit",
+    "nextUnit": "Next unit",
     "status": {
       "available": "Available",
       "booked": "Booked",
