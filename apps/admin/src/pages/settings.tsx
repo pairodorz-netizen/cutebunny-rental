@@ -12,7 +12,7 @@ type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'stor
 interface ConfigItem {
   id: string;
   key: string;
-  value: string;
+  value: unknown;
   label: string | null;
   group: string;
 }
@@ -191,9 +191,12 @@ export function SettingsPage() {
   const notifData = notifQuery.data as { data: NotificationItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
   const auditData = auditQuery.data as { data: AuditLogItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
 
+  // Filter out internal configs managed by dedicated tabs (Categories, Store Address)
+  const visibleConfigs = configs.filter((cfg) => !['product_categories', 'store_addresses'].includes(cfg.key));
+
   // Group configs by group
   const groupedConfigs: Record<string, ConfigItem[]> = {};
-  configs.forEach((cfg) => {
+  visibleConfigs.forEach((cfg) => {
     const g = cfg.group || 'general';
     if (!groupedConfigs[g]) groupedConfigs[g] = [];
     groupedConfigs[g].push(cfg);
@@ -201,7 +204,7 @@ export function SettingsPage() {
 
   const startEdit = (cfg: ConfigItem) => {
     setEditingKey(cfg.key);
-    setEditValue(cfg.value);
+    setEditValue(typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value));
   };
 
   return (
@@ -264,7 +267,7 @@ export function SettingsPage() {
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono bg-muted px-2 py-1 rounded">{cfg.value}</span>
+                            <span className="text-sm font-mono bg-muted px-2 py-1 rounded">{typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value)}</span>
                             <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(cfg)}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
@@ -276,7 +279,7 @@ export function SettingsPage() {
                 </div>
               ))}
 
-              {configs.length === 0 && !showAddConfig && (
+              {visibleConfigs.length === 0 && !showAddConfig && (
                 <div className="rounded-lg border p-8 text-center text-muted-foreground">
                   {t('settings.noConfig')}
                 </div>
