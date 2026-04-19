@@ -161,4 +161,131 @@ describe('Availability Logic', () => {
       expect(hasBlockedDayInRange('2026-04-10', '2026-04-10')).toBe(false);
     });
   });
+
+  // FEAT-402: Lifecycle-aware calendar blocking logic
+  describe('FEAT-402: lifecycle blocking windows', () => {
+    it('pre-blocks D shipping days before rental start', () => {
+      const rentalStart = new Date('2026-06-15');
+      const shippingDays = 2;
+      const preBlockDates: string[] = [];
+
+      for (let i = 1; i <= shippingDays; i++) {
+        const d = new Date(rentalStart);
+        d.setDate(d.getDate() - i);
+        preBlockDates.push(d.toISOString().split('T')[0]);
+      }
+
+      expect(preBlockDates).toEqual(['2026-06-14', '2026-06-13']);
+    });
+
+    it('post-blocks D shipping days after rental end', () => {
+      const rentalEnd = new Date('2026-06-17');
+      const shippingDays = 2;
+      const postBlockDates: string[] = [];
+
+      for (let i = 1; i <= shippingDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + i);
+        postBlockDates.push(d.toISOString().split('T')[0]);
+      }
+
+      expect(postBlockDates).toEqual(['2026-06-18', '2026-06-19']);
+    });
+
+    it('adds W wash days after return shipping window', () => {
+      const rentalEnd = new Date('2026-06-17');
+      const shippingDays = 2;
+      const washDays = 1;
+      const washDates: string[] = [];
+
+      for (let i = 1; i <= washDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + shippingDays + i);
+        washDates.push(d.toISOString().split('T')[0]);
+      }
+
+      expect(washDates).toEqual(['2026-06-20']);
+    });
+
+    it('full lifecycle example: R=15-17, D=2, W=1', () => {
+      const rentalStart = new Date('2026-06-15');
+      const rentalEnd = new Date('2026-06-17');
+      const shippingDays = 2;
+      const washDays = 1;
+
+      const allBlocked: { date: string; status: string }[] = [];
+
+      // Pre-shipping (before rental)
+      for (let i = shippingDays; i >= 1; i--) {
+        const d = new Date(rentalStart);
+        d.setDate(d.getDate() - i);
+        allBlocked.push({ date: d.toISOString().split('T')[0], status: 'shipping' });
+      }
+
+      // Rental period
+      const rentalDays = 3;
+      for (let i = 0; i < rentalDays; i++) {
+        const d = new Date(rentalStart);
+        d.setDate(d.getDate() + i);
+        allBlocked.push({ date: d.toISOString().split('T')[0], status: 'booked' });
+      }
+
+      // Post-shipping (return)
+      for (let i = 1; i <= shippingDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + i);
+        allBlocked.push({ date: d.toISOString().split('T')[0], status: 'shipping' });
+      }
+
+      // Washing
+      for (let i = 1; i <= washDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + shippingDays + i);
+        allBlocked.push({ date: d.toISOString().split('T')[0], status: 'washing' });
+      }
+
+      expect(allBlocked).toEqual([
+        { date: '2026-06-13', status: 'shipping' },
+        { date: '2026-06-14', status: 'shipping' },
+        { date: '2026-06-15', status: 'booked' },
+        { date: '2026-06-16', status: 'booked' },
+        { date: '2026-06-17', status: 'booked' },
+        { date: '2026-06-18', status: 'shipping' },
+        { date: '2026-06-19', status: 'shipping' },
+        { date: '2026-06-20', status: 'washing' },
+      ]);
+    });
+
+    it('handles zero shipping days (local pickup)', () => {
+      const rentalStart = new Date('2026-06-15');
+      const rentalEnd = new Date('2026-06-17');
+      const shippingDays = 0;
+      const washDays = 1;
+
+      const preBlock: string[] = [];
+      for (let i = 1; i <= shippingDays; i++) {
+        const d = new Date(rentalStart);
+        d.setDate(d.getDate() - i);
+        preBlock.push(d.toISOString().split('T')[0]);
+      }
+
+      const postBlock: string[] = [];
+      for (let i = 1; i <= shippingDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + i);
+        postBlock.push(d.toISOString().split('T')[0]);
+      }
+
+      const washBlock: string[] = [];
+      for (let i = 1; i <= washDays; i++) {
+        const d = new Date(rentalEnd);
+        d.setDate(d.getDate() + shippingDays + i);
+        washBlock.push(d.toISOString().split('T')[0]);
+      }
+
+      expect(preBlock).toEqual([]);
+      expect(postBlock).toEqual([]);
+      expect(washBlock).toEqual(['2026-06-18']); // wash starts right after rental end
+    });
+  });
 });

@@ -294,3 +294,79 @@ export async function confirmHolds(
     });
   }
 }
+
+/**
+ * FEAT-402: Create lifecycle blocking windows around a booking.
+ *
+ * For a rental R_start..R_end to customer in province P:
+ * - Pre-block: D days before R_start (shipping to customer) → status 'shipping'
+ * - Post-block: D days after R_end (return shipping) → status 'shipping'
+ * - Post-wash: W days after return shipping → status 'washing'
+ *
+ * Example: R=15-17, Chonburi(D=2), W=1
+ *   shipping: 13,14 (pre) + 18,19 (post-return)
+ *   washing: 20 (post-wash)
+ */
+export async function createLifecycleBlocks(
+  db: PrismaClient,
+  productId: string,
+  rentalStartDate: Date,
+  rentalEndDate: Date,
+  shippingDays: number,
+  washDurationDays: number,
+  orderId: string,
+  unitIndex: number = 1
+): Promise<{ shippingBlocked: number; washingBlocked: number }> {
+  let shippingBlocked = 0;
+  let washingBlocked = 0;
+
+  // Pre-block: D days before rental start (shipping to customer)
+  for (let i = 1; i <= shippingDays; i++) {
+    const d = new Date(rentalStartDate);
+    d.setDate(d.getDate() - i);
+    const dateOnly = new Date(d.toISOString().split('T')[0] + 'T00:00:00.000Z');
+
+    await db.availabilityCalendar.upsert({
+      where: {
+        product_date_unit_unique: { productId, calendarDate: dateOnly, unitIndex },
+      },
+      update: { slotStatus: 'shipping', orderId },
+      create: { productId, calendarDate: dateOnly, unitIndex, slotStatus: 'shipping', orderId },
+    });
+    shippingBlocked++;
+  }
+
+  // Post-block: D days after rental end (return shipping)
+  for (let i = 1; i <= shippingDays; i++) {
+    const d = new Date(rentalEndDate);
+    d.setDate(d.getDate() + i);
+    const dateOnly = new Date(d.toISOString().split('T')[0] + 'T00:00:00.000Z');
+
+    await db.availabilityCalendar.upsert({
+      where: {
+        product_date_unit_unique: { productId, calendarDate: dateOnly, unitIndex },
+      },
+      update: { slotStatus: 'shipping', orderId },
+      create: { productId, calendarDate: dateOnly, unitIndex, slotStatus: 'shipping', orderId },
+    });
+    shippingBlocked++;
+  }
+
+  // Post-wash: W days after return shipping window
+  for (let i = 1; i <= washDurationDays; i++) {
+    const d = new Date(rentalEndDate);
+    d.setDate(d.getDate() + shippingDays + i);
+    const dateOnly = new Date(d.toISOString().split('T')[0] + 'T00:00:00.000Z');
+
+    await db.availabilityCalendar.upsert({
+      where: {
+        product_date_unit_unique: { productId, calendarDate: dateOnly, unitIndex },
+      },
+      update: { slotStatus: 'washing', orderId },
+      create: { productId, calendarDate: dateOnly, unitIndex, slotStatus: 'washing', orderId },
+    });
+    washingBlocked++;
+  }
+
+  return { shippingBlocked, washingBlocked };
+}

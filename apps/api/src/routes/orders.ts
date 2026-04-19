@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getDb } from '../lib/db';
 import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
-import { confirmHolds } from '../lib/availability';
+import { confirmHolds, createLifecycleBlocks } from '../lib/availability';
 import { calculateShippingFee } from '../lib/shipping';
 import { getCartStore } from './cart';
 
@@ -190,6 +190,32 @@ orders.post('/', async (c) => {
       // Confirm tentative holds as booked
       const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
       await confirmHolds(db, item.product_id, startDate, item.rental_days, order.id);
+    }
+  }
+
+  // FEAT-402: Create lifecycle blocking windows (shipping + wash)
+  const provinceCode = parsed.data.shipping_address.province_code;
+  const provinceConfig = await db.shippingProvinceConfig.findFirst({
+    where: { provinceCode },
+  });
+  const shippingDays = provinceConfig?.shippingDays ?? 2;
+
+  const washConfig = await db.systemConfig.findUnique({
+    where: { key: 'wash_duration_days' },
+  });
+  const washDurationDays = washConfig ? parseInt(String(washConfig.value), 10) || 1 : 1;
+
+  for (const item of cartData.items) {
+    const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + item.rental_days - 1);
+
+    if (item.is_combo && item.combo_components) {
+      for (const comp of item.combo_components) {
+        await createLifecycleBlocks(db, comp.product_id, startDate, endDate, shippingDays, washDurationDays, order.id);
+      }
+    } else {
+      await createLifecycleBlocks(db, item.product_id, startDate, endDate, shippingDays, washDurationDays, order.id);
     }
   }
 

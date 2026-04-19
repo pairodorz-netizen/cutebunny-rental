@@ -342,7 +342,9 @@
       "cleaning": "ทำความสะอาด",
       "blocked_repair": "ซ่อมแซม",
       "late_return": "คืนล่าช้า",
-      "tentative": "จองชั่วคราว"
+      "tentative": "จองชั่วคราว",
+      "shipping": "จัดส่ง",
+      "washing": "ซักทำความสะอาด"
     }
   },
   "finance": {

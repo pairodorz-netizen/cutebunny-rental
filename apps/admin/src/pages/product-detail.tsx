@@ -24,6 +24,8 @@ const CALENDAR_COLORS: Record<string, string> = {
   returned: 'bg-gray-300',
   cleaning: 'bg-blue-300',
   repair: 'bg-blue-300',
+  shipping: 'bg-amber-300',  // FEAT-402: transit window
+  washing: 'bg-cyan-300',    // FEAT-402: post-return wash
 };
 
 export function ProductDetailPage() {

@@ -40,7 +40,7 @@ products.get('/', async (c) => {
       where.availabilitySlots = {
         none: {
           calendarDate: { gte: startDate, lte: endDate },
-          slotStatus: { in: ['booked', 'cleaning', 'blocked_repair', 'late_return'] },
+          slotStatus: { in: ['booked', 'cleaning', 'blocked_repair', 'late_return', 'shipping', 'washing'] },
         },
       };
     }

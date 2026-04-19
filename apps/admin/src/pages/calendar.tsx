@@ -11,6 +11,8 @@ const STATUS_COLORS: Record<string, string> = {
   blocked_repair: 'bg-red-100 text-red-800',
   late_return: 'bg-orange-100 text-orange-800',
   tentative: 'bg-purple-100 text-purple-800',
+  shipping: 'bg-amber-100 text-amber-800',   // FEAT-402: transit window
+  washing: 'bg-cyan-100 text-cyan-800',       // FEAT-402: post-return wash
 };
 
 export function CalendarPage() {
