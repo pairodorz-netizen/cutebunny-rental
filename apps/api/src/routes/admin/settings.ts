@@ -41,6 +41,14 @@ adminSettings.patch('/config/:key', async (c) => {
     return error(c, 404, 'NOT_FOUND', `Config key "${key}" not found`);
   }
 
+  // FEAT-404: Validate wash_duration_days as integer >= 1
+  if (key === 'wash_duration_days') {
+    const numVal = Number(parsed.data.value);
+    if (!Number.isInteger(numVal) || numVal < 1) {
+      return error(c, 400, 'VALIDATION_ERROR', 'wash_duration_days must be an integer >= 1');
+    }
+  }
+
   const updated = await db.systemConfig.update({
     where: { key },
     data: { value: parsed.data.value },
