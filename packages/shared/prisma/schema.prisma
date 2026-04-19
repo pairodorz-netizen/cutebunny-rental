@@ -372,6 +372,7 @@ model ShippingProvinceConfig {
   provinceCode String   @map("province_code")
   provinceName String?  @map("province_name")
   addonFee     Int      @default(0) @map("addon_fee")
+  shippingDays Int      @default(2) @map("shipping_days") // FEAT-403: transit time in days
   createdAt    DateTime @default(now()) @map("created_at")
 
   zone ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)

@@ -41,6 +41,7 @@ adminShipping.get('/zones', async (c) => {
       province_code: p.provinceCode,
       province_name: p.provinceName,
       addon_fee: p.addonFee,
+      shipping_days: p.shippingDays,
       total_fee: z.baseFee + p.addonFee,
     })),
   }));
@@ -194,7 +195,8 @@ adminShipping.patch('/provinces/:id', async (c) => {
   const provinceId = c.req.param('id');
 
   const bodySchema = z.object({
-    addon_fee: z.number().min(0),
+    addon_fee: z.number().min(0).optional(),
+    shipping_days: z.number().int().min(1).max(30).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -210,7 +212,10 @@ adminShipping.patch('/provinces/:id', async (c) => {
 
   const updated = await db.shippingProvinceConfig.update({
     where: { id: provinceId },
-    data: { addonFee: parsed.data.addon_fee },
+    data: {
+      ...(parsed.data.addon_fee !== undefined && { addonFee: parsed.data.addon_fee }),
+      ...(parsed.data.shipping_days !== undefined && { shippingDays: parsed.data.shipping_days }),
+    },
   });
 
   return success(c, {
@@ -218,6 +223,7 @@ adminShipping.patch('/provinces/:id', async (c) => {
     province_code: updated.provinceCode,
     province_name: updated.provinceName,
     addon_fee: updated.addonFee,
+    shipping_days: updated.shippingDays,
   });
 });
 
@@ -230,6 +236,7 @@ adminShipping.post('/zones/:id/provinces', async (c) => {
     province_code: z.string().min(2).max(10),
     province_name: z.string().min(1),
     addon_fee: z.number().min(0).default(0),
+    shipping_days: z.number().int().min(1).max(30).default(2),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -255,6 +262,7 @@ adminShipping.post('/zones/:id/provinces', async (c) => {
       provinceCode: parsed.data.province_code,
       provinceName: parsed.data.province_name,
       addonFee: parsed.data.addon_fee,
+      shippingDays: parsed.data.shipping_days,
       zoneId,
     },
   });
@@ -264,6 +272,7 @@ adminShipping.post('/zones/:id/provinces', async (c) => {
     province_code: created.provinceCode,
     province_name: created.provinceName,
     addon_fee: created.addonFee,
+    shipping_days: created.shippingDays,
   });
 });
 

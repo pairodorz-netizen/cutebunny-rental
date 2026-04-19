@@ -211,10 +211,10 @@ async function main() {
         baseFee: 50,
         provinceConfigs: {
           create: [
-            { provinceCode: 'BKK', provinceName: 'Bangkok', addonFee: 0 },
-            { provinceCode: 'NBI', provinceName: 'Nonthaburi', addonFee: 20 },
-            { provinceCode: 'PTH', provinceName: 'Pathum Thani', addonFee: 20 },
-            { provinceCode: 'SMK', provinceName: 'Samut Prakan', addonFee: 20 },
+            { provinceCode: 'BKK', provinceName: 'Bangkok', addonFee: 0, shippingDays: 1 },
+            { provinceCode: 'NBI', provinceName: 'Nonthaburi', addonFee: 20, shippingDays: 1 },
+            { provinceCode: 'PTH', provinceName: 'Pathum Thani', addonFee: 20, shippingDays: 1 },
+            { provinceCode: 'SMK', provinceName: 'Samut Prakan', addonFee: 20, shippingDays: 1 },
           ],
         },
       },
@@ -226,8 +226,8 @@ async function main() {
         baseFee: 100,
         provinceConfigs: {
           create: [
-            { provinceCode: 'AYA', provinceName: 'Ayutthaya', addonFee: 30 },
-            { provinceCode: 'SRB', provinceName: 'Saraburi', addonFee: 40 },
+            { provinceCode: 'AYA', provinceName: 'Ayutthaya', addonFee: 30, shippingDays: 2 },
+            { provinceCode: 'SRB', provinceName: 'Saraburi', addonFee: 40, shippingDays: 2 },
           ],
         },
       },
@@ -239,8 +239,8 @@ async function main() {
         baseFee: 150,
         provinceConfigs: {
           create: [
-            { provinceCode: 'CMI', provinceName: 'Chiang Mai', addonFee: 50 },
-            { provinceCode: 'PKT', provinceName: 'Phuket', addonFee: 80 },
+            { provinceCode: 'CMI', provinceName: 'Chiang Mai', addonFee: 50, shippingDays: 3 },
+            { provinceCode: 'PKT', provinceName: 'Phuket', addonFee: 80, shippingDays: 3 },
           ],
         },
       },

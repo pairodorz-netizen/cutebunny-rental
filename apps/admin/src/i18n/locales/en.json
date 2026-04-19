@@ -462,7 +462,11 @@
     "add": "Add",
     "codePlaceholder": "Code (e.g. BKK)",
     "namePlaceholder": "Province name",
-    "confirmDelete": "Remove {{name}} from this zone?"
+    "confirmDelete": "Remove {{name}} from this zone?",
+    "shippingDays": "Transit Days",
+    "days": "days",
+    "originProvince": "Origin Province",
+    "originProvinceDesc": "Province where items ship from (affects transit time calculation)"
   },
   "settings": {
     "title": "Settings",
@@ -501,6 +505,8 @@
     "notifStatus": "Status",
     "noNotifications": "No notifications sent yet.",
     "sendNotification": "Send Notification",
-    "send": "Send"
+    "send": "Send",
+    "washDuration": "Wash Duration (days)",
+    "washDurationDesc": "Number of days needed to clean items after rental return"
   }
 }
