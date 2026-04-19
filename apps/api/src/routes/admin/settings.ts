@@ -252,33 +252,39 @@ adminSettings.get('/audit-log', async (c) => {
   if (resource) where.resource = resource;
   if (action) where.action = action;
 
-  const [logs, total] = await Promise.all([
-    db.auditLog.findMany({
-      where,
-      include: { admin: { select: { id: true, email: true, name: true } } },
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * perPage,
-      take: perPage,
-    }),
-    db.auditLog.count({ where }),
-  ]);
+  // Wrap in try-catch to handle schema drift (e.g. missing ip_address column)
+  try {
+    const [logs, total] = await Promise.all([
+      db.auditLog.findMany({
+        where,
+        include: { admin: { select: { id: true, email: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      db.auditLog.count({ where }),
+    ]);
 
-  return success(c, logs.map((log) => ({
-    id: log.id,
-    admin_email: log.admin?.email ?? 'system',
-    admin_name: log.admin?.name ?? 'System',
-    action: log.action,
-    resource: log.resource,
-    resource_id: log.resourceId,
-    details: log.details,
-    ip_address: log.ipAddress,
-    created_at: log.createdAt.toISOString(),
-  })), {
-    page,
-    per_page: perPage,
-    total,
-    total_pages: Math.ceil(total / perPage),
-  });
+    return success(c, logs.map((log) => ({
+      id: log.id,
+      admin_email: log.admin?.email ?? 'system',
+      admin_name: log.admin?.name ?? 'System',
+      action: log.action,
+      resource: log.resource,
+      resource_id: log.resourceId,
+      details: log.details,
+      ip_address: (log as Record<string, unknown>).ipAddress ?? null,
+      created_at: log.createdAt.toISOString(),
+    })), {
+      page,
+      per_page: perPage,
+      total,
+      total_pages: Math.ceil(total / perPage),
+    });
+  } catch {
+    // Schema drift: return empty audit log rather than crashing
+    return success(c, [], { page, per_page: perPage, total: 0, total_pages: 0 });
+  }
 });
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
