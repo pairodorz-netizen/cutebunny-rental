@@ -153,6 +153,40 @@ adminShipping.patch('/orders/:id/carrier', async (c) => {
   });
 });
 
+// POST /api/v1/admin/shipping/zones — Create a new shipping zone
+adminShipping.post('/zones', async (c) => {
+  const db = getDb();
+
+  const bodySchema = z.object({
+    zone_name: z.string().min(1),
+    base_fee: z.number().min(0).default(0),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid zone data', parsed.error.flatten());
+  }
+
+  const existing = await db.shippingZone.findUnique({ where: { zoneName: parsed.data.zone_name } });
+  if (existing) {
+    return error(c, 409, 'CONFLICT', `Zone "${parsed.data.zone_name}" already exists`);
+  }
+
+  const zone = await db.shippingZone.create({
+    data: {
+      zoneName: parsed.data.zone_name,
+      baseFee: parsed.data.base_fee,
+    },
+  });
+
+  return created_response(c, {
+    id: zone.id,
+    zone_name: zone.zoneName,
+    base_fee: zone.baseFee,
+  });
+});
+
 // PATCH /api/v1/admin/shipping/zones/:id — Update zone base fee
 adminShipping.patch('/zones/:id', async (c) => {
   const db = getDb();
@@ -174,12 +208,20 @@ adminShipping.patch('/zones/:id', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Shipping zone not found');
   }
 
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.zone_name) {
+    updateData.zoneName = parsed.data.zone_name;
+    // Also update nameI18n so localizeField returns the new name
+    const existingI18n = (zone.nameI18n as Record<string, string> | null) ?? {};
+    updateData.nameI18n = { ...existingI18n, en: parsed.data.zone_name };
+  }
+  if (parsed.data.base_fee !== undefined) {
+    updateData.baseFee = parsed.data.base_fee;
+  }
+
   const updated = await db.shippingZone.update({
     where: { id: zoneId },
-    data: {
-      ...(parsed.data.zone_name && { zoneName: parsed.data.zone_name }),
-      ...(parsed.data.base_fee !== undefined && { baseFee: parsed.data.base_fee }),
-    },
+    data: updateData,
   });
 
   return success(c, {
