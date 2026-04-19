@@ -6,7 +6,7 @@ import { adminApi, type AdminProduct, type AdminComboSet, type BulkImportResult 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Plus, Settings, X, ArrowLeft, Upload, Image, Download,
+  Plus, Settings, X, ArrowLeft, Upload, Image, Download, Package,
   FileSpreadsheet, FileUp, Check, AlertCircle, DollarSign, Trash2, Loader2,
 } from 'lucide-react';
 
@@ -600,6 +600,11 @@ function ProductForm({
   const [showSoldForm, setShowSoldForm] = useState(false);
   const [sellingPrice, setSellingPrice] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  // Initial Stock (create mode only)
+  const [showInitialStock, setShowInitialStock] = useState(false);
+  const [initialStockQty, setInitialStockQty] = useState('1');
+  const [initialStockCost, setInitialStockCost] = useState('0');
+  const [initialStockNote, setInitialStockNote] = useState('');
 
   // #6: Fetch dynamic categories from API
   const categoriesQuery = useQuery({
@@ -682,6 +687,15 @@ function ProductForm({
       retail_price: Number(retailPrice) || 0,
     };
     if (allUrls.length > 0) body.image_urls = allUrls;
+
+    // Include initial stock if enabled (create mode only)
+    if (mode === 'create' && showInitialStock && Number(initialStockQty) > 0) {
+      body.initial_stock = {
+        quantity: Number(initialStockQty),
+        unit_cost: Number(initialStockCost) || 0,
+        ...(initialStockNote ? { note: initialStockNote } : {}),
+      };
+    }
 
     if (mode === 'edit' && product) {
       updateMutation.mutate(body);
@@ -865,6 +879,79 @@ function ProductForm({
 
         {/* Product Image Manager (edit mode only) */}
         {mode === 'edit' && product && <ProductImageManager productId={product.id} />}
+
+        {/* Initial Stock Section (create mode only) */}
+        {mode === 'create' && (
+          <div className="border-t pt-4">
+            {!showInitialStock ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full text-emerald-600 border-emerald-300 hover:bg-emerald-50"
+                onClick={() => setShowInitialStock(true)}
+              >
+                <Package className="h-4 w-4 mr-1" />
+                {t('products.addInitialStock', 'Add Initial Stock')}
+              </Button>
+            ) : (
+              <div className="space-y-3 p-3 rounded border border-emerald-200 bg-emerald-50">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-emerald-700">
+                    {t('products.initialStock', 'Initial Stock')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowInitialStock(false)}
+                    className="text-emerald-500 hover:text-emerald-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-emerald-700">
+                      {t('products.stockQuantity', 'Quantity')}
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={initialStockQty}
+                      onChange={(e) => setInitialStockQty(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-emerald-700">
+                      {t('products.unitCost', 'Unit Cost (THB)')}
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={initialStockCost}
+                      onChange={(e) => setInitialStockCost(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-emerald-700">
+                    {t('products.stockNote', 'Note (optional)')}
+                  </label>
+                  <Input
+                    value={initialStockNote}
+                    onChange={(e) => setInitialStockNote(e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder={t('products.stockNotePlaceholder', 'e.g. S-pink x2, M-pink x1')}
+                  />
+                </div>
+                <p className="text-xs text-emerald-600">
+                  {t('products.initialStockHint', 'Stock will be added immediately after product creation. Calendar availability will be auto-populated for 90 days.')}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Mark as Sold Section (edit mode only) */}
         {mode === 'edit' && product && product.product_status !== 'sold' && (
