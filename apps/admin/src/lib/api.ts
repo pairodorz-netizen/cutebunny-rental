@@ -727,6 +727,30 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    update: (id: string, body: Record<string, unknown>) =>
+      request<{ data: { id: string; name: string; first_name: string; last_name: string; email: string; phone: string; tags: unknown; address: unknown } }>(`/api/v1/admin/customers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<{ data: { deleted: boolean; customer_id: string } }>(`/api/v1/admin/customers/${id}`, { method: 'DELETE' }),
+    updateTags: (id: string, tags: string[]) =>
+      request<{ data: { id: string; tags: unknown } }>(`/api/v1/admin/customers/${id}/tags`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tags }),
+      }),
+    getNotes: (id: string) =>
+      request<{ data: Array<{ text: string; created_at: string; updated_at?: string }> }>(`/api/v1/admin/customers/${id}/notes`),
+    addNote: (id: string, text: string) =>
+      request<{ data: Array<{ text: string; created_at: string }> }>(`/api/v1/admin/customers/${id}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }),
+    editNote: (id: string, index: number, text: string) =>
+      request<{ data: Array<{ text: string; created_at: string; updated_at?: string }> }>(`/api/v1/admin/customers/${id}/notes/${index}`, {
+        method: 'PUT',
+        body: JSON.stringify({ text }),
+      }),
   },
   shipping: {
     zones: () => request<{ data: ShippingZone[] }>('/api/v1/admin/shipping/zones'),
@@ -824,6 +848,22 @@ export const adminApi = {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: Array<{ id: string; order_id: string | null; customer_id: string | null; channel: string; recipient: string; subject: string | null; body: string; status: string; error_message: string | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/notifications?${qs}`);
     },
+    // Category management (#6)
+    categories: () => request<{ data: string[] }>('/api/v1/admin/settings/categories'),
+    updateCategories: (categories: string[]) =>
+      request<{ data: string[] }>('/api/v1/admin/settings/categories', {
+        method: 'PUT',
+        body: JSON.stringify({ categories }),
+      }),
+    deleteCategory: (name: string) =>
+      request<{ data: { deleted: boolean; category: string } }>(`/api/v1/admin/settings/categories/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+    // Store address (#1)
+    storeAddresses: () => request<{ data: Array<{ id: string; name: string; contact_person?: string; phone?: string; address_line?: string; province?: string; district?: string; subdistrict?: string; postal_code?: string; note?: string; is_primary: boolean }> }>('/api/v1/admin/settings/store-addresses'),
+    updateStoreAddresses: (addresses: Array<Record<string, unknown>>) =>
+      request<{ data: Array<Record<string, unknown>> }>('/api/v1/admin/settings/store-addresses', {
+        method: 'PUT',
+        body: JSON.stringify({ addresses }),
+      }),
     sendNotification: (body: { channel: string; recipient: string; subject?: string; body: string; order_id?: string; customer_id?: string }) =>
       request<{ data: { id: string } }>('/api/v1/admin/settings/notifications/send', {
         method: 'POST',

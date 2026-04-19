@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
 import { getAdmin, requireRole } from '../../middleware/auth';
@@ -351,6 +352,148 @@ adminSettings.post('/notifications/send', async (c) => {
   });
 
   return created(c, result);
+});
+
+// ─── CATEGORY MANAGEMENT ────────────────────────────────────────────────────
+
+// GET /api/v1/admin/settings/categories
+adminSettings.get('/categories', async (c) => {
+  const db = getDb();
+  const cfg = await db.systemConfig.findUnique({ where: { key: 'product_categories' } });
+  const defaults = ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
+  const categories: string[] = cfg ? (Array.isArray(cfg.value) ? cfg.value as string[] : defaults) : defaults;
+  return success(c, categories);
+});
+
+// PUT /api/v1/admin/settings/categories
+const updateCategoriesSchema = z.object({
+  categories: z.array(z.string().min(1)).min(1),
+});
+
+adminSettings.put('/categories', requireRole('superadmin'), async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = updateCategoriesSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid input', parsed.error.flatten());
+  }
+
+  const cfg = await db.systemConfig.upsert({
+    where: { key: 'product_categories' },
+    update: { value: parsed.data.categories as unknown as Prisma.InputJsonValue },
+    create: { key: 'product_categories', value: parsed.data.categories as unknown as Prisma.InputJsonValue, label: 'Product Categories', group: 'products' },
+  });
+
+  await db.auditLog.create({
+    data: {
+      adminId: admin.sub,
+      action: 'UPDATE',
+      resource: 'system_config',
+      resourceId: cfg.id,
+      details: { key: 'product_categories', categories: parsed.data.categories },
+    },
+  });
+
+  return success(c, parsed.data.categories);
+});
+
+// DELETE /api/v1/admin/settings/categories/:name — Delete category (check products first)
+adminSettings.delete('/categories/:name', requireRole('superadmin'), async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const name = c.req.param('name');
+
+  // Check if any products use this category
+  const count = await db.product.count({ where: { category: name as never, deletedAt: null } });
+  if (count > 0) {
+    return error(c, 409, 'CATEGORY_IN_USE', `Cannot delete category "${name}" — ${count} product(s) still use it. Reassign them first.`);
+  }
+
+  // Remove from the list
+  const cfg = await db.systemConfig.findUnique({ where: { key: 'product_categories' } });
+  const defaults = ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
+  const categories: string[] = cfg ? (Array.isArray(cfg.value) ? cfg.value as string[] : defaults) : defaults;
+  const updated = categories.filter((cat) => cat !== name);
+
+  await db.systemConfig.upsert({
+    where: { key: 'product_categories' },
+    update: { value: updated as unknown as Prisma.InputJsonValue },
+    create: { key: 'product_categories', value: updated as unknown as Prisma.InputJsonValue, label: 'Product Categories', group: 'products' },
+  });
+
+  await db.auditLog.create({
+    data: {
+      adminId: admin.sub,
+      action: 'DELETE',
+      resource: 'category',
+      resourceId: name,
+      details: { deleted_category: name },
+    },
+  });
+
+  return success(c, { deleted: true, category: name });
+});
+
+// ─── STORE ADDRESS ──────────────────────────────────────────────────────────
+
+// GET /api/v1/admin/settings/store-addresses
+adminSettings.get('/store-addresses', async (c) => {
+  const db = getDb();
+  const cfg = await db.systemConfig.findUnique({ where: { key: 'store_addresses' } });
+  const addresses = cfg ? (Array.isArray(cfg.value) ? cfg.value : []) : [];
+  return success(c, addresses);
+});
+
+// PUT /api/v1/admin/settings/store-addresses
+const storeAddressSchema = z.object({
+  addresses: z.array(z.object({
+    id: z.string().optional(),
+    name: z.string().min(1),
+    contact_person: z.string().optional(),
+    phone: z.string().optional(),
+    address_line: z.string().optional(),
+    province: z.string().optional(),
+    district: z.string().optional(),
+    subdistrict: z.string().optional(),
+    postal_code: z.string().optional(),
+    note: z.string().optional(),
+    is_primary: z.boolean().default(false),
+  })),
+});
+
+adminSettings.put('/store-addresses', requireRole('superadmin'), async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = storeAddressSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid input', parsed.error.flatten());
+  }
+
+  // Ensure IDs and exactly one primary
+  const addresses = parsed.data.addresses.map((a, i) => ({
+    ...a,
+    id: a.id || `addr_${Date.now()}_${i}`,
+  }));
+
+  await db.systemConfig.upsert({
+    where: { key: 'store_addresses' },
+    update: { value: addresses as unknown as Prisma.InputJsonValue },
+    create: { key: 'store_addresses', value: addresses as unknown as Prisma.InputJsonValue, label: 'Store Addresses', group: 'store' },
+  });
+
+  await db.auditLog.create({
+    data: {
+      adminId: admin.sub,
+      action: 'UPDATE',
+      resource: 'system_config',
+      resourceId: 'store_addresses',
+      details: { count: addresses.length },
+    },
+  });
+
+  return success(c, addresses);
 });
 
 export default adminSettings;

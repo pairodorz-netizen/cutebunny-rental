@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle } from 'lucide-react';
+import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle, Pencil, Trash2, Tag, MessageSquare, X, Save } from 'lucide-react';
 
 const TIER_COLORS: Record<string, string> = {
   bronze: 'bg-orange-100 text-orange-800',
@@ -27,6 +27,22 @@ export function CustomersPage() {
   const [creditReason, setCreditReason] = useState('');
   const [creditError, setCreditError] = useState<string | null>(null);
   const [creditSuccess, setCreditSuccess] = useState<string | null>(null);
+
+  // Edit customer state (#4)
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editFirst, setEditFirst] = useState('');
+  const [editLast, setEditLast] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editLineId, setEditLineId] = useState('');
+  const [editBirthday, setEditBirthday] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Tags state (#5)
+  const [newTag, setNewTag] = useState('');
+
+  // Notes state (#5)
+  const [newNote, setNewNote] = useState('');
 
   const params: Record<string, string> = { page: String(page), per_page: '20' };
   if (search) params.search = search;
@@ -61,9 +77,58 @@ export function CustomersPage() {
     },
   });
 
+  // Edit mutation (#4)
+  const editMutation = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      adminApi.customers.update(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-detail', selectedId] });
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      setShowEditForm(false);
+    },
+  });
+
+  // Delete mutation (#4)
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.customers.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customers'] });
+      setSelectedId(null);
+      setShowDeleteConfirm(false);
+    },
+  });
+
+  // Tags mutation (#5)
+  const tagsMutation = useMutation({
+    mutationFn: ({ id, tags }: { id: string; tags: string[] }) =>
+      adminApi.customers.updateTags(id, tags),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-detail', selectedId] });
+    },
+  });
+
+  // Notes query + mutation (#5)
+  const notesQuery = useQuery({
+    queryKey: ['admin-customer-notes', selectedId],
+    queryFn: () => adminApi.customers.getNotes(selectedId!),
+    enabled: !!selectedId,
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: ({ id, text }: { id: string; text: string }) =>
+      adminApi.customers.addNote(id, text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-customer-notes', selectedId] });
+      setNewNote('');
+    },
+  });
+
   const customers = listData?.data ?? [];
   const meta = listData?.meta;
   const customer = detailData?.data;
+  const customerTags: string[] = Array.isArray(customer?.tags) ? customer.tags as string[] : [];
+  const customerNotes = notesQuery.data?.data ?? [];
+  const customerAddr = (customer?.address ?? {}) as Record<string, unknown>;
 
   // Detail View
   if (selectedId) {
@@ -192,6 +257,164 @@ export function CustomersPage() {
                 </table>
               </div>
             )}
+            {/* Edit / Delete buttons (#4) */}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => {
+                setShowEditForm(true);
+                setEditFirst(customer.first_name);
+                setEditLast(customer.last_name);
+                setEditPhone(customer.phone || '');
+                setEditEmail(customer.email);
+                setEditLineId(String(customerAddr.line_id || ''));
+                setEditBirthday(String(customerAddr.birthday || ''));
+              }}>
+                <Pencil className="h-3.5 w-3.5 mr-1" /> {t('customers.editCustomer')}
+              </Button>
+              <Button size="sm" variant="outline" className="text-destructive" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('customers.deleteCustomer')}
+              </Button>
+            </div>
+
+            {/* Edit Form (#4) */}
+            {showEditForm && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <h3 className="font-semibold text-sm">{t('customers.editCustomer')}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t('customers.firstName')}</label>
+                    <Input value={editFirst} onChange={(e) => setEditFirst(e.target.value)} className="h-8" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t('customers.lastName')}</label>
+                    <Input value={editLast} onChange={(e) => setEditLast(e.target.value)} className="h-8" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t('customers.phone')}</label>
+                    <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="h-8" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t('customers.email')}</label>
+                    <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="h-8" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">LINE ID</label>
+                    <Input value={editLineId} onChange={(e) => setEditLineId(e.target.value)} className="h-8" placeholder="@line_id" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">{t('customers.birthday')}</label>
+                    <Input type="date" value={editBirthday} onChange={(e) => setEditBirthday(e.target.value)} className="h-8" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={editMutation.isPending} onClick={() => {
+                    editMutation.mutate({
+                      id: selectedId!,
+                      body: {
+                        first_name: editFirst,
+                        last_name: editLast,
+                        phone: editPhone,
+                        email: editEmail,
+                        line_id: editLineId || undefined,
+                        birthday: editBirthday || undefined,
+                      },
+                    });
+                  }}>
+                    <Save className="h-3.5 w-3.5 mr-1" /> {editMutation.isPending ? t('common.loading') : t('common.save')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowEditForm(false)}>{t('common.cancel')}</Button>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Confirmation (#4) */}
+            {showDeleteConfirm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDeleteConfirm(false)}>
+                <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-semibold mb-2">{t('customers.deleteConfirmTitle')}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{t('customers.deleteConfirmMessage')}</p>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>{t('common.cancel')}</Button>
+                    <Button variant="destructive" size="sm" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(selectedId!)}>
+                      {deleteMutation.isPending ? t('common.loading') : t('common.delete')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tags (#5) */}
+            <div className="rounded-lg border">
+              <div className="p-4 border-b flex items-center gap-2">
+                <Tag className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold">{t('customers.tags')}</h3>
+              </div>
+              <div className="p-4">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {customerTags.map((tag, i) => (
+                    <span key={`${tag}-${i}`} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full ${
+                      tag === 'VIP' ? 'bg-yellow-100 text-yellow-800' :
+                      tag === 'Blacklist' ? 'bg-red-100 text-red-800' :
+                      tag === 'Frequent' ? 'bg-blue-100 text-blue-800' :
+                      tag === 'New' ? 'bg-green-100 text-green-800' :
+                      tag === 'Influencer' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {tag}
+                      <button onClick={() => tagsMutation.mutate({ id: selectedId!, tags: customerTags.filter((_, j) => j !== i) })} className="hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {customerTags.length === 0 && <span className="text-xs text-muted-foreground">{t('customers.noTags')}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <select value={newTag} onChange={(e) => setNewTag(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1 text-xs">
+                    <option value="">{t('customers.selectTag')}</option>
+                    {['VIP', 'Blacklist', 'Frequent', 'New', 'Influencer'].filter((t) => !customerTags.includes(t)).map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!newTag || tagsMutation.isPending}
+                    onClick={() => { tagsMutation.mutate({ id: selectedId!, tags: [...customerTags, newTag] }); setNewTag(''); }}>
+                    <PlusCircle className="h-3 w-3 mr-1" /> {t('customers.addTag')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Shop Notes (#5) */}
+            <div className="rounded-lg border">
+              <div className="p-4 border-b flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold">{t('customers.shopNotes')}</h3>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex gap-2">
+                  <textarea
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    className="flex-1 border rounded-md p-2 text-sm resize-none h-16"
+                    placeholder={t('customers.notePlaceholder')}
+                  />
+                  <Button size="sm" disabled={!newNote.trim() || addNoteMutation.isPending} onClick={() => addNoteMutation.mutate({ id: selectedId!, text: newNote })}>
+                    <Save className="h-3.5 w-3.5 mr-1" /> {t('common.save')}
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {customerNotes.map((note, i) => (
+                    <div key={`note-${i}`} className="rounded border p-3">
+                      <p className="text-sm whitespace-pre-wrap">{note.text}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(note.created_at).toLocaleString()}
+                        {note.updated_at && ` (${t('customers.edited')} ${new Date(note.updated_at).toLocaleString()})`}
+                      </p>
+                    </div>
+                  ))}
+                  {customerNotes.length === 0 && <p className="text-xs text-muted-foreground">{t('customers.noNotes')}</p>}
+                </div>
+              </div>
+            </div>
+
             {/* Credit Adjustment Modal */}
             {showCreditModal && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreditModal(false)}>

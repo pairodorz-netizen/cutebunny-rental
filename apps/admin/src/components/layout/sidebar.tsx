@@ -21,7 +21,6 @@ const navItems = [
   { path: '/customers', icon: Users, labelKey: 'sidebar.customers' },
   { path: '/calendar', icon: Calendar, labelKey: 'sidebar.calendar' },
   { path: '/finance', icon: DollarSign, labelKey: 'sidebar.finance' },
-  { path: '/shipping', icon: Truck, labelKey: 'sidebar.shipping' },
   { path: '/settings', icon: Settings, labelKey: 'sidebar.settings' },
 ];
 
