@@ -1165,7 +1165,6 @@ adminProducts.get('/:id/calendar', async (c) => {
   const yearStr = c.req.query('year');
   const monthStr = c.req.query('month');
   const unitParam = c.req.query('unit') || 'all'; // FEAT-302: 'all' | '1' | '2' | ...
-  const unitIdFilter = c.req.query('unit_id') || undefined; // legacy support
 
   const schema = z.object({
     year: z.coerce.number().int().min(2024).max(2030),
@@ -1190,8 +1189,8 @@ adminProducts.get('/:id/calendar', async (c) => {
   }).catch(() => []);
 
   // FEAT-302: Validate + resolve unit filter
-  let resolvedUnitId: string | undefined = unitIdFilter;
-  let unitIndexNum: number | null = null;
+  let unitIndexNum: number | undefined = undefined;
+  const totalUnits = Math.max(inventoryUnits.length, product.stockOnHand);
 
   if (unitParam !== 'all') {
     unitIndexNum = parseInt(unitParam, 10);
@@ -1200,19 +1199,13 @@ adminProducts.get('/:id/calendar', async (c) => {
       return error(c, 400, 'VALIDATION_ERROR', `Invalid unit parameter: "${unitParam}". Must be "all" or a positive integer.`);
     }
     // Validate: must not exceed total units
-    const totalUnits = Math.max(inventoryUnits.length, product.stockOnHand);
     if (unitIndexNum > totalUnits) {
       return error(c, 400, 'UNIT_OUT_OF_RANGE', `Unit ${unitIndexNum} out of range. Product has ${totalUnits} unit(s).`);
     }
   }
 
-  if (unitIndexNum && !resolvedUnitId) {
-    const matchedUnit = inventoryUnits.find((u) => u.unitIndex === unitIndexNum);
-    if (matchedUnit) resolvedUnitId = matchedUnit.id;
-  }
-
   const { getMonthAvailabilityPerUnit } = await import('../../lib/availability');
-  const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, resolvedUnitId);
+  const units = await getMonthAvailabilityPerUnit(db, id, parsed.data.year, parsed.data.month, unitIndexNum, totalUnits);
 
   // FEAT-302: For "all" view, also compute an aggregate calendar
   // OQ-W3-02: Include order_id from first booked unit for tooltip
@@ -1245,7 +1238,7 @@ adminProducts.get('/:id/calendar', async (c) => {
     year: parsed.data.year,
     month: parsed.data.month,
     unit_filter: unitParam,
-    total_units: Math.max(inventoryUnits.length, product.stockOnHand),
+    total_units: totalUnits,
     inventory_units: inventoryUnits.map((u) => ({
       id: u.id,
       unit_index: u.unitIndex,
