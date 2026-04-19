@@ -30,6 +30,7 @@ const mockDb = vi.hoisted(() => {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       upsert: vi.fn().mockResolvedValue({ id: 'mock-id' }),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: 0 } }),
       groupBy: vi.fn().mockResolvedValue([]),
     };
@@ -1234,6 +1235,74 @@ describe('Stock Management', () => {
       const ids = logsBody.data.map((l: { id: string }) => l.id);
       const uniqueIds = new Set(ids);
       expect(uniqueIds.size).toBe(ids.length); // all IDs unique — no duplicates
+    });
+  });
+
+  // ─── BUG-402: Auto-populate availability_calendar after Add Stock ──
+  describe('BUG-402: Calendar auto-populated after Add Stock', () => {
+    it('POST /stock creates availability_calendar rows for new unit indices (90-day forward)', async () => {
+      const token = await getAdminToken();
+
+      // Product with 0 existing stock
+      mockDb.product.findUnique.mockResolvedValue({
+        id: PRODUCT_ID, stockOnHand: 0, lowStockThreshold: 5, deletedAt: null,
+      });
+
+      // Add 2 units of stock
+      mockDb.$transaction.mockResolvedValue([
+        { id: PRODUCT_ID, stockOnHand: 2 },
+        { id: 'log-402', type: 'purchase', quantity: 2, unitCost: 100, totalCost: 200, note: null, createdBy: 'admin-id', createdAt: new Date() },
+      ]);
+      mockDb.availabilityCalendar.createMany.mockResolvedValue({ count: 180 }); // 2 units * 90 days
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock`, {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: 2, unit_cost: 100 }),
+      });
+      expect(res.status).toBe(201);
+
+      // Verify createMany was called with availability rows
+      expect(mockDb.availabilityCalendar.createMany).toHaveBeenCalledTimes(1);
+      const createManyCall = mockDb.availabilityCalendar.createMany.mock.calls[0][0];
+      expect(createManyCall.data.length).toBe(180); // 2 units * 90 days
+      expect(createManyCall.skipDuplicates).toBe(true);
+
+      // Verify unit indices are 1 and 2 (previousStock=0, new units 1..2)
+      const unitIndices = new Set(createManyCall.data.map((r: { unitIndex: number }) => r.unitIndex));
+      expect(unitIndices).toEqual(new Set([1, 2]));
+
+      // All rows should have slotStatus 'available'
+      expect(createManyCall.data.every((r: { slotStatus: string }) => r.slotStatus === 'available')).toBe(true);
+    });
+
+    it('POST /stock with existing stock populates only NEW unit indices', async () => {
+      const token = await getAdminToken();
+
+      // Product already has 3 stock items
+      mockDb.product.findUnique.mockResolvedValue({
+        id: PRODUCT_ID, stockOnHand: 3, lowStockThreshold: 5, deletedAt: null,
+      });
+
+      // Add 1 more unit
+      mockDb.$transaction.mockResolvedValue([
+        { id: PRODUCT_ID, stockOnHand: 4 },
+        { id: 'log-402b', type: 'purchase', quantity: 1, unitCost: 50, totalCost: 50, note: null, createdBy: 'admin-id', createdAt: new Date() },
+      ]);
+      mockDb.availabilityCalendar.createMany.mockResolvedValue({ count: 90 }); // 1 unit * 90 days
+
+      const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock`, {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: 1, unit_cost: 50 }),
+      });
+      expect(res.status).toBe(201);
+
+      // Only unit index 4 should be populated (existing: 1, 2, 3)
+      const createManyCall = mockDb.availabilityCalendar.createMany.mock.calls[0][0];
+      expect(createManyCall.data.length).toBe(90); // 1 unit * 90 days
+      const unitIndices = new Set(createManyCall.data.map((r: { unitIndex: number }) => r.unitIndex));
+      expect(unitIndices).toEqual(new Set([4])); // only the new unit
     });
   });
 

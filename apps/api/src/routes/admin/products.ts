@@ -1337,6 +1337,9 @@ adminProducts.post('/:id/stock', async (c) => {
   const { quantity, unit_cost, note } = parsed.data;
   const totalCost = quantity * unit_cost;
 
+  // BUG-402: Get current stock count before increment to know which unit indices are new
+  const previousStock = product.stockOnHand;
+
   // Atomic: update stock + create log in transaction
   const [updatedProduct, stockLog] = await db.$transaction([
     db.product.update({
@@ -1355,6 +1358,30 @@ adminProducts.post('/:id/stock', async (c) => {
       },
     }),
   ]);
+
+  // BUG-402: Auto-populate availability_calendar for new unit indices (90-day forward)
+  // New units are previousStock+1 .. previousStock+quantity
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const calendarRows: { productId: string; calendarDate: Date; slotStatus: 'available'; unitIndex: number }[] = [];
+  for (let unitIdx = previousStock + 1; unitIdx <= previousStock + quantity; unitIdx++) {
+    for (let dayOffset = 0; dayOffset < 90; dayOffset++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() + dayOffset);
+      calendarRows.push({
+        productId: id,
+        calendarDate: date,
+        slotStatus: 'available',
+        unitIndex: unitIdx,
+      });
+    }
+  }
+  if (calendarRows.length > 0) {
+    await db.availabilityCalendar.createMany({
+      data: calendarRows,
+      skipDuplicates: true, // safe if rows already exist
+    });
+  }
 
   return created(c, {
     stock_on_hand: updatedProduct.stockOnHand,
