@@ -619,4 +619,55 @@ describe('T03: Admin Happy Path E2E', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // FEAT-404: Wash duration config
+  describe('FEAT-404: Wash duration config', () => {
+    it('PATCH /settings/config/wash_duration_days updates value', async () => {
+      const token = await getAdminToken();
+      mockDb.systemConfig.findUnique.mockResolvedValue({
+        id: 'cfg-1', key: 'wash_duration_days', value: '1', label: 'Wash Duration (days)', group: 'operations',
+      });
+      mockDb.systemConfig.update.mockResolvedValue({
+        id: 'cfg-1', key: 'wash_duration_days', value: '3', label: 'Wash Duration (days)', group: 'operations',
+      });
+      mockDb.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+
+      const res = await app.request('/api/v1/admin/settings/config/wash_duration_days', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: '3' }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data.value).toBe('3');
+    });
+
+    it('rejects wash_duration_days with value 0', async () => {
+      const token = await getAdminToken();
+      mockDb.systemConfig.findUnique.mockResolvedValue({
+        id: 'cfg-1', key: 'wash_duration_days', value: '1', label: 'Wash Duration (days)', group: 'operations',
+      });
+
+      const res = await app.request('/api/v1/admin/settings/config/wash_duration_days', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: '0' }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects wash_duration_days with non-integer value', async () => {
+      const token = await getAdminToken();
+      mockDb.systemConfig.findUnique.mockResolvedValue({
+        id: 'cfg-1', key: 'wash_duration_days', value: '1', label: 'Wash Duration (days)', group: 'operations',
+      });
+
+      const res = await app.request('/api/v1/admin/settings/config/wash_duration_days', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: '1.5' }),
+      });
+      expect(res.status).toBe(400);
+    });
+  });
 });

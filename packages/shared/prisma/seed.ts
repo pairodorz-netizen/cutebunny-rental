@@ -518,6 +518,28 @@ async function main() {
 
   console.log(`Created ${admins.length} admin users`);
 
+  // ─── System Config ──────────────────────────────────────────────────
+  const configs = await Promise.all([
+    prisma.systemConfig.create({
+      data: {
+        key: 'wash_duration_days',
+        value: '1',
+        label: 'Wash Duration (days)',
+        group: 'operations',
+      },
+    }),
+    prisma.systemConfig.create({
+      data: {
+        key: 'origin_province',
+        value: 'BKK',
+        label: 'Origin Province',
+        group: 'shipping',
+      },
+    }),
+  ]);
+
+  console.log(`Created ${configs.length} system config entries`);
+
   // ─── I18n Strings (sample) ───────────────────────────────────────────
   const i18nData = [
     { namespace: 'category', key: 'wedding', locale: 'en', value: 'Wedding' },
