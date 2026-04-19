@@ -208,12 +208,20 @@ adminShipping.patch('/zones/:id', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Shipping zone not found');
   }
 
+  const updateData: Record<string, unknown> = {};
+  if (parsed.data.zone_name) {
+    updateData.zoneName = parsed.data.zone_name;
+    // Also update nameI18n so localizeField returns the new name
+    const existingI18n = (zone.nameI18n as Record<string, string> | null) ?? {};
+    updateData.nameI18n = { ...existingI18n, en: parsed.data.zone_name };
+  }
+  if (parsed.data.base_fee !== undefined) {
+    updateData.baseFee = parsed.data.base_fee;
+  }
+
   const updated = await db.shippingZone.update({
     where: { id: zoneId },
-    data: {
-      ...(parsed.data.zone_name && { zoneName: parsed.data.zone_name }),
-      ...(parsed.data.base_fee !== undefined && { baseFee: parsed.data.base_fee }),
-    },
+    data: updateData,
   });
 
   return success(c, {
