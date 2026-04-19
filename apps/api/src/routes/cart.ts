@@ -199,7 +199,8 @@ cart.post('/', async (c) => {
   }
 
   if (conflicts.length > 0) {
-    return error(c, 409, 'AVAILABILITY_CONFLICT', 'Some items are not available for the requested dates', { conflicts });
+    // BUG-403: Use CONFLICT_RANGE error code for date-range conflicts
+    return error(c, 409, 'CONFLICT_RANGE', 'Selected date range contains blocked days. Please choose dates that do not span across booked periods.', { conflicts });
   }
 
   // Create tentative holds

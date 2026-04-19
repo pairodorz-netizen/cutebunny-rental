@@ -97,4 +97,68 @@ describe('Availability Logic', () => {
       expect(bookedStatuses.includes(slotStatus)).toBe(false);
     });
   });
+
+  // BUG-403: Date-range picker must reject ranges containing blocked days
+  describe('BUG-403: range-with-blocked-day rejection', () => {
+    it('rejects a date range that spans across a blocked day', () => {
+      // Simulates the client-side hasBlockedDayInRange check
+      const days = [
+        { date: '2026-04-14', status: 'available' },
+        { date: '2026-04-15', status: 'booked' },
+        { date: '2026-04-16', status: 'booked' },
+        { date: '2026-04-17', status: 'booked' },
+        { date: '2026-04-18', status: 'available' },
+      ];
+
+      function hasBlockedDayInRange(start: string, end: string): boolean {
+        for (const day of days) {
+          if (day.date > start && day.date < end) {
+            if (day.status !== 'available') return true;
+          }
+        }
+        return false;
+      }
+
+      // Range Apr 14 → Apr 18 spans blocked days 15-17
+      expect(hasBlockedDayInRange('2026-04-14', '2026-04-18')).toBe(true);
+    });
+
+    it('allows a date range with all available days', () => {
+      const days = [
+        { date: '2026-04-01', status: 'available' },
+        { date: '2026-04-02', status: 'available' },
+        { date: '2026-04-03', status: 'available' },
+      ];
+
+      function hasBlockedDayInRange(start: string, end: string): boolean {
+        for (const day of days) {
+          if (day.date > start && day.date < end) {
+            if (day.status !== 'available') return true;
+          }
+        }
+        return false;
+      }
+
+      expect(hasBlockedDayInRange('2026-04-01', '2026-04-03')).toBe(false);
+    });
+
+    it('allows single-day selection (no in-between days to check)', () => {
+      const days = [
+        { date: '2026-04-10', status: 'available' },
+        { date: '2026-04-11', status: 'booked' },
+      ];
+
+      function hasBlockedDayInRange(start: string, end: string): boolean {
+        for (const day of days) {
+          if (day.date > start && day.date < end) {
+            if (day.status !== 'available') return true;
+          }
+        }
+        return false;
+      }
+
+      // Single day — no days between start and end
+      expect(hasBlockedDayInRange('2026-04-10', '2026-04-10')).toBe(false);
+    });
+  });
 });

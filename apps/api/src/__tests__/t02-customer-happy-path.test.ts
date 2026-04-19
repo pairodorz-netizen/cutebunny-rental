@@ -211,6 +211,32 @@ describe('T02: Customer Happy Path E2E', () => {
     });
   });
 
+  // ─── BUG-403: Cart rejects date ranges spanning blocked days ─────
+  describe('BUG-403: Cart returns 409 CONFLICT_RANGE for blocked date ranges', () => {
+    it('returns 409 CONFLICT_RANGE when rental range spans booked days', async () => {
+      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+      // Simulate booked days within the requested range
+      mockDb.availabilityCalendar.findMany.mockResolvedValue([
+        { id: 'cal-blocked', productId: MOCK_PRODUCT.id, calendarDate: new Date('2026-08-16'), slotStatus: 'booked', orderId: 'existing-order' },
+      ]);
+
+      const res = await app.request('/api/v1/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [
+            { product_id: MOCK_PRODUCT.id, rental_days: 5, rental_start: '2026-08-14' },
+          ],
+        }),
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error.code).toBe('CONFLICT_RANGE');
+      expect(body.error.details.conflicts).toHaveLength(1);
+      expect(body.error.details.conflicts[0].dates).toContain('2026-08-16');
+    });
+  });
+
   // ─── Step 5: Checkout ─────────────────────────────────────────────
   describe('Step 5: Checkout (place order)', () => {
     it('returns 404 for expired/invalid cart', async () => {
