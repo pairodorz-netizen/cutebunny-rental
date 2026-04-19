@@ -1187,6 +1187,56 @@ describe('Stock Management', () => {
     });
   });
 
+  // ─── BUG-401: Stock log duplication regression test ────────────────
+  describe('BUG-401: No duplicate stock logs after Add Stock', () => {
+    it('GET /stock-logs after POST /stock returns exactly N rows with unique IDs (no duplicates)', async () => {
+      const token = await getAdminToken();
+
+      // Product has 2 existing stock logs
+      const existingLogs = [
+        { id: 'existing-log-1', type: 'purchase', quantity: 5, unitCost: 100, totalCost: 500, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-10') },
+        { id: 'existing-log-2', type: 'purchase', quantity: 3, unitCost: 200, totalCost: 600, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-12') },
+      ];
+
+      // Add stock
+      mockDb.product.findUnique.mockResolvedValue({
+        id: PRODUCT_ID, stockOnHand: 8, lowStockThreshold: 5, deletedAt: null,
+      });
+      const newLogId = 'new-log-3';
+      mockDb.$transaction.mockResolvedValue([
+        { id: PRODUCT_ID, stockOnHand: 9 },
+        { id: newLogId, type: 'purchase', quantity: 1, unitCost: 100, totalCost: 100, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-16') },
+      ]);
+
+      const addRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock`, {
+        method: 'POST',
+        headers: { ...authHeaders(token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: 1, unit_cost: 100 }),
+      });
+      expect(addRes.status).toBe(201);
+
+      // After add-stock, fetch logs — should return exactly 3 unique rows (not 4, 5, or 6)
+      const allLogs = [
+        { id: newLogId, type: 'purchase', quantity: 1, unitCost: 100, totalCost: 100, note: null, createdBy: 'admin-id', createdAt: new Date('2026-04-16') },
+        ...existingLogs,
+      ];
+      mockDb.productStockLog.findMany.mockResolvedValue(allLogs);
+      mockDb.product.findUnique.mockResolvedValue({ id: PRODUCT_ID });
+
+      const logsRes = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/stock-logs?limit=20`, {
+        headers: authHeaders(token),
+      });
+      expect(logsRes.status).toBe(200);
+      const logsBody = await logsRes.json();
+
+      // BUG-401 regression: exact count, no duplicates
+      expect(logsBody.data.length).toBe(3);
+      const ids = logsBody.data.map((l: { id: string }) => l.id);
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(ids.length); // all IDs unique — no duplicates
+    });
+  });
+
   // ─── Spec v3.1.0 artifact test ────────────────────────────────────
   describe('Spec v3.1.0: artifact exists', () => {
     it('spec-stock-v3.1.0.md exists and references supersede', async () => {
