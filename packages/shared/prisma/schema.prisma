@@ -37,6 +37,8 @@ enum SlotStatus {
   blocked_repair
   tentative
   late_return
+  shipping    // FEAT-402: transit to/from customer
+  washing     // FEAT-402: post-return cleaning window
 }
 
 enum OrderStatus {

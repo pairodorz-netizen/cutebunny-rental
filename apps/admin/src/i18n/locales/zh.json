@@ -342,7 +342,9 @@
       "cleaning": "清洁中",
       "blocked_repair": "维修中",
       "late_return": "逾期归还",
-      "tentative": "暂定"
+      "tentative": "暂定",
+      "shipping": "运输中",
+      "washing": "清洗中"
     }
   },
   "finance": {

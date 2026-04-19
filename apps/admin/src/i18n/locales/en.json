@@ -342,7 +342,9 @@
       "cleaning": "Cleaning",
       "blocked_repair": "Repair",
       "late_return": "Late Return",
-      "tentative": "Tentative"
+      "tentative": "Tentative",
+      "shipping": "Shipping",
+      "washing": "Washing"
     }
   },
   "finance": {
