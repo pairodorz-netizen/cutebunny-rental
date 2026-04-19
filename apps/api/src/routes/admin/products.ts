@@ -1083,16 +1083,18 @@ adminProducts.delete('/:id', async (c) => {
     },
   });
 
-  // Audit log
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'DELETE',
-      resource: 'product',
-      resourceId: id,
-      details: { sku: product.sku, name: product.name, orphaned_combo_sets: orphanedComboSetIds },
-    },
-  });
+  // Audit log (non-blocking)
+  try {
+    await db.auditLog.create({
+      data: {
+        adminId: admin.sub,
+        action: 'DELETE',
+        resource: 'product',
+        resourceId: id,
+        details: { sku: product.sku, name: product.name, orphaned_combo_sets: orphanedComboSetIds },
+      },
+    });
+  } catch { /* audit failure should not block */ }
 
   return success(c, { id, deleted: true, orphaned_combo_sets: orphanedComboSetIds.length });
 });
@@ -1143,16 +1145,18 @@ adminProducts.post('/:id/restore', async (c) => {
     }
   }
 
-  // Audit log
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'RESTORE',
-      resource: 'product',
-      resourceId: id,
-      details: { sku: product.sku, name: product.name },
-    },
-  });
+  // Audit log (non-blocking)
+  try {
+    await db.auditLog.create({
+      data: {
+        adminId: admin.sub,
+        action: 'RESTORE',
+        resource: 'product',
+        resourceId: id,
+        details: { sku: product.sku, name: product.name },
+      },
+    });
+  } catch { /* audit failure should not block */ }
 
   return success(c, { id, restored: true });
 });

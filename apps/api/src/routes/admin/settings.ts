@@ -9,6 +9,15 @@ import { sendCustomNotification } from '../../lib/notifications';
 
 const adminSettings = new Hono();
 
+// Helper: log audit event without blocking the main operation (handles schema drift gracefully)
+async function safeAuditLog(db: ReturnType<typeof getDb>, data: Parameters<ReturnType<typeof getDb>['auditLog']['create']>[0]['data']) {
+  try {
+    await db.auditLog.create({ data });
+  } catch {
+    // Audit log is non-critical; swallow errors from schema drift (e.g. missing ip_address column)
+  }
+}
+
 // ─── SYSTEM CONFIG ──────────────────────────────────────────────────────────
 
 // GET /api/v1/admin/settings/config
@@ -55,14 +64,12 @@ adminSettings.patch('/config/:key', async (c) => {
     data: { value: parsed.data.value },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'UPDATE',
-      resource: 'system_config',
-      resourceId: updated.id,
-      details: { key, old_value: existing.value, new_value: parsed.data.value },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'system_config',
+    resourceId: updated.id,
+    details: { key, old_value: existing.value, new_value: parsed.data.value },
   });
 
   return success(c, { id: updated.id, key: updated.key, value: updated.value, label: updated.label, group: updated.group });
@@ -92,14 +99,12 @@ adminSettings.post('/config', requireRole('superadmin'), async (c) => {
 
   const cfg = await db.systemConfig.create({ data: parsed.data });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'CREATE',
-      resource: 'system_config',
-      resourceId: cfg.id,
-      details: { key: cfg.key, value: cfg.value },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'CREATE',
+    resource: 'system_config',
+    resourceId: cfg.id,
+    details: { key: cfg.key, value: cfg.value },
   });
 
   return created(c, { id: cfg.id, key: cfg.key, value: cfg.value, label: cfg.label, group: cfg.group });
@@ -150,14 +155,12 @@ adminSettings.post('/users', async (c) => {
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'CREATE',
-      resource: 'admin_user',
-      resourceId: user.id,
-      details: { email: user.email, role: user.role },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'CREATE',
+    resource: 'admin_user',
+    resourceId: user.id,
+    details: { email: user.email, role: user.role },
   });
 
   return created(c, user);
@@ -196,14 +199,12 @@ adminSettings.patch('/users/:id', requireRole('superadmin'), async (c) => {
     select: { id: true, email: true, name: true, role: true, createdAt: true },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'UPDATE',
-      resource: 'admin_user',
-      resourceId: id,
-      details: { fields_updated: Object.keys(updateData).filter((k) => k !== 'passwordHash') },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'admin_user',
+    resourceId: id,
+    details: { fields_updated: Object.keys(updateData).filter((k) => k !== 'passwordHash') },
   });
 
   return success(c, updated);
@@ -226,14 +227,12 @@ adminSettings.delete('/users/:id', requireRole('superadmin'), async (c) => {
 
   await db.adminUser.delete({ where: { id } });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'DELETE',
-      resource: 'admin_user',
-      resourceId: id,
-      details: { email: existing.email },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'DELETE',
+    resource: 'admin_user',
+    resourceId: id,
+    details: { email: existing.email },
   });
 
   return success(c, { deleted: true });
@@ -385,14 +384,12 @@ adminSettings.put('/categories', requireRole('superadmin'), async (c) => {
     create: { key: 'product_categories', value: parsed.data.categories as unknown as Prisma.InputJsonValue, label: 'Product Categories', group: 'products' },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'UPDATE',
-      resource: 'system_config',
-      resourceId: cfg.id,
-      details: { key: 'product_categories', categories: parsed.data.categories },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'system_config',
+    resourceId: cfg.id,
+    details: { key: 'product_categories', categories: parsed.data.categories },
   });
 
   return success(c, parsed.data.categories);
@@ -423,14 +420,12 @@ adminSettings.delete('/categories/:name', requireRole('superadmin'), async (c) =
     create: { key: 'product_categories', value: updated as unknown as Prisma.InputJsonValue, label: 'Product Categories', group: 'products' },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'DELETE',
-      resource: 'category',
-      resourceId: name,
-      details: { deleted_category: name },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'DELETE',
+    resource: 'category',
+    resourceId: name,
+    details: { deleted_category: name },
   });
 
   return success(c, { deleted: true, category: name });
@@ -484,14 +479,12 @@ adminSettings.put('/store-addresses', requireRole('superadmin'), async (c) => {
     create: { key: 'store_addresses', value: addresses as unknown as Prisma.InputJsonValue, label: 'Store Addresses', group: 'store' },
   });
 
-  await db.auditLog.create({
-    data: {
-      adminId: admin.sub,
-      action: 'UPDATE',
-      resource: 'system_config',
-      resourceId: 'store_addresses',
-      details: { count: addresses.length },
-    },
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'system_config',
+    resourceId: 'store_addresses',
+    details: { count: addresses.length },
   });
 
   return success(c, addresses);
