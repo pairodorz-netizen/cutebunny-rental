@@ -151,9 +151,11 @@ export function ProductDetailPage() {
       setStockQty('');
       setStockUnitCost('');
       setStockNote('');
-      // TD-001: Invalidate both product and stock-logs queries — React Query handles dedup
+      // BUG-401: Reset (not just invalidate) stock-logs to avoid duplication from page-shift
+      // invalidateQueries refetches ALL cached pages — if new item shifted offsets, duplicates appear.
+      // resetQueries clears the cache entirely, so only page 1 is fetched fresh.
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
-      queryClient.invalidateQueries({ queryKey: ['stock-logs', id] });
+      queryClient.resetQueries({ queryKey: ['stock-logs', id] });
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
     },
     onError: (err: Error) => setStockError(err.message),
