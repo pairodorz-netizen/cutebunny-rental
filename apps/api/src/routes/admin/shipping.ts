@@ -153,6 +153,40 @@ adminShipping.patch('/orders/:id/carrier', async (c) => {
   });
 });
 
+// POST /api/v1/admin/shipping/zones — Create a new shipping zone
+adminShipping.post('/zones', async (c) => {
+  const db = getDb();
+
+  const bodySchema = z.object({
+    zone_name: z.string().min(1),
+    base_fee: z.number().min(0).default(0),
+  });
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid zone data', parsed.error.flatten());
+  }
+
+  const existing = await db.shippingZone.findUnique({ where: { zoneName: parsed.data.zone_name } });
+  if (existing) {
+    return error(c, 409, 'CONFLICT', `Zone "${parsed.data.zone_name}" already exists`);
+  }
+
+  const zone = await db.shippingZone.create({
+    data: {
+      zoneName: parsed.data.zone_name,
+      baseFee: parsed.data.base_fee,
+    },
+  });
+
+  return created_response(c, {
+    id: zone.id,
+    zone_name: zone.zoneName,
+    base_fee: zone.baseFee,
+  });
+});
+
 // PATCH /api/v1/admin/shipping/zones/:id — Update zone base fee
 adminShipping.patch('/zones/:id', async (c) => {
   const db = getDb();
