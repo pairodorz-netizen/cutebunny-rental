@@ -14,7 +14,10 @@ adminCustomers.get('/', async (c) => {
   const search = c.req.query('search');
   const tier = c.req.query('tier');
 
-  const where: Prisma.CustomerWhereInput = {};
+  const where: Prisma.CustomerWhereInput = {
+    // Exclude soft-deleted customers (email prefixed with "deleted_")
+    NOT: { email: { startsWith: 'deleted_' } },
+  };
 
   if (search) {
     where.OR = [
