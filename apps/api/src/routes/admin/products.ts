@@ -429,7 +429,7 @@ adminProducts.post('/', async (c) => {
     name_i18n: z.record(z.string()).optional(),
     description: z.string().optional(),
     description_i18n: z.record(z.string()).optional(),
-    category: z.enum(['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories']),
+    category: z.string().min(1),
     brand_id: z.string().uuid().optional(),
     brand_name: z.string().optional(),
     size: z.array(z.string()).min(1),
@@ -475,7 +475,7 @@ adminProducts.post('/', async (c) => {
       nameI18n: parsed.data.name_i18n ?? Prisma.JsonNull,
       description: parsed.data.description ?? '',
       descriptionI18n: parsed.data.description_i18n ?? Prisma.JsonNull,
-      category: parsed.data.category,
+      category: parsed.data.category as never,
       brandId: resolvedBrandId,
       size: parsed.data.size,
       color: parsed.data.color,
@@ -541,7 +541,7 @@ adminProducts.patch('/:id', async (c) => {
     name_i18n: z.record(z.string()).optional(),
     description: z.string().optional(),
     description_i18n: z.record(z.string()).optional(),
-    category: z.enum(['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories']).optional(),
+    category: z.string().min(1).optional(),
     brand_id: z.string().uuid().nullable().optional(),
     brand_name: z.string().optional(),
     size: z.array(z.string()).min(1).optional(),
@@ -572,7 +572,7 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.name_i18n !== undefined) updateData.nameI18n = parsed.data.name_i18n;
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.description_i18n !== undefined) updateData.descriptionI18n = parsed.data.description_i18n;
-  if (parsed.data.category !== undefined) updateData.category = parsed.data.category;
+  if (parsed.data.category !== undefined) updateData.category = parsed.data.category as never;
   if (parsed.data.brand_id !== undefined) updateData.brand = parsed.data.brand_id ? { connect: { id: parsed.data.brand_id } } : { disconnect: true };
   if (!parsed.data.brand_id && parsed.data.brand_name) {
     let brand = await db.brand.findFirst({ where: { name: { equals: parsed.data.brand_name, mode: 'insensitive' } } });

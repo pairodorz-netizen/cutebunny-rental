@@ -159,7 +159,7 @@ describe('Q02: Security Hardening', () => {
         body: JSON.stringify({
           sku: 'TEST-001',
           name: 'Test',
-          category: 'invalid_category',
+          category: '',
           size: ['M'],
           color: ['red'],
           rental_price_1day: 100,

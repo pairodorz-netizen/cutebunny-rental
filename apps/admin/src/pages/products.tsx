@@ -599,15 +599,29 @@ function ProductForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showSoldForm, setShowSoldForm] = useState(false);
   const [sellingPrice, setSellingPrice] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // #6: Fetch dynamic categories from API
+  const categoriesQuery = useQuery({
+    queryKey: ['settings-categories'],
+    queryFn: () => adminApi.settings.categories(),
+  });
+  const categoryList = categoriesQuery.data?.data ?? ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
 
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
     onSuccess,
+    onError: (err: Error) => {
+      setFormError(err.message || 'Failed to create product');
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product!.id, body),
     onSuccess,
+    onError: (err: Error) => {
+      setFormError(err.message || 'Failed to update product');
+    },
   });
 
   const markSoldMutation = useMutation({
@@ -639,6 +653,16 @@ function ProductForm({
   }
 
   function handleSubmit() {
+    setFormError(null);
+    // Frontend validation (#7)
+    if (!sku.trim()) { setFormError('SKU is required'); return; }
+    if (!name.trim()) { setFormError('Product name is required'); return; }
+    if (!size.trim()) { setFormError('At least one size is required'); return; }
+    if (!color.trim()) { setFormError('At least one color is required'); return; }
+    if (!price1 || Number(price1) <= 0) { setFormError('1-day rental price is required'); return; }
+    if (!price3 || Number(price3) <= 0) { setFormError('3-day rental price is required'); return; }
+    if (!price5 || Number(price5) <= 0) { setFormError('5-day rental price is required'); return; }
+
     const manualUrls = imageUrls.filter((u) => u.trim());
     const uploadUrls = uploadedImages.map((img) => img.url);
     const allUrls = [...uploadUrls, ...manualUrls];
@@ -686,7 +710,7 @@ function ProductForm({
           <div>
             <label className="text-sm font-medium">{t('products.category')}</label>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              {['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'].map((c) => (
+              {categoryList.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -886,18 +910,18 @@ function ProductForm({
           </div>
         )}
 
+        {formError && (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+            {formError}
+          </div>
+        )}
+
         <div className="flex justify-end gap-3 pt-4">
           <Button variant="outline" onClick={onBack}>{t('common.cancel')}</Button>
           <Button onClick={handleSubmit} disabled={isPending || !sku || !name}>
             {isPending ? t('common.loading') : mode === 'create' ? t('common.create') : t('common.save')}
           </Button>
         </div>
-
-        {(createMutation.isError || updateMutation.isError) && (
-          <p className="text-sm text-destructive">
-            {((createMutation.error || updateMutation.error) as Error)?.message}
-          </p>
-        )}
       </div>
     </div>
   );
