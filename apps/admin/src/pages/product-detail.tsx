@@ -6,6 +6,7 @@ import { adminApi, type AdminProductDetail, type PerUnitCalendarResponse } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter } from 'lucide-react';
+import { UnitSwitcher } from '@/components/ui/unit-switcher';
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: 'bg-yellow-100 text-yellow-800',
@@ -121,26 +122,7 @@ export function ProductDetailPage() {
     return () => observer.disconnect();
   }, [hasMoreLogs, isLoadingLogs, stockLogsQuery]);
 
-  // FEAT-302: Chevron navigation — cycle: all → 1 → 2 → ... → N → all
-  function calUnitPrev() {
-    if (calUnitFilter === 'all') {
-      setCalUnitFilter(String(totalUnits));
-    } else {
-      const cur = parseInt(calUnitFilter, 10);
-      setCalUnitFilter(cur <= 1 ? 'all' : String(cur - 1));
-    }
-  }
-  function calUnitNext() {
-    if (calUnitFilter === 'all') {
-      setCalUnitFilter(totalUnits > 0 ? '1' : 'all');
-    } else {
-      const cur = parseInt(calUnitFilter, 10);
-      setCalUnitFilter(cur >= totalUnits ? 'all' : String(cur + 1));
-    }
-  }
-  const calUnitLabel = calUnitFilter === 'all'
-    ? t('calendar.allUnits')
-    : t('calendar.unitXofN', { x: calUnitFilter, n: totalUnits });
+  // FEAT-401: Unit switcher extracted to reusable <UnitSwitcher /> component
 
   // Add stock mutation
   const addStockMutation = useMutation({
@@ -396,30 +378,12 @@ export function ProductDetailPage() {
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-            {/* FEAT-302: Per-unit navigation chevrons */}
-            {totalUnits > 0 && (
-              <div className="flex items-center justify-center gap-2 mb-3 py-1 bg-muted/30 rounded">
-                <button
-                  onClick={calUnitPrev}
-                  className="p-1 hover:bg-muted rounded"
-                  aria-label={t('calendar.prevUnit')}
-                  data-testid="cal-unit-prev"
-                >
-                  <ChevronLeft className="h-3 w-3" />
-                </button>
-                <span className="text-xs font-medium min-w-[100px] text-center" data-testid="cal-unit-label">
-                  {calUnitLabel}
-                </span>
-                <button
-                  onClick={calUnitNext}
-                  className="p-1 hover:bg-muted rounded"
-                  aria-label={t('calendar.nextUnit')}
-                  data-testid="cal-unit-next"
-                >
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-              </div>
-            )}
+            {/* FEAT-401: Reusable unit switcher component */}
+            <UnitSwitcher
+              currentUnit={calUnitFilter}
+              totalUnits={totalUnits}
+              onUnitChange={setCalUnitFilter}
+            />
             <div className="grid grid-cols-7 gap-1 text-center text-xs">
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
                 <div key={d} className="py-1 text-muted-foreground font-medium">{d}</div>
