@@ -404,8 +404,9 @@ adminSettings.delete('/categories/:name', requireRole('superadmin'), async (c) =
   const admin = getAdmin(c);
   const name = c.req.param('name');
 
-  // Check if any products use this category
-  const count = await db.product.count({ where: { category: name as never } });
+  // Check if any products use this category (use raw query to bypass Prisma enum validation)
+  const countResult = await db.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) as count FROM products WHERE category = ${name}`;
+  const count = Number(countResult[0]?.count ?? 0);
   if (count > 0) {
     return error(c, 409, 'CATEGORY_IN_USE', `Cannot delete category "${name}" — ${count} product(s) still use it. Reassign them first.`);
   }
