@@ -405,7 +405,7 @@ adminSettings.delete('/categories/:name', requireRole('superadmin'), async (c) =
   const name = c.req.param('name');
 
   // Check if any products use this category
-  const count = await db.product.count({ where: { category: name as never, deletedAt: null } });
+  const count = await db.product.count({ where: { category: name as never } });
   if (count > 0) {
     return error(c, 409, 'CATEGORY_IN_USE', `Cannot delete category "${name}" — ${count} product(s) still use it. Reassign them first.`);
   }
