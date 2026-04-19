@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, type AdminProductDetail, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,14 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const CALENDAR_COLORS: Record<string, string> = {
+  booked: 'bg-gray-300',
   shipped: 'bg-gray-300',
   returned: 'bg-gray-300',
   cleaning: 'bg-blue-300',
   repair: 'bg-blue-300',
   shipping: 'bg-amber-300',  // FEAT-402: transit window
   washing: 'bg-cyan-300',    // FEAT-402: post-return wash
+  tentative: 'bg-purple-300',
 };
 
 export function ProductDetailPage() {
@@ -79,13 +81,35 @@ export function ProductDetailPage() {
   // FEAT-302: Per-unit calendar query
   const calYear = calMonth.getFullYear();
   const calMonthNum = calMonth.getMonth() + 1;
-  const { data: calendarData } = useQuery({
+  const { data: calendarData, isFetching: isCalFetching } = useQuery({
     queryKey: ['product-calendar', id, calYear, calMonthNum, calUnitFilter],
     queryFn: () => adminApi.products.perUnitCalendar(id!, { year: calYear, month: calMonthNum, unit: calUnitFilter }),
     enabled: !!id && !!product,
+    placeholderData: keepPreviousData,
   });
   const perUnitCal: PerUnitCalendarResponse | undefined = calendarData?.data;
   const totalUnits = perUnitCal?.total_units ?? Math.max(product?.stock_on_hand ?? 0, 1);
+
+  // Prefetch adjacent units (N±1) so chevron clicks feel instant
+  useEffect(() => {
+    if (!id || !product) return;
+    const adjacentUnits: string[] = [];
+    if (calUnitFilter === 'all') {
+      adjacentUnits.push('1');
+    } else {
+      const cur = parseInt(calUnitFilter, 10);
+      if (cur > 1) adjacentUnits.push(String(cur - 1));
+      if (cur < totalUnits) adjacentUnits.push(String(cur + 1));
+      adjacentUnits.push('all');
+    }
+    for (const unit of adjacentUnits) {
+      queryClient.prefetchQuery({
+        queryKey: ['product-calendar', id, calYear, calMonthNum, unit],
+        queryFn: () => adminApi.products.perUnitCalendar(id, { year: calYear, month: calMonthNum, unit }),
+        staleTime: 30_000,
+      });
+    }
+  }, [id, product, calUnitFilter, calYear, calMonthNum, totalUnits, queryClient]);
 
   // TD-001: Stock logs via useInfiniteQuery — replaces manual fetch + dedup + generation counter
   const stockLogsQuery = useInfiniteQuery({
@@ -386,7 +410,7 @@ export function ProductDetailPage() {
               totalUnits={totalUnits}
               onUnitChange={setCalUnitFilter}
             />
-            <div className="grid grid-cols-7 gap-1 text-center text-xs">
+            <div className={`grid grid-cols-7 gap-1 text-center text-xs transition-opacity duration-150 ${isCalFetching ? 'opacity-60' : 'opacity-100'}`}>
               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
                 <div key={d} className="py-1 text-muted-foreground font-medium">{d}</div>
               ))}
