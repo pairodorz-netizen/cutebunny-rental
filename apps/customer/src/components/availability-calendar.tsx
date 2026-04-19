@@ -53,6 +53,18 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     return dateStr >= rangeStart && dateStr <= rangeEnd;
   }
 
+  // BUG-403: Check if any day in a range is blocked (non-available)
+  const hasBlockedDayInRange = useCallback((start: string, end: string): boolean => {
+    for (const day of days) {
+      if (day.date > start && day.date < end) {
+        if (getCustomerStatus(day.status) !== 'available') {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [days]);
+
   const handleDayClick = useCallback((dateStr: string, status: string) => {
     if (getCustomerStatus(status) !== 'available') return;
 
@@ -72,6 +84,16 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
         [start, end] = [end, start];
         setRangeStart(start);
       }
+
+      // BUG-403: Reject range if any day between start and end is blocked
+      if (hasBlockedDayInRange(start, end)) {
+        // Reset selection — cannot book across blocked days
+        setRangeStart(dateStr);
+        setRangeEnd(null);
+        setClickCount(1);
+        return;
+      }
+
       setRangeEnd(end);
       setClickCount(2);
 
@@ -89,7 +111,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       // Notify parent to reset to 1-day price
       onSelectRange?.(dateStr, dateStr, 1);
     }
-  }, [clickCount, rangeStart, onSelectRange]);
+  }, [clickCount, rangeStart, onSelectRange, hasBlockedDayInRange]);
 
   return (
     <div className="rounded-lg border p-4">

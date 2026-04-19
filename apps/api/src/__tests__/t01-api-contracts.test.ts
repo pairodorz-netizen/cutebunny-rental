@@ -237,7 +237,7 @@ describe('T01: API Contract Tests', () => {
       });
       expect(res.status).toBe(409);
       const body = await res.json();
-      expect(body.error.code).toBe('AVAILABILITY_CONFLICT');
+      expect(body.error.code).toBe('CONFLICT_RANGE'); // BUG-403: renamed from AVAILABILITY_CONFLICT
       expect(body.error).toHaveProperty('details');
     });
   });
