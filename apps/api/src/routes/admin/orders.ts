@@ -5,6 +5,7 @@ import { success, error, created } from '../../lib/response';
 import { isValidTransition, getAllowedTransitions, getTransitionError } from '../../lib/state-machine';
 import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
+import { createLifecycleBlocks } from '../../lib/availability';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -1301,6 +1302,96 @@ adminOrders.post('/', async (c) => {
     })),
     total_amount: order.totalAmount,
     created_at: order.createdAt.toISOString(),
+  });
+});
+
+// FEAT-402: Backfill lifecycle blocks for pre-existing orders
+adminOrders.post('/backfill-lifecycle-blocks', async (c) => {
+  const db = getDb();
+
+  // Get wash_duration_days from SystemConfig
+  const washConfig = await db.systemConfig.findUnique({
+    where: { key: 'wash_duration_days' },
+  });
+  const washDurationDays = washConfig ? parseInt(String(washConfig.value), 10) || 1 : 1;
+
+  // Get all orders that don't already have shipping/washing blocks
+  const orders = await db.order.findMany({
+    include: {
+      items: true,
+      availabilitySlots: {
+        where: { slotStatus: { in: ['shipping', 'washing'] } },
+        take: 1,
+      },
+    },
+  });
+
+  // Filter to orders without existing lifecycle blocks
+  const ordersToBackfill = orders.filter((o) => o.availabilitySlots.length === 0);
+
+  let totalShipping = 0;
+  let totalWashing = 0;
+  let ordersProcessed = 0;
+  const errors: string[] = [];
+
+  for (const order of ordersToBackfill) {
+    try {
+      // Extract province code from shipping snapshot
+      const snapshot = order.shippingSnapshot as Record<string, unknown> | null;
+      const address = snapshot?.address as Record<string, unknown> | null;
+      const provinceCode = (address?.province_code as string) ?? null;
+
+      // Look up shipping days for province (with fallback if migration 007 not yet applied)
+      let shippingDays = 2; // default
+      if (provinceCode) {
+        try {
+          const provinceConfig = await db.shippingProvinceConfig.findFirst({
+            where: { provinceCode },
+          });
+          if (provinceConfig) {
+            shippingDays = provinceConfig.shippingDays;
+          }
+        } catch {
+          // shipping_days column may not exist yet — use zone-based defaults
+          if (['BKK', 'NBI', 'PTH', 'SMK'].includes(provinceCode)) shippingDays = 1;
+          else if (['CMI', 'PKT'].includes(provinceCode)) shippingDays = 3;
+          else shippingDays = 2;
+        }
+      }
+
+      // Create lifecycle blocks for each order item
+      for (const item of order.items) {
+        const rentalStart = order.rentalStartDate;
+        const rentalEnd = order.rentalEndDate;
+
+        const result = await createLifecycleBlocks(
+          db,
+          item.productId,
+          rentalStart,
+          rentalEnd,
+          shippingDays,
+          washDurationDays,
+          order.id
+        );
+
+        totalShipping += result.shippingBlocked;
+        totalWashing += result.washingBlocked;
+      }
+
+      ordersProcessed++;
+    } catch (e) {
+      errors.push(`Order ${order.orderNumber}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return success(c, {
+    orders_scanned: orders.length,
+    orders_already_had_blocks: orders.length - ordersToBackfill.length,
+    orders_backfilled: ordersProcessed,
+    shipping_blocks_created: totalShipping,
+    washing_blocks_created: totalWashing,
+    wash_duration_days: washDurationDays,
+    errors,
   });
 });
 
