@@ -5,6 +5,7 @@ export interface ShippingFeeResult {
   baseFee: number;
   addonFee: number;
   totalFee: number;
+  shippingDays: number;
 }
 
 export async function calculateShippingFee(
@@ -27,6 +28,7 @@ export async function calculateShippingFee(
     baseFee,
     addonFee,
     totalFee: baseFee + addonFee,
+    shippingDays: config.shippingDays,
   };
 }
 

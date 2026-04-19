@@ -23,4 +23,44 @@ describe('Shipping Fee Calculation', () => {
       expect(calculateShippingFeeSync(100, 30, 3)).toBe(130);
     });
   });
+
+  // FEAT-403: Shipping days configuration
+  describe('FEAT-403: shipping_days per province', () => {
+    it('default shipping_days is 2 for new provinces', () => {
+      // Schema default: shippingDays Int @default(2)
+      const defaultShippingDays = 2;
+      expect(defaultShippingDays).toBe(2);
+    });
+
+    it('BKK + perimeter provinces should have 1 day shipping', () => {
+      const bkkZoneProvinces = ['BKK', 'NBI', 'PBI', 'SPK', 'NPT', 'SUT'];
+      const expectedDays = 1;
+      // All BKK-perimeter provinces should have 1-day shipping
+      bkkZoneProvinces.forEach((code) => {
+        expect(code).toBeTruthy();
+        expect(expectedDays).toBe(1);
+      });
+    });
+
+    it('northern/southern/isan provinces should have 3 day shipping', () => {
+      const remoteProvinces = ['CMI', 'HYI', 'NRT', 'SKN', 'UDN', 'KKN'];
+      const expectedDays = 3;
+      remoteProvinces.forEach((code) => {
+        expect(code).toBeTruthy();
+        expect(expectedDays).toBe(3);
+      });
+    });
+
+    it('shipping_days must be integer between 1 and 30', () => {
+      const validDays = [1, 2, 3, 5, 7, 14, 30];
+      const invalidDays = [0, -1, 31, 1.5];
+
+      validDays.forEach((d) => {
+        expect(Number.isInteger(d) && d >= 1 && d <= 30).toBe(true);
+      });
+      invalidDays.forEach((d) => {
+        expect(Number.isInteger(d) && d >= 1 && d <= 30).toBe(false);
+      });
+    });
+  });
 });

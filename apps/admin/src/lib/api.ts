@@ -741,8 +741,8 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
-    updateProvince: (provinceId: string, body: { addon_fee: number }) =>
-      request<{ data: { id: string; province_code: string; province_name: string; addon_fee: number } }>(`/api/v1/admin/shipping/provinces/${provinceId}`, {
+    updateProvince: (provinceId: string, body: { addon_fee?: number; shipping_days?: number }) =>
+      request<{ data: { id: string; province_code: string; province_name: string; addon_fee: number; shipping_days: number } }>(`/api/v1/admin/shipping/provinces/${provinceId}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),

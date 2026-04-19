@@ -11,6 +11,7 @@ interface ProvinceConfig {
   province_code: string;
   province_name?: string;
   addon_fee: number;
+  shipping_days?: number;
   total_fee?: number;
 }
 
@@ -29,6 +30,7 @@ export function ShippingPage() {
   const [editBaseFee, setEditBaseFee] = useState('');
   const [editingProvince, setEditingProvince] = useState<string | null>(null);
   const [editAddonFee, setEditAddonFee] = useState('');
+  const [editShippingDays, setEditShippingDays] = useState('');
   const [addingToZone, setAddingToZone] = useState<string | null>(null);
   const [newProvinceCode, setNewProvinceCode] = useState('');
   const [newProvinceName, setNewProvinceName] = useState('');
@@ -49,7 +51,7 @@ export function ShippingPage() {
   });
 
   const updateProvinceMutation = useMutation({
-    mutationFn: ({ provinceId, body }: { provinceId: string; body: { addon_fee: number } }) =>
+    mutationFn: ({ provinceId, body }: { provinceId: string; body: { addon_fee?: number; shipping_days?: number } }) =>
       adminApi.shipping.updateProvince(provinceId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shipping-zones'] });
@@ -100,10 +102,11 @@ export function ShippingPage() {
   function startEditProvince(province: ProvinceConfig) {
     setEditingProvince(province.id ?? null);
     setEditAddonFee(String(province.addon_fee));
+    setEditShippingDays(String(province.shipping_days ?? 2));
   }
 
   function saveProvince(provinceId: string) {
-    updateProvinceMutation.mutate({ provinceId, body: { addon_fee: Number(editAddonFee) } });
+    updateProvinceMutation.mutate({ provinceId, body: { addon_fee: Number(editAddonFee), shipping_days: Number(editShippingDays) } });
   }
 
   function addProvince(zoneId: string) {
@@ -201,6 +204,7 @@ export function ShippingPage() {
                         <th className="text-left px-4 py-2 font-medium">{t('shipping.code')}</th>
                         <th className="text-left px-4 py-2 font-medium">{t('shipping.provinceName')}</th>
                         <th className="text-right px-4 py-2 font-medium">{t('shipping.addonFee')}</th>
+                        <th className="text-right px-4 py-2 font-medium">{t('shipping.shippingDays')}</th>
                         <th className="text-right px-4 py-2 font-medium">{t('shipping.totalFee')}</th>
                         <th className="text-right px-4 py-2 font-medium w-24">{t('shipping.actions')}</th>
                       </tr>
@@ -219,13 +223,36 @@ export function ShippingPage() {
                             </td>
                             <td className="px-4 py-2 text-right">
                               {isEditingThis ? (
+                                <Input
+                                  type="number"
+                                  value={editAddonFee}
+                                  onChange={(e) => setEditAddonFee(e.target.value)}
+                                  className="w-20 h-7 text-right"
+                                />
+                              ) : (
+                                <span>{province.addon_fee} THB</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {isEditingThis ? (
+                                <Input
+                                  type="number"
+                                  value={editShippingDays}
+                                  onChange={(e) => setEditShippingDays(e.target.value)}
+                                  className="w-16 h-7 text-right"
+                                  min={1}
+                                  max={30}
+                                />
+                              ) : (
+                                <span>{province.shipping_days ?? 2} {t('shipping.days')}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium">
+                              {(province.total_fee ?? (zone.base_fee + province.addon_fee))} THB
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              {isEditingThis ? (
                                 <div className="flex items-center justify-end gap-1">
-                                  <Input
-                                    type="number"
-                                    value={editAddonFee}
-                                    onChange={(e) => setEditAddonFee(e.target.value)}
-                                    className="w-20 h-7 text-right"
-                                  />
                                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveProvince(province.id!)}>
                                     <Save className="h-3 w-3" />
                                   </Button>
@@ -234,14 +261,6 @@ export function ShippingPage() {
                                   </Button>
                                 </div>
                               ) : (
-                                <span>{province.addon_fee} THB</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-right font-medium">
-                              {(province.total_fee ?? (zone.base_fee + province.addon_fee))} THB
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              {!isEditingThis && (
                                 <div className="flex items-center justify-end gap-1">
                                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEditProvince(province)}>
                                     <Edit2 className="h-3 w-3" />

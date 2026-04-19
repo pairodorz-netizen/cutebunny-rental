@@ -462,7 +462,11 @@
     "add": "เพิ่ม",
     "codePlaceholder": "รหัส (เช่น BKK)",
     "namePlaceholder": "ชื่อจังหวัด",
-    "confirmDelete": "ลบ {{name}} ออกจากโซนนี้?"
+    "confirmDelete": "ลบ {{name}} ออกจากโซนนี้?",
+    "shippingDays": "ระยะเวลาขนส่ง",
+    "days": "วัน",
+    "originProvince": "จังหวัดต้นทาง",
+    "originProvinceDesc": "จังหวัดที่จัดส่งสินค้า (มีผลต่อการคำนวณเวลาขนส่ง)"
   },
   "settings": {
     "title": "ตั้งค่า",
@@ -501,6 +505,8 @@
     "notifStatus": "สถานะ",
     "noNotifications": "ยังไม่มีการแจ้งเตือน",
     "sendNotification": "ส่งการแจ้งเตือน",
-    "send": "ส่ง"
+    "send": "ส่ง",
+    "washDuration": "ระยะเวลาซัก (วัน)",
+    "washDurationDesc": "จำนวนวันที่ต้องใช้ในการทำความสะอาดสินค้าหลังคืน"
   }
 }

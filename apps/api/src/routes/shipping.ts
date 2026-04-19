@@ -27,6 +27,7 @@ shipping.get('/calculate', async (c) => {
     base_fee: result.baseFee,
     addon_fee: result.addonFee,
     total_fee: result.totalFee,
+    shipping_days: result.shippingDays,
     currency: 'THB',
   });
 });

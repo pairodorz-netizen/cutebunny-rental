@@ -462,7 +462,11 @@
     "add": "添加",
     "codePlaceholder": "代码（如 BKK）",
     "namePlaceholder": "省份名称",
-    "confirmDelete": "从此区域移除 {{name}}？"
+    "confirmDelete": "从此区域移除 {{name}}？",
+    "shippingDays": "运输天数",
+    "days": "天",
+    "originProvince": "发货省份",
+    "originProvinceDesc": "商品发货所在省份（影响运输时间计算）"
   },
   "settings": {
     "title": "设置",
@@ -501,6 +505,8 @@
     "notifStatus": "状态",
     "noNotifications": "暂无通知记录。",
     "sendNotification": "发送通知",
-    "send": "发送"
+    "send": "发送",
+    "washDuration": "清洗时长（天）",
+    "washDurationDesc": "租赁归还后清洁物品所需天数"
   }
 }
