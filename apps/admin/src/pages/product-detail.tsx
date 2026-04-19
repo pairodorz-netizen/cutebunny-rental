@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { adminApi, type AdminProductDetail, type StockLog, type PerUnitCalendarResponse } from '@/lib/api';
+import { adminApi, type AdminProductDetail, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter } from 'lucide-react';
@@ -62,13 +62,8 @@ export function ProductDetailPage() {
   const [logDateFrom, setLogDateFrom] = useState('');
   const [logDateTo, setLogDateTo] = useState('');
 
-  // B3: Infinite scroll state
-  const [allStockLogs, setAllStockLogs] = useState<StockLog[]>([]);
-  const [logCursor, setLogCursor] = useState<string | null>(null);
-  const [hasMoreLogs, setHasMoreLogs] = useState(true);
-  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  // TD-001: Infinite scroll via useInfiniteQuery (replaces manual logFetchRef pattern)
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const logFetchRef = useRef(0); // BUG-301: guard against concurrent/duplicate fetches
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-detail', id],
@@ -88,6 +83,43 @@ export function ProductDetailPage() {
   });
   const perUnitCal: PerUnitCalendarResponse | undefined = calendarData?.data;
   const totalUnits = perUnitCal?.total_units ?? Math.max(product?.stock_on_hand ?? 0, 1);
+
+  // TD-001: Stock logs via useInfiniteQuery — replaces manual fetch + dedup + generation counter
+  const stockLogsQuery = useInfiniteQuery({
+    queryKey: ['stock-logs', id, logTypeFilter, logDateFrom, logDateTo],
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+      const params: Record<string, string> = { limit: '20' };
+      if (pageParam) params.cursor = pageParam;
+      if (logTypeFilter) params.type = logTypeFilter;
+      if (logDateFrom) params.date_from = logDateFrom;
+      if (logDateTo) params.date_to = logDateTo;
+      return adminApi.products.stockLogs(id!, params);
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      (lastPage.meta?.has_more as boolean) ? (lastPage.meta?.cursor as string) : undefined,
+    enabled: !!id && !!product,
+  });
+
+  // Flatten all pages into a single array for rendering + running balance
+  const allStockLogs = stockLogsQuery.data?.pages.flatMap((page) => page.data ?? []) ?? [];
+  const hasMoreLogs = stockLogsQuery.hasNextPage ?? false;
+  const isLoadingLogs = stockLogsQuery.isFetchingNextPage || stockLogsQuery.isLoading;
+
+  // TD-001: IntersectionObserver for infinite scroll (triggers fetchNextPage)
+  useEffect(() => {
+    if (!logsEndRef.current || !hasMoreLogs || isLoadingLogs) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreLogs && !isLoadingLogs) {
+          stockLogsQuery.fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(logsEndRef.current);
+    return () => observer.disconnect();
+  }, [hasMoreLogs, isLoadingLogs, stockLogsQuery]);
 
   // FEAT-302: Chevron navigation — cycle: all → 1 → 2 → ... → N → all
   function calUnitPrev() {
@@ -110,85 +142,6 @@ export function ProductDetailPage() {
     ? t('calendar.allUnits')
     : t('calendar.unitXofN', { x: calUnitFilter, n: totalUnits });
 
-  // B3: Load stock logs with cursor pagination
-  const loadStockLogs = useCallback(async (reset = false) => {
-    if (!id || isLoadingLogs) return;
-    setIsLoadingLogs(true);
-    try {
-      const params: Record<string, string> = { limit: '20' };
-      if (!reset && logCursor) params.cursor = logCursor;
-      if (logTypeFilter) params.type = logTypeFilter;
-      if (logDateFrom) params.date_from = logDateFrom;
-      if (logDateTo) params.date_to = logDateTo;
-
-      const res = await adminApi.products.stockLogs(id, params);
-      const newLogs = res.data ?? [];
-      if (reset) {
-        // BUG-301: Dedup by log.id via Map
-        const dedupMap = new Map<string, StockLog>();
-        for (const log of newLogs) dedupMap.set(log.id, log);
-        setAllStockLogs(Array.from(dedupMap.values()));
-      } else {
-        setAllStockLogs((prev) => {
-          const dedupMap = new Map<string, StockLog>();
-          for (const log of prev) dedupMap.set(log.id, log);
-          for (const log of newLogs) dedupMap.set(log.id, log);
-          return Array.from(dedupMap.values());
-        });
-      }
-      setLogCursor((res.meta?.cursor as string) ?? null);
-      setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
-    } catch {
-      // ignore
-    } finally {
-      setIsLoadingLogs(false);
-    }
-  }, [id, logCursor, logTypeFilter, logDateFrom, logDateTo, isLoadingLogs]);
-
-  // Load initial logs when product loads or filters change
-  // BUG-301: Use fetch generation counter to prevent duplicate/stale fetches
-  useEffect(() => {
-    if (product && id) {
-      const generation = ++logFetchRef.current;
-      setAllStockLogs([]);
-      setLogCursor(null);
-      setHasMoreLogs(true);
-      // Defer the load to next tick so state resets first
-      const timer = setTimeout(() => {
-        if (generation !== logFetchRef.current) return; // stale
-        const params: Record<string, string> = { limit: '20' };
-        if (logTypeFilter) params.type = logTypeFilter;
-        if (logDateFrom) params.date_from = logDateFrom;
-        if (logDateTo) params.date_to = logDateTo;
-        adminApi.products.stockLogs(id, params).then((res) => {
-          if (generation !== logFetchRef.current) return; // stale
-          // BUG-301: Dedup by log.id via Map (server is source of truth)
-          const dedupMap = new Map<string, StockLog>();
-          for (const log of (res.data ?? [])) dedupMap.set(log.id, log);
-          setAllStockLogs(Array.from(dedupMap.values()));
-          setLogCursor((res.meta?.cursor as string) ?? null);
-          setHasMoreLogs((res.meta?.has_more as boolean) ?? false);
-        }).catch(() => {});
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, [product, id, logTypeFilter, logDateFrom, logDateTo]);
-
-  // B3: Intersection observer for infinite scroll
-  useEffect(() => {
-    if (!logsEndRef.current || !hasMoreLogs || isLoadingLogs) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMoreLogs && !isLoadingLogs) {
-          loadStockLogs(false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(logsEndRef.current);
-    return () => observer.disconnect();
-  }, [hasMoreLogs, isLoadingLogs, loadStockLogs]);
-
   // Add stock mutation
   const addStockMutation = useMutation({
     mutationFn: (body: { quantity: number; unit_cost: number; note?: string }) =>
@@ -198,9 +151,9 @@ export function ProductDetailPage() {
       setStockQty('');
       setStockUnitCost('');
       setStockNote('');
-      // BUG-301: Only invalidate product query — useEffect handles log refetch
-      // Do NOT manually reset allStockLogs here (causes double-fetch / duplication)
+      // TD-001: Invalidate both product and stock-logs queries — React Query handles dedup
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['stock-logs', id] });
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
     },
     onError: (err: Error) => setStockError(err.message),
