@@ -28,6 +28,7 @@ export function createMockDb() {
       update: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       delete: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       upsert: vi.fn().mockResolvedValue({ id: 'mock-id' }),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: 0 } }),
     };
   }
