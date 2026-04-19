@@ -532,7 +532,7 @@ describe('T03: Admin Happy Path E2E', () => {
     it('rejects duplicate SKU', async () => {
       const token = await getAdminToken();
 
-      mockDb.product.findUnique.mockResolvedValue(MOCK_PRODUCT);
+      mockDb.product.findFirst.mockResolvedValue(MOCK_PRODUCT);
 
       const res = await app.request('/api/v1/admin/products', {
         method: 'POST',

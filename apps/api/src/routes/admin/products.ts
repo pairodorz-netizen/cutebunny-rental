@@ -452,8 +452,8 @@ adminProducts.post('/', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid product data', parsed.error.flatten());
   }
 
-  // Check SKU uniqueness
-  const existing = await db.product.findUnique({ where: { sku: parsed.data.sku } });
+  // Check SKU uniqueness (only among active products — soft-deleted ones have prefixed SKUs)
+  const existing = await db.product.findFirst({ where: { sku: parsed.data.sku, deletedAt: null } });
   if (existing) {
     return error(c, 409, 'DUPLICATE_SKU', `SKU "${parsed.data.sku}" already exists`);
   }
@@ -1056,12 +1056,14 @@ adminProducts.delete('/:id', async (c) => {
   });
   const orphanedComboSetIds = [...new Set(affectedComboItems.map((ci) => ci.comboSetId))];
 
-  // Soft delete: set deletedAt + mark unavailable
+  // Soft delete: set deletedAt + mark unavailable + prefix SKU to free it for reuse
+  const now = new Date();
   await db.product.update({
     where: { id },
     data: {
-      deletedAt: new Date(),
+      deletedAt: now,
       available: false,
+      sku: `deleted_${now.getTime()}_${product.sku}`,
     },
   });
 
@@ -1114,12 +1116,19 @@ adminProducts.post('/:id/restore', async (c) => {
     return error(c, 400, 'NOT_DELETED', 'Product is not deleted');
   }
 
-  // Restore: clear deletedAt + mark available
+  // Restore: clear deletedAt + mark available + restore original SKU
+  const originalSku = product.sku.replace(/^deleted_\d+_/, '');
+  // Check if the original SKU is now taken by another active product
+  const skuConflict = await db.product.findFirst({ where: { sku: originalSku, deletedAt: null } });
+  if (skuConflict) {
+    return error(c, 409, 'SKU_CONFLICT', `Cannot restore: SKU "${originalSku}" is already in use by another active product`);
+  }
   await db.product.update({
     where: { id },
     data: {
       deletedAt: null,
       available: true,
+      sku: originalSku,
     },
   });
 

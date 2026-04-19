@@ -354,7 +354,8 @@ describe('Stock Management', () => {
   describe('A2: POST /api/v1/admin/products/:id/restore', () => {
     it('restores a deleted product', async () => {
       const token = await getAdminToken();
-      mockDb.product.findUnique.mockResolvedValue({ ...MOCK_PRODUCT, deletedAt: new Date() });
+      mockDb.product.findUnique.mockResolvedValue({ ...MOCK_PRODUCT, sku: 'deleted_1234_WED-001', deletedAt: new Date() });
+      mockDb.product.findFirst.mockResolvedValue(null); // no SKU conflict
       mockDb.comboSetItem.findMany.mockResolvedValue([]);
 
       const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/restore`, {
@@ -368,7 +369,7 @@ describe('Stock Management', () => {
 
       expect(mockDb.product.update).toHaveBeenCalledWith({
         where: { id: PRODUCT_ID },
-        data: { deletedAt: null, available: true },
+        data: { deletedAt: null, available: true, sku: 'WED-001' },
       });
       expect(mockDb.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
