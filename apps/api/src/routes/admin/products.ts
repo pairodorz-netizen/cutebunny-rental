@@ -444,6 +444,11 @@ adminProducts.post('/', async (c) => {
     deposit: z.number().int().min(0).optional(),
     stock_quantity: z.number().int().min(0).optional(),
     image_urls: z.array(z.string().url()).optional(),
+    initial_stock: z.object({
+      quantity: z.number().int().min(1),
+      unit_cost: z.number().int().min(0).default(0),
+      note: z.string().optional(),
+    }).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -517,11 +522,62 @@ adminProducts.post('/', async (c) => {
     }
   } catch { /* audit failure should not block */ }
 
+  // Initial stock: create stock log + calendar entries if provided
+  let stockResult: { stock_on_hand: number; log_id: string } | null = null;
+  if (parsed.data.initial_stock) {
+    const { quantity, unit_cost, note } = parsed.data.initial_stock;
+    const totalCost = quantity * unit_cost;
+
+    const [updatedProduct, stockLog] = await db.$transaction([
+      db.product.update({
+        where: { id: product.id },
+        data: { stockOnHand: { increment: quantity } },
+      }),
+      db.productStockLog.create({
+        data: {
+          productId: product.id,
+          type: 'purchase',
+          quantity,
+          unitCost: unit_cost,
+          totalCost,
+          note: note ?? 'Initial stock',
+          createdBy: admin.sub,
+        },
+      }),
+    ]);
+
+    // Auto-populate availability_calendar for new units (90-day forward)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const calendarRows: { productId: string; calendarDate: Date; slotStatus: 'available'; unitIndex: number }[] = [];
+    for (let unitIdx = 1; unitIdx <= quantity; unitIdx++) {
+      for (let dayOffset = 0; dayOffset < 90; dayOffset++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + dayOffset);
+        calendarRows.push({
+          productId: product.id,
+          calendarDate: date,
+          slotStatus: 'available',
+          unitIndex: unitIdx,
+        });
+      }
+    }
+    if (calendarRows.length > 0) {
+      await db.availabilityCalendar.createMany({
+        data: calendarRows,
+        skipDuplicates: true,
+      });
+    }
+
+    stockResult = { stock_on_hand: updatedProduct.stockOnHand, log_id: stockLog.id };
+  }
+
   return created(c, {
     id: product.id,
     sku: product.sku,
     name: product.name,
     category: product.category,
+    ...(stockResult ? { initial_stock: stockResult } : {}),
   });
 });
 
