@@ -131,42 +131,55 @@ async function getMonthAvailabilityMultiUnit(
 
 /**
  * Get per-unit availability for admin calendar view.
+ * Groups by unitIndex (always populated on availability_calendar) rather than
+ * unitId (often null). Falls back to InventoryUnit labels when available.
  */
 export async function getMonthAvailabilityPerUnit(
   db: PrismaClient,
   productId: string,
   year: number,
   month: number,
-  unitId?: string
+  unitIndexFilter?: number,
+  totalUnits?: number
 ): Promise<{ unit_id: string | null; unit_label: string; days: DayAvailability[] }[]> {
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
 
-  const units = await db.inventoryUnit.findMany({
-    where: unitId ? { id: unitId, productId } : { productId },
+  // Optionally fetch InventoryUnit records for richer labels
+  const inventoryUnits = await db.inventoryUnit.findMany({
+    where: { productId },
     orderBy: { unitIndex: 'asc' },
   }).catch(() => []);
 
-  if (units.length === 0) {
-    // Single-unit legacy product
-    const days = await getMonthAvailability(db, productId, year, month);
-    return [{ unit_id: null, unit_label: 'Default', days }];
-  }
-
+  // Fetch availability_calendar slots, optionally filtered by unitIndex
   const slots = await db.availabilityCalendar.findMany({
     where: {
       productId,
       calendarDate: { gte: startDate, lte: endDate },
+      ...(unitIndexFilter ? { unitIndex: unitIndexFilter } : {}),
     },
     orderBy: { calendarDate: 'asc' },
   });
 
-  // Group slots by unitId → date → { status, orderId }
-  const slotsByUnit = new Map<string, Map<string, { status: SlotStatus; orderId: string | null }>>();
+  // Determine the set of unit indices to return calendars for
+  const product = await db.product.findUnique({ where: { id: productId }, select: { stockOnHand: true } });
+  const maxUnits = totalUnits ?? Math.max(
+    product?.stockOnHand ?? 1,
+    inventoryUnits.length,
+    ...slots.map(s => s.unitIndex ?? 1)
+  );
+
+  // If filtering to a specific unit, only show that unit
+  const unitIndices: number[] = unitIndexFilter
+    ? [unitIndexFilter]
+    : Array.from({ length: maxUnits }, (_, i) => i + 1);
+
+  // Group slots by unitIndex → date → { status, orderId }
+  const slotsByUnitIndex = new Map<number, Map<string, { status: SlotStatus; orderId: string | null }>>();
   for (const slot of slots) {
-    const uid = slot.unitId ?? '__legacy__';
-    if (!slotsByUnit.has(uid)) slotsByUnit.set(uid, new Map());
-    slotsByUnit.get(uid)!.set(slot.calendarDate.toISOString().split('T')[0], {
+    const idx = slot.unitIndex ?? 1;
+    if (!slotsByUnitIndex.has(idx)) slotsByUnitIndex.set(idx, new Map());
+    slotsByUnitIndex.get(idx)!.set(slot.calendarDate.toISOString().split('T')[0], {
       status: slot.slotStatus,
       orderId: slot.orderId,
     });
@@ -174,26 +187,25 @@ export async function getMonthAvailabilityPerUnit(
 
   const daysInMonth = endDate.getDate();
 
-  return units
-    .filter(u => !unitId || u.id === unitId)
-    .map((unit) => {
-      const unitSlots = slotsByUnit.get(unit.id) ?? new Map();
-      const days: DayAvailability[] = [];
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const slotData = unitSlots.get(dateStr);
-        days.push({
-          date: dateStr,
-          status: slotData?.status ?? 'available',
-          order_id: slotData?.orderId ?? null,
-        });
-      }
-      return {
-        unit_id: unit.id,
-        unit_label: unit.label ?? `Unit ${unit.unitIndex}`,
-        days,
-      };
-    });
+  return unitIndices.map((unitIdx) => {
+    const invUnit = inventoryUnits.find(u => u.unitIndex === unitIdx);
+    const unitSlots = slotsByUnitIndex.get(unitIdx) ?? new Map();
+    const days: DayAvailability[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const slotData = unitSlots.get(dateStr);
+      days.push({
+        date: dateStr,
+        status: slotData?.status ?? 'available',
+        order_id: slotData?.orderId ?? null,
+      });
+    }
+    return {
+      unit_id: invUnit?.id ?? null,
+      unit_label: invUnit?.label ?? `Unit ${unitIdx}`,
+      days,
+    };
+  });
 }
 
 export async function checkAvailability(

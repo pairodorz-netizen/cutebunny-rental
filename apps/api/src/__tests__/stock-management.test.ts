@@ -777,6 +777,7 @@ describe('Stock Management', () => {
           id: 'cal-1',
           productId: PRODUCT_ID,
           unitId: 'unit-1',
+          unitIndex: 1,
           calendarDate: new Date('2026-04-15'),
           slotStatus: 'booked',
           orderId: 'order-1',
@@ -839,8 +840,8 @@ describe('Stock Management', () => {
       ]);
       // Mock availability: both units booked on 2026-04-15
       mockDb.availabilityCalendar.findMany.mockResolvedValue([
-        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-1', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
-        { id: 'cal-2', productId: PRODUCT_ID, unitId: 'unit-2', calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-2', unit: { id: 'unit-2', unitIndex: 2, label: 'Unit 2' } },
+        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', unitIndex: 1, calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-1', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
+        { id: 'cal-2', productId: PRODUCT_ID, unitId: 'unit-2', unitIndex: 2, calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-2', unit: { id: 'unit-2', unitIndex: 2, label: 'Unit 2' } },
       ]);
 
       const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=all`, {
@@ -867,7 +868,7 @@ describe('Stock Management', () => {
       ]);
       // Mock availability: only unit-1 booked on 2026-04-15, unit-2 free
       mockDb.availabilityCalendar.findMany.mockResolvedValue([
-        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-1', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
+        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', unitIndex: 1, calendarDate: new Date('2026-04-15'), slotStatus: 'booked', orderId: 'order-1', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
       ]);
 
       const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=all`, {
@@ -1037,6 +1038,7 @@ describe('Stock Management', () => {
           id: 'cal-1',
           productId: PRODUCT_ID,
           unitId: 'unit-1',
+          unitIndex: 1,
           calendarDate: new Date('2026-04-15'),
           slotStatus: 'booked',
           orderId: 'order-abc-123',
@@ -1068,8 +1070,8 @@ describe('Stock Management', () => {
       ]);
       // Both units booked — aggregated should show order from first booked unit
       mockDb.availabilityCalendar.findMany.mockResolvedValue([
-        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-xyz-789', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
-        { id: 'cal-2', productId: PRODUCT_ID, unitId: 'unit-2', calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-def-456', unit: { id: 'unit-2', unitIndex: 2, label: 'Unit 2' } },
+        { id: 'cal-1', productId: PRODUCT_ID, unitId: 'unit-1', unitIndex: 1, calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-xyz-789', unit: { id: 'unit-1', unitIndex: 1, label: 'Unit 1' } },
+        { id: 'cal-2', productId: PRODUCT_ID, unitId: 'unit-2', unitIndex: 2, calendarDate: new Date('2026-04-20'), slotStatus: 'booked', orderId: 'order-def-456', unit: { id: 'unit-2', unitIndex: 2, label: 'Unit 2' } },
       ]);
 
       const res = await app.request(`/api/v1/admin/products/${PRODUCT_ID}/calendar?year=2026&month=4&unit=all`, {
