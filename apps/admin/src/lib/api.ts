@@ -827,6 +827,11 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    batchUpdateConfig: (updates: Record<string, string>) =>
+      request<{ data: { updated: Array<{ id: string; key: string; value: string; label: string | null; group: string }>; skipped: string[] } }>(
+        '/api/v1/admin/settings/config/batch',
+        { method: 'POST', body: JSON.stringify({ updates }) },
+      ),
     users: () => request<{ data: Array<{ id: string; email: string; name: string | null; role: string; lastLoginAt: string | null; createdAt: string }> }>('/api/v1/admin/settings/users'),
     createUser: (body: { email: string; password: string; name?: string; role?: string }) =>
       request<{ data: { id: string; email: string; name: string | null; role: string; createdAt: string } }>('/api/v1/admin/settings/users', {

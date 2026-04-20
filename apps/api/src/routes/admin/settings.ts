@@ -110,6 +110,128 @@ adminSettings.post('/config', requireRole('superadmin'), async (c) => {
   return created(c, { id: cfg.id, key: cfg.key, value: cfg.value, label: cfg.label, group: cfg.group });
 });
 
+// ─── SYSTEM CONFIG — BATCH UPSERT (allow-list) ────────────────────────────
+//
+// POST /api/v1/admin/settings/config/batch
+//
+// Additive endpoint powering the redesigned grouped System Config UI (#31).
+// Upserts one or more well-known config keys in a single call and records
+// one audit log entry per key that actually changed. Only keys matching the
+// server-side allow-list are accepted — unknown keys return 400 so the
+// generic free-form "+ Add Config" flow stays confined to POST /config
+// (superadmin-only).
+
+const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }> = {
+  late_return_fee: { label: 'Late Return Fee (THB/day)', group: 'finance' },
+  shipping_duration_days: { label: 'Shipping Duration (days)', group: 'calendar' },
+  wash_duration_days: { label: 'Wash Duration (days)', group: 'calendar' },
+  origin_province: { label: 'Origin Province', group: 'shipping' },
+};
+
+const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
+
+function resolveAllowedKey(key: string): { label: string; group: string } | null {
+  if (FIXED_ALLOWED_KEYS[key]) return FIXED_ALLOWED_KEYS[key];
+  if (SHIPPING_DAYS_KEY_RE.test(key)) {
+    const code = key.slice('shipping_days_'.length);
+    return { label: `Shipping Days — ${code}`, group: 'shipping' };
+  }
+  return null;
+}
+
+function validateConfigValue(key: string, value: string): string | null {
+  if (key === 'late_return_fee') {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return 'late_return_fee must be a number >= 0';
+    return null;
+  }
+  if (key === 'shipping_duration_days' || key === 'wash_duration_days' || SHIPPING_DAYS_KEY_RE.test(key)) {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 1) return `${key} must be an integer >= 1`;
+    return null;
+  }
+  if (key === 'origin_province') {
+    if (!/^[A-Z0-9]{2,10}$/.test(value)) return 'origin_province must be a short uppercase province code';
+    return null;
+  }
+  return null;
+}
+
+const batchUpdateSchema = z.object({
+  updates: z.record(z.string(), z.string()),
+});
+
+adminSettings.post('/config/batch', async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = batchUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid input', parsed.error.flatten());
+  }
+
+  const entries = Object.entries(parsed.data.updates);
+  if (entries.length === 0) {
+    return success(c, { updated: [], skipped: [] });
+  }
+
+  // Validate every key up front — reject the whole batch if anything is bad.
+  const fieldErrors: Record<string, string> = {};
+  for (const [key, value] of entries) {
+    const meta = resolveAllowedKey(key);
+    if (!meta) {
+      fieldErrors[key] = `Config key "${key}" is not in the allow-list`;
+      continue;
+    }
+    const verr = validateConfigValue(key, value);
+    if (verr) fieldErrors[key] = verr;
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid config values', { fieldErrors });
+  }
+
+  const updated: Array<{ id: string; key: string; value: unknown; label: string | null; group: string | null }> = [];
+  const skipped: string[] = [];
+
+  for (const [key, value] of entries) {
+    const meta = resolveAllowedKey(key);
+    if (!meta) continue; // unreachable due to validation above
+    const existing = await db.systemConfig.findUnique({ where: { key } });
+    if (existing) {
+      if (typeof existing.value === 'string' && existing.value === value) {
+        skipped.push(key);
+        continue;
+      }
+      const row = await db.systemConfig.update({
+        where: { key },
+        data: { value },
+      });
+      await safeAuditLog(db, {
+        adminId: admin.sub,
+        action: 'UPDATE',
+        resource: 'system_config',
+        resourceId: row.id,
+        details: { key, old_value: existing.value as Prisma.InputJsonValue, new_value: value },
+      });
+      updated.push({ id: row.id, key: row.key, value: row.value, label: row.label, group: row.group });
+    } else {
+      const row = await db.systemConfig.create({
+        data: { key, value, label: meta.label, group: meta.group },
+      });
+      await safeAuditLog(db, {
+        adminId: admin.sub,
+        action: 'CREATE',
+        resource: 'system_config',
+        resourceId: row.id,
+        details: { key, value },
+      });
+      updated.push({ id: row.id, key: row.key, value: row.value, label: row.label, group: row.group });
+    }
+  }
+
+  return success(c, { updated, skipped });
+});
+
 // ─── ADMIN USER MANAGEMENT ─────────────────────────────────────────────────
 
 // GET /api/v1/admin/settings/users
