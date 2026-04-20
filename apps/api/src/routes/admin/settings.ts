@@ -126,6 +126,12 @@ const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }> = {
   shipping_duration_days: { label: 'Shipping Duration (days)', group: 'calendar' },
   wash_duration_days: { label: 'Wash Duration (days)', group: 'calendar' },
   origin_province: { label: 'Origin Province', group: 'shipping' },
+  // Customer UX (#31 follow-up) — admin config + storage only; no customer
+  // flow enforcement yet (tracked in separate issue).
+  min_rental_days: { label: 'Minimum Rental Days', group: 'customer_ux' },
+  max_rental_days: { label: 'Maximum Rental Days', group: 'customer_ux' },
+  booking_buffer_days: { label: 'Booking Buffer Days', group: 'customer_ux' },
+  min_advance_booking_days: { label: 'Minimum Advance Booking Days', group: 'customer_ux' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
@@ -145,9 +151,20 @@ function validateConfigValue(key: string, value: string): string | null {
     if (!Number.isFinite(n) || n < 0) return 'late_return_fee must be a number >= 0';
     return null;
   }
-  if (key === 'shipping_duration_days' || key === 'wash_duration_days' || SHIPPING_DAYS_KEY_RE.test(key)) {
+  if (
+    key === 'shipping_duration_days' ||
+    key === 'wash_duration_days' ||
+    key === 'min_rental_days' ||
+    key === 'max_rental_days' ||
+    SHIPPING_DAYS_KEY_RE.test(key)
+  ) {
     const n = Number(value);
     if (!Number.isInteger(n) || n < 1) return `${key} must be an integer >= 1`;
+    return null;
+  }
+  if (key === 'booking_buffer_days' || key === 'min_advance_booking_days') {
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < 0) return `${key} must be an integer >= 0`;
     return null;
   }
   if (key === 'origin_province') {
@@ -188,6 +205,29 @@ adminSettings.post('/config/batch', async (c) => {
   }
   if (Object.keys(fieldErrors).length > 0) {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid config values', { fieldErrors });
+  }
+
+  // Cross-field check: max_rental_days must be >= min_rental_days in the
+  // effective post-batch state (DB value for whichever side isn't in the
+  // payload).
+  const batchMap = new Map(entries);
+  if (batchMap.has('min_rental_days') || batchMap.has('max_rental_days')) {
+    const readNum = async (key: string): Promise<number | null> => {
+      if (batchMap.has(key)) return Number(batchMap.get(key));
+      const row = await db.systemConfig.findUnique({ where: { key } });
+      if (!row || typeof row.value !== 'string') return null;
+      const n = Number(row.value);
+      return Number.isFinite(n) ? n : null;
+    };
+    const minDays = await readNum('min_rental_days');
+    const maxDays = await readNum('max_rental_days');
+    if (minDays != null && maxDays != null && maxDays < minDays) {
+      return error(c, 400, 'VALIDATION_ERROR', 'Invalid config values', {
+        fieldErrors: {
+          max_rental_days: `max_rental_days (${maxDays}) must be >= min_rental_days (${minDays})`,
+        },
+      });
+    }
   }
 
   const updated: Array<{ id: string; key: string; value: unknown; label: string | null; group: string | null }> = [];
