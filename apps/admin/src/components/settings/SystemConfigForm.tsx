@@ -22,6 +22,10 @@ type FormState = {
   wash_duration_days: string;
   origin_province: string;
   shipping_days: Record<string, string>; // province_code -> value (string)
+  min_rental_days: string;
+  max_rental_days: string;
+  booking_buffer_days: string;
+  min_advance_booking_days: string;
 };
 
 const DEFAULTS: FormState = {
@@ -30,6 +34,10 @@ const DEFAULTS: FormState = {
   wash_duration_days: '1',
   origin_province: 'BKK',
   shipping_days: Object.fromEntries(THAI_PROVINCES.map((p) => [p.code, String(p.flashDefaultDays)])),
+  min_rental_days: '1',
+  max_rental_days: '14',
+  booking_buffer_days: '1',
+  min_advance_booking_days: '0',
 };
 
 function asString(value: unknown): string | null {
@@ -52,6 +60,10 @@ function buildInitialState(configs: ConfigItem[]): FormState {
     shipping_days: Object.fromEntries(
       THAI_PROVINCES.map((p) => [p.code, byKey.get(`shipping_days_${p.code}`) ?? String(p.flashDefaultDays)]),
     ),
+    min_rental_days: byKey.get('min_rental_days') ?? DEFAULTS.min_rental_days,
+    max_rental_days: byKey.get('max_rental_days') ?? DEFAULTS.max_rental_days,
+    booking_buffer_days: byKey.get('booking_buffer_days') ?? DEFAULTS.booking_buffer_days,
+    min_advance_booking_days: byKey.get('min_advance_booking_days') ?? DEFAULTS.min_advance_booking_days,
   };
 }
 
@@ -69,6 +81,15 @@ function validatePositiveInteger(s: string): string | null {
   if (!Number.isFinite(n)) return 'invalid_number';
   if (!Number.isInteger(n)) return 'must_be_integer';
   if (n < 1) return 'min_one';
+  return null;
+}
+
+function validateNonNegativeInteger(s: string): string | null {
+  if (s.trim() === '') return 'required';
+  const n = Number(s);
+  if (!Number.isFinite(n)) return 'invalid_number';
+  if (!Number.isInteger(n)) return 'must_be_integer';
+  if (n < 0) return 'min_zero';
   return null;
 }
 
@@ -118,6 +139,10 @@ export function SystemConfigForm() {
     shipping_duration_days: form.shipping_duration_days,
     wash_duration_days: form.wash_duration_days,
     origin_province: form.origin_province,
+    min_rental_days: form.min_rental_days,
+    max_rental_days: form.max_rental_days,
+    booking_buffer_days: form.booking_buffer_days,
+    min_advance_booking_days: form.min_advance_booking_days,
     ...Object.fromEntries(
       THAI_PROVINCES.map((p) => [`shipping_days_${p.code}`, form.shipping_days[p.code] ?? String(p.flashDefaultDays)]),
     ),
@@ -128,6 +153,10 @@ export function SystemConfigForm() {
     shipping_duration_days: initialState.shipping_duration_days,
     wash_duration_days: initialState.wash_duration_days,
     origin_province: initialState.origin_province,
+    min_rental_days: initialState.min_rental_days,
+    max_rental_days: initialState.max_rental_days,
+    booking_buffer_days: initialState.booking_buffer_days,
+    min_advance_booking_days: initialState.min_advance_booking_days,
     ...Object.fromEntries(
       THAI_PROVINCES.map((p) => [`shipping_days_${p.code}`, initialState.shipping_days[p.code] ?? String(p.flashDefaultDays)]),
     ),
@@ -151,6 +180,20 @@ export function SystemConfigForm() {
       const v = form.shipping_days[p.code] ?? '';
       const err = validatePositiveInteger(v);
       if (err) e[`shipping_days_${p.code}`] = err;
+    }
+    const errMin = validatePositiveInteger(form.min_rental_days);
+    if (errMin) e.min_rental_days = errMin;
+    const errMax = validatePositiveInteger(form.max_rental_days);
+    if (errMax) e.max_rental_days = errMax;
+    const errBuf = validateNonNegativeInteger(form.booking_buffer_days);
+    if (errBuf) e.booking_buffer_days = errBuf;
+    const errAdv = validateNonNegativeInteger(form.min_advance_booking_days);
+    if (errAdv) e.min_advance_booking_days = errAdv;
+    // Cross-field: max_rental_days >= min_rental_days
+    if (!errMin && !errMax) {
+      const minN = Number(form.min_rental_days);
+      const maxN = Number(form.max_rental_days);
+      if (maxN < minN) e.max_rental_days = 'max_lt_min';
     }
     return e;
   }, [form]);
@@ -197,6 +240,8 @@ export function SystemConfigForm() {
         return t('settings.systemConfig.errMinOne');
       case 'must_be_integer':
         return t('settings.systemConfig.errMustBeInteger');
+      case 'max_lt_min':
+        return t('settings.systemConfig.errMaxLtMin');
       default:
         return e;
     }
@@ -406,17 +451,84 @@ export function SystemConfigForm() {
         </div>
       </SectionCard>
 
-      {/* Section 4 — Customer UX placeholder ----------------------------- */}
+      {/* Section 4 — Customer UX ----------------------------------------- */}
       <SectionCard
         icon={<Sparkles className="h-5 w-5 text-pink-600" />}
         title={t('settings.systemConfig.section4Title')}
         description={t('settings.systemConfig.section4Desc')}
       >
-        <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t('settings.systemConfig.section4Placeholder')}
-          </p>
-        </div>
+        <Field
+          label={t('settings.systemConfig.minRentalDaysLabel')}
+          helper={t('settings.systemConfig.minRentalDaysHelper')}
+          error={translateFieldError(errors.min_rental_days)}
+          htmlFor="cfg-min-rental-days"
+          trailing={<span className="text-sm text-muted-foreground">{t('settings.systemConfig.unitDays')}</span>}
+        >
+          <Input
+            id="cfg-min-rental-days"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={form.min_rental_days}
+            onChange={(e) => setForm((s) => ({ ...s, min_rental_days: e.target.value }))}
+            className="w-40"
+          />
+        </Field>
+        <Field
+          label={t('settings.systemConfig.maxRentalDaysLabel')}
+          helper={t('settings.systemConfig.maxRentalDaysHelper')}
+          error={translateFieldError(errors.max_rental_days)}
+          htmlFor="cfg-max-rental-days"
+          trailing={<span className="text-sm text-muted-foreground">{t('settings.systemConfig.unitDays')}</span>}
+        >
+          <Input
+            id="cfg-max-rental-days"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={form.max_rental_days}
+            onChange={(e) => setForm((s) => ({ ...s, max_rental_days: e.target.value }))}
+            className="w-40"
+          />
+        </Field>
+        <Field
+          label={t('settings.systemConfig.bookingBufferDaysLabel')}
+          helper={t('settings.systemConfig.bookingBufferDaysHelper')}
+          error={translateFieldError(errors.booking_buffer_days)}
+          htmlFor="cfg-booking-buffer-days"
+          trailing={<span className="text-sm text-muted-foreground">{t('settings.systemConfig.unitDays')}</span>}
+        >
+          <Input
+            id="cfg-booking-buffer-days"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={form.booking_buffer_days}
+            onChange={(e) => setForm((s) => ({ ...s, booking_buffer_days: e.target.value }))}
+            className="w-40"
+          />
+        </Field>
+        <Field
+          label={t('settings.systemConfig.minAdvanceBookingDaysLabel')}
+          helper={t('settings.systemConfig.minAdvanceBookingDaysHelper')}
+          error={translateFieldError(errors.min_advance_booking_days)}
+          htmlFor="cfg-min-advance-booking-days"
+          trailing={<span className="text-sm text-muted-foreground">{t('settings.systemConfig.unitDays')}</span>}
+        >
+          <Input
+            id="cfg-min-advance-booking-days"
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={form.min_advance_booking_days}
+            onChange={(e) => setForm((s) => ({ ...s, min_advance_booking_days: e.target.value }))}
+            className="w-40"
+          />
+        </Field>
       </SectionCard>
 
       {/* Sticky Save bar ------------------------------------------------- */}
