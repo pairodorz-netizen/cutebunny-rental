@@ -779,6 +779,14 @@ export const adminApi = {
       request<{ data: { deleted: boolean } }>(`/api/v1/admin/shipping/provinces/${provinceId}`, {
         method: 'DELETE',
       }),
+    // #36: global shipping-fee toggle.
+    feeToggleStatus: () =>
+      request<{ data: { enabled: boolean } }>('/api/v1/admin/settings/shipping/fee-toggle'),
+    setFeeToggle: (enabled: boolean) =>
+      request<{ data: { enabled: boolean } }>('/api/v1/admin/settings/shipping/fee-toggle', {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled }),
+      }),
   },
   finance: {
     report: (params: Record<string, string>) => {

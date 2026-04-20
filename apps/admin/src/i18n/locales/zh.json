@@ -485,7 +485,15 @@
     "originProvince": "发货省份",
     "originProvinceDesc": "商品发货所在省份（影响运输时间计算）",
     "save": "保存",
-    "noChangesToSave": "没有可保存的更改"
+    "noChangesToSave": "没有可保存的更改",
+    "feeToggleLabel": "收取运费",
+    "feeToggleOnHint": "按已配置的运费向客户收费",
+    "feeToggleOffHint": "免运费 — 所有订单均不收取运费",
+    "confirmFeeToggleOff": "要全局关闭运费吗？所有新订单将免运费（各省份的费用设置将被保留）。",
+    "confirmFeeToggleOn": "要重新开启运费吗？客户将按已配置的费用付运费。",
+    "freeShippingBannerTitle": "免运费模式已开启",
+    "freeShippingBannerBody": "已全局关闭运费。所有订单的运费均为 0 泰铢（运输天数不受影响）。",
+    "freeTag": "免费"
   },
   "settings": {
     "title": "设置",

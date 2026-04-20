@@ -6,7 +6,7 @@ import { getDb } from '../lib/db';
 import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
 import { confirmHolds, createLifecycleBlocks } from '../lib/availability';
-import { calculateShippingFee } from '../lib/shipping';
+import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getCartStore } from './cart';
 
 function getSupabaseClient() {
@@ -69,9 +69,17 @@ orders.post('/', async (c) => {
     return error(c, 404, 'CART_EXPIRED', 'Cart session has expired');
   }
 
-  // Calculate shipping
-  const shippingResult = await calculateShippingFee(db, parsed.data.shipping_address.province_code);
-  const deliveryFee = shippingResult?.totalFee ?? 150; // fallback to nationwide
+  // Calculate shipping. Honors the global `shipping_fee_enabled` toggle
+  // (#36): when disabled, ALL orders compute shipping_cost = 0 regardless
+  // of per-province config, including the nationwide fallback path.
+  const feeEnabled = await getShippingFeeEnabled(db);
+  const shippingResult = await calculateShippingFee(
+    db,
+    parsed.data.shipping_address.province_code,
+    1,
+    { feeEnabled },
+  );
+  const deliveryFee = feeEnabled ? (shippingResult?.totalFee ?? 150) : 0;
 
   // Find or create customer
   let customer = await db.customer.findUnique({

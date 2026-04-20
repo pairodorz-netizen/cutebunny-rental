@@ -5,7 +5,7 @@ import { isProvinceEditDirty, isZoneEditDirty } from '@cutebunny/shared/forms';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Truck, MapPin, Edit2, Save, X, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Truck, MapPin, Edit2, Save, X, Plus, Trash2, ChevronDown, ChevronRight, AlertCircle } from 'lucide-react';
 
 interface ProvinceConfig {
   id?: string;
@@ -43,6 +43,29 @@ export function ShippingPage() {
     queryKey: ['shipping-zones'],
     queryFn: () => adminApi.shipping.zones(),
   });
+
+  // #36: Global shipping fee toggle.
+  const { data: feeToggleData } = useQuery({
+    queryKey: ['shipping-fee-toggle'],
+    queryFn: () => adminApi.shipping.feeToggleStatus(),
+  });
+  const feeEnabled = feeToggleData?.data.enabled ?? true;
+
+  const feeToggleMutation = useMutation({
+    mutationFn: (enabled: boolean) => adminApi.shipping.setFeeToggle(enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shipping-fee-toggle'] });
+    },
+  });
+
+  function requestFeeToggle(next: boolean) {
+    if (feeToggleMutation.isPending) return;
+    const confirmKey = next
+      ? 'shipping.confirmFeeToggleOn'
+      : 'shipping.confirmFeeToggleOff';
+    if (!confirm(t(confirmKey))) return;
+    feeToggleMutation.mutate(next);
+  }
 
   const updateZoneMutation = useMutation({
     mutationFn: ({ zoneId, body }: { zoneId: string; body: { base_fee: number } }) =>
@@ -143,14 +166,55 @@ export function ShippingPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{t('shipping.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {t('shipping.subtitle', { zones: zones.length, provinces: totalProvinces })}
           </p>
         </div>
+        {/* #36: Global shipping fee toggle */}
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-sm font-medium">{t('shipping.feeToggleLabel')}</div>
+            <div className="text-xs text-muted-foreground">
+              {feeEnabled ? t('shipping.feeToggleOnHint') : t('shipping.feeToggleOffHint')}
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={feeEnabled}
+            aria-label={t('shipping.feeToggleLabel')}
+            onClick={() => requestFeeToggle(!feeEnabled)}
+            disabled={feeToggleMutation.isPending}
+            className={
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 ' +
+              (feeEnabled ? 'bg-primary border-primary' : 'bg-muted border-input')
+            }
+          >
+            <span
+              className={
+                'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ' +
+                (feeEnabled ? 'translate-x-5' : 'translate-x-0.5')
+              }
+            />
+          </button>
+        </div>
       </div>
+
+      {!feeEnabled && (
+        <div
+          role="status"
+          className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="font-medium">{t('shipping.freeShippingBannerTitle')}</div>
+            <div className="text-amber-800">{t('shipping.freeShippingBannerBody')}</div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {zones.map((zone) => {
@@ -202,7 +266,13 @@ export function ShippingPage() {
                     </div>
                   ) : (
                     <>
-                      <span className="text-sm font-medium bg-primary/10 text-primary px-2 py-1 rounded">
+                      <span
+                        className={
+                          'text-sm font-medium bg-primary/10 text-primary px-2 py-1 rounded ' +
+                          (feeEnabled ? '' : 'line-through opacity-60')
+                        }
+                        title={feeEnabled ? undefined : t('shipping.feeToggleOffHint')}
+                      >
                         {t('shipping.baseFee')}: {zone.base_fee} THB
                       </span>
                       <Button size="sm" variant="ghost" onClick={() => startEditZone(zone)}>
@@ -248,7 +318,7 @@ export function ShippingPage() {
                                   className="w-20 h-7 text-right"
                                 />
                               ) : (
-                                <span>{province.addon_fee} THB</span>
+                                <span className={feeEnabled ? '' : 'line-through opacity-60'}>{province.addon_fee} THB</span>
                               )}
                             </td>
                             <td className="px-4 py-2 text-right">
@@ -266,7 +336,14 @@ export function ShippingPage() {
                               )}
                             </td>
                             <td className="px-4 py-2 text-right font-medium">
-                              {(province.total_fee ?? (zone.base_fee + province.addon_fee))} THB
+                              {feeEnabled ? (
+                                <span>{(province.total_fee ?? (zone.base_fee + province.addon_fee))} THB</span>
+                              ) : (
+                                <span>
+                                  <span className="line-through opacity-60">{(province.total_fee ?? (zone.base_fee + province.addon_fee))} THB</span>
+                                  <span className="ml-2 text-xs font-semibold text-emerald-700">{t('shipping.freeTag')}</span>
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-2 text-right">
                               {isEditingThis ? (
