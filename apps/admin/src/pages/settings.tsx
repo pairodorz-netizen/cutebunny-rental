@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle } from 'lucide-react';
 import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
 
 type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
@@ -818,6 +818,25 @@ function ShippingTab() {
     queryFn: () => adminApi.shipping.zones(),
   });
 
+  // #36: Global shipping-fee toggle.
+  const feeToggleQuery = useQuery({
+    queryKey: ['shipping-fee-toggle'],
+    queryFn: () => adminApi.shipping.feeToggleStatus(),
+  });
+  const feeEnabled = feeToggleQuery.data?.data.enabled ?? true;
+
+  const feeToggleMutation = useMutation({
+    mutationFn: (enabled: boolean) => adminApi.shipping.setFeeToggle(enabled),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shipping-fee-toggle'] }),
+  });
+
+  const requestFeeToggle = (next: boolean) => {
+    if (feeToggleMutation.isPending) return;
+    const key = next ? 'shipping.confirmFeeToggleOn' : 'shipping.confirmFeeToggleOff';
+    if (!confirm(t(key))) return;
+    feeToggleMutation.mutate(next);
+  };
+
   const updateZoneMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: { zone_name?: string; base_fee?: number } }) =>
       adminApi.shipping.updateZone(id, body),
@@ -866,14 +885,55 @@ function ShippingTab() {
   return (
     <div className="space-y-4">
       <div className="rounded-lg border">
-        <div className="p-4 border-b bg-muted/30 flex items-center gap-2">
+        <div className="p-4 border-b bg-muted/30 flex items-center gap-3 flex-wrap">
           <Truck className="h-5 w-5 text-muted-foreground" />
-          <div>
+          <div className="flex-1 min-w-[200px]">
             <h3 className="font-semibold">{t('settings.shippingTitle')}</h3>
             <p className="text-xs text-muted-foreground">{t('settings.shippingDesc')}</p>
           </div>
+          {/* #36: Global shipping-fee toggle */}
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-sm font-medium">{t('shipping.feeToggleLabel')}</div>
+              <div className="text-xs text-muted-foreground">
+                {feeEnabled ? t('shipping.feeToggleOnHint') : t('shipping.feeToggleOffHint')}
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={feeEnabled}
+              aria-label={t('shipping.feeToggleLabel')}
+              onClick={() => requestFeeToggle(!feeEnabled)}
+              disabled={feeToggleMutation.isPending || feeToggleQuery.isLoading}
+              className={
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60 ' +
+                (feeEnabled ? 'bg-primary border-primary' : 'bg-muted border-input')
+              }
+            >
+              <span
+                className={
+                  'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ' +
+                  (feeEnabled ? 'translate-x-5' : 'translate-x-0.5')
+                }
+              />
+            </button>
+          </div>
         </div>
       </div>
+
+      {!feeEnabled && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="font-medium">{t('shipping.freeShippingBannerTitle')}</div>
+            <div className="text-amber-800">{t('shipping.freeShippingBannerBody')}</div>
+          </div>
+        </div>
+      )}
 
       {zonesQuery.isLoading ? (
         <div className="rounded-lg border p-8 text-center text-muted-foreground">{t('common.loading')}</div>
@@ -900,7 +960,15 @@ function ShippingTab() {
                     </div>
                   ) : (
                     <>
-                      <span className="text-sm font-mono bg-muted px-2 py-1 rounded">{t('settings.baseFee')}: {zone.base_fee} THB</span>
+                      <span
+                        className={
+                          'text-sm font-mono bg-muted px-2 py-1 rounded ' +
+                          (feeEnabled ? '' : 'line-through opacity-60')
+                        }
+                        title={feeEnabled ? undefined : t('shipping.feeToggleOffHint')}
+                      >
+                        {t('settings.baseFee')}: {zone.base_fee} THB
+                      </span>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setEditingZone(zone.id); setEditBaseFee(String(zone.base_fee)); }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -944,7 +1012,7 @@ function ShippingTab() {
                             </>
                           ) : (
                             <>
-                              <td className="p-2 text-right font-mono">{p.addon_fee} THB</td>
+                              <td className={'p-2 text-right font-mono ' + (feeEnabled ? '' : 'line-through opacity-60')}>{p.addon_fee} THB</td>
                               <td className="p-2 text-right">{p.shipping_days} {t('settings.days')}</td>
                               <td className="p-2 text-right">
                                 <div className="flex justify-end gap-1">
