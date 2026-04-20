@@ -132,6 +132,10 @@ const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }> = {
   max_rental_days: { label: 'Maximum Rental Days', group: 'customer_ux' },
   booking_buffer_days: { label: 'Booking Buffer Days', group: 'customer_ux' },
   min_advance_booking_days: { label: 'Minimum Advance Booking Days', group: 'customer_ux' },
+  // Global free-shipping toggle (#36). Stored as the string "true" / "false";
+  // when "false", all orders compute shipping_cost = 0 while shipping_days
+  // stays unchanged.
+  shipping_fee_enabled: { label: 'Charge Shipping Fee', group: 'shipping' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
@@ -169,6 +173,10 @@ function validateConfigValue(key: string, value: string): string | null {
   }
   if (key === 'origin_province') {
     if (!/^[A-Z0-9]{2,10}$/.test(value)) return 'origin_province must be a short uppercase province code';
+    return null;
+  }
+  if (key === 'shipping_fee_enabled') {
+    if (value !== 'true' && value !== 'false') return 'shipping_fee_enabled must be "true" or "false"';
     return null;
   }
   return null;
@@ -656,6 +664,63 @@ adminSettings.put('/store-addresses', requireRole('superadmin'), async (c) => {
   });
 
   return success(c, addresses);
+});
+
+// ─── SHIPPING FEE TOGGLE (#36) ─────────────────────────────────────────────
+
+// GET /api/v1/admin/settings/shipping/fee-toggle — current toggle state
+adminSettings.get('/shipping/fee-toggle', async (c) => {
+  const db = getDb();
+  const row = await db.systemConfig.findUnique({ where: { key: 'shipping_fee_enabled' } });
+  const raw = row?.value;
+  let enabled = true;
+  if (typeof raw === 'boolean') enabled = raw;
+  else if (typeof raw === 'string') enabled = raw.toLowerCase() !== 'false';
+  return success(c, { enabled });
+});
+
+// PATCH /api/v1/admin/settings/shipping/fee-toggle — flip the global toggle.
+// When `enabled=false`, the shipping-cost calculation short-circuits to 0 for
+// all orders while per-province shipping_days is preserved. Existing per-zone
+// and per-province fee values in the DB are NOT modified — they remain ready
+// to be restored instantly when the toggle flips back on.
+const feeToggleSchema = z.object({ enabled: z.boolean() });
+
+adminSettings.patch('/shipping/fee-toggle', async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = feeToggleSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid input', parsed.error.flatten());
+  }
+
+  const newValue = parsed.data.enabled ? 'true' : 'false';
+
+  const existing = await db.systemConfig.findUnique({ where: { key: 'shipping_fee_enabled' } });
+  const oldValue = existing?.value ?? null;
+
+  const row = await db.systemConfig.upsert({
+    where: { key: 'shipping_fee_enabled' },
+    update: { value: newValue },
+    create: {
+      key: 'shipping_fee_enabled',
+      value: newValue,
+      label: 'Charge Shipping Fee',
+      group: 'shipping',
+    },
+  });
+
+  // Audit log: shipping.fee_toggle.changed (per issue #36 spec).
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: 'shipping.fee_toggle.changed',
+    resource: 'system_config',
+    resourceId: row.id,
+    details: { key: 'shipping_fee_enabled', old_value: oldValue, new_value: newValue },
+  });
+
+  return success(c, { enabled: parsed.data.enabled });
 });
 
 export default adminSettings;

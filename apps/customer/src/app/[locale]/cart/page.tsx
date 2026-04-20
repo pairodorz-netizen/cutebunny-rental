@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,9 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shippingFee, setShippingFee] = useState<number>(0);
+  // #36: global free-shipping toggle. When false, shippingFee is forced to
+  // 0 and the summary shows a "Free shipping" badge regardless of province.
+  const [shippingFeeEnabled, setShippingFeeEnabled] = useState<boolean>(true);
 
   // Checkout form state
   const [name, setName] = useState('');
@@ -50,6 +53,24 @@ export default function CartPage() {
   const [uploading, setUploading] = useState(false);
 
   const totals = getTotal();
+
+  // #36: fetch the global shipping-fee toggle on mount so the cart summary
+  // shows "Free shipping" even before a province is selected.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.settings.shippingFeeToggle();
+        if (!cancelled) setShippingFeeEnabled(result.data.enabled);
+      } catch {
+        // On error, default to enabled so we don't accidentally promise free shipping.
+        if (!cancelled) setShippingFeeEnabled(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Look up customer credit when email is entered
   const lookupCredit = useCallback(async (emailValue: string) => {
@@ -106,9 +127,16 @@ export default function CartPage() {
     if (code) {
       try {
         const result = await api.shipping.calculate(code, items.length);
+        // Trust the server: when the global toggle is off, total_fee is 0 and
+        // fee_enabled=false; otherwise total_fee is the configured amount.
         setShippingFee(result.data.total_fee);
+        if (typeof result.data.fee_enabled === 'boolean') {
+          setShippingFeeEnabled(result.data.fee_enabled);
+        }
       } catch {
-        setShippingFee(150);
+        // Network / unknown province: keep the fallback but respect the
+        // cached toggle state so offline users don't get surprise fees.
+        setShippingFee(shippingFeeEnabled ? 150 : 0);
       }
     }
   }
@@ -315,7 +343,11 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>{t('shippingFee')}</span>
-                  <span>{shippingFee.toLocaleString()} THB</span>
+                  {shippingFeeEnabled ? (
+                    <span>{shippingFee.toLocaleString()} THB</span>
+                  ) : (
+                    <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
+                  )}
                 </div>
 
                 {/* Credit Balance Section — always visible after lookup */}

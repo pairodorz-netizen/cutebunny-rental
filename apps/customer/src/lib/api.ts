@@ -124,7 +124,14 @@ export interface ShippingCalcResult {
   base_fee: number;
   addon_fee: number;
   total_fee: number;
+  shipping_days?: number;
+  /** Global shipping fee toggle (#36). Absent on old API deployments. */
+  fee_enabled?: boolean;
   currency: string;
+}
+
+export interface ShippingFeeToggle {
+  enabled: boolean;
 }
 
 export const api = {
@@ -183,5 +190,10 @@ export const api = {
   shipping: {
     calculate: (provinceCode: string, itemCount: number = 1) =>
       request<{ data: ShippingCalcResult }>(`/api/v1/shipping/calculate?province_code=${provinceCode}&item_count=${itemCount}`),
+  },
+  settings: {
+    /** Public read of the global shipping-fee toggle (#36). */
+    shippingFeeToggle: () =>
+      request<{ data: ShippingFeeToggle }>('/api/v1/settings/shipping/fee-toggle'),
   },
 };

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getDb } from '../lib/db';
 import { success, error } from '../lib/response';
-import { calculateShippingFee } from '../lib/shipping';
+import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 
 const shipping = new Hono();
 
@@ -15,7 +15,10 @@ shipping.get('/calculate', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'province_code is required');
   }
 
-  const result = await calculateShippingFee(db, provinceCode, itemCount);
+  // Apply the global shipping_fee_enabled toggle (issue #36). When off,
+  // fees collapse to 0 while shipping_days stays intact.
+  const feeEnabled = await getShippingFeeEnabled(db);
+  const result = await calculateShippingFee(db, provinceCode, itemCount, { feeEnabled });
 
   if (!result) {
     return error(c, 404, 'NOT_FOUND', `No shipping zone found for province code: ${provinceCode}`);
@@ -28,6 +31,7 @@ shipping.get('/calculate', async (c) => {
     addon_fee: result.addonFee,
     total_fee: result.totalFee,
     shipping_days: result.shippingDays,
+    fee_enabled: feeEnabled,
     currency: 'THB',
   });
 });

@@ -485,7 +485,15 @@
     "originProvince": "Origin Province",
     "originProvinceDesc": "Province where items ship from (affects transit time calculation)",
     "save": "Save",
-    "noChangesToSave": "No changes to save"
+    "noChangesToSave": "No changes to save",
+    "feeToggleLabel": "Charge shipping fee",
+    "feeToggleOnHint": "Customers are charged the configured shipping fees",
+    "feeToggleOffHint": "Free shipping — no fees charged on any order",
+    "confirmFeeToggleOff": "Turn OFF shipping fees globally? All new orders will ship for free. Per-province fee values are preserved.",
+    "confirmFeeToggleOn": "Turn ON shipping fees globally? Customers will be charged the configured fees again.",
+    "freeShippingBannerTitle": "Free shipping mode is ON",
+    "freeShippingBannerBody": "Shipping fees are disabled globally. All orders will be charged 0 THB for delivery. Transit days are unaffected.",
+    "freeTag": "FREE"
   },
   "settings": {
     "title": "Settings",

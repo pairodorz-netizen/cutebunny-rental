@@ -7,6 +7,7 @@ import products from './routes/products';
 import cart from './routes/cart';
 import orders from './routes/orders';
 import shipping from './routes/shipping';
+import publicSettings from './routes/settings';
 import adminAuth from './routes/admin/auth';
 import adminDashboard from './routes/admin/dashboard';
 import adminOrders from './routes/admin/orders';
@@ -82,6 +83,7 @@ app.route('/api/v1/products', products);
 app.route('/api/v1/cart', cart);
 app.route('/api/v1/orders', orders);
 app.route('/api/v1/shipping', shipping);
+app.route('/api/v1/settings', publicSettings);
 app.route('/api/v1/customer/auth', customerAuth);
 
 // ─── Admin APIs (v1) ───────────────────────────────────────────────────
