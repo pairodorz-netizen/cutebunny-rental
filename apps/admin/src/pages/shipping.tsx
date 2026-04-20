@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { isProvinceEditDirty, isZoneEditDirty } from '@cutebunny/shared/forms';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +29,11 @@ export function ShippingPage() {
   const [expandedZones, setExpandedZones] = useState<Set<string>>(new Set());
   const [editingZone, setEditingZone] = useState<string | null>(null);
   const [editBaseFee, setEditBaseFee] = useState('');
+  const [originalZoneBaseFee, setOriginalZoneBaseFee] = useState<number>(0);
   const [editingProvince, setEditingProvince] = useState<string | null>(null);
   const [editAddonFee, setEditAddonFee] = useState('');
   const [editShippingDays, setEditShippingDays] = useState('');
+  const [originalProvince, setOriginalProvince] = useState<{ addonFee: number; shippingDays: number }>({ addonFee: 0, shippingDays: 2 });
   const [addingToZone, setAddingToZone] = useState<string | null>(null);
   const [newProvinceCode, setNewProvinceCode] = useState('');
   const [newProvinceName, setNewProvinceName] = useState('');
@@ -93,6 +96,7 @@ export function ShippingPage() {
   function startEditZone(zone: ZoneData) {
     setEditingZone(zone.id);
     setEditBaseFee(String(zone.base_fee));
+    setOriginalZoneBaseFee(zone.base_fee);
   }
 
   function saveZone(zoneId: string) {
@@ -103,6 +107,7 @@ export function ShippingPage() {
     setEditingProvince(province.id ?? null);
     setEditAddonFee(String(province.addon_fee));
     setEditShippingDays(String(province.shipping_days ?? 2));
+    setOriginalProvince({ addonFee: province.addon_fee, shippingDays: province.shipping_days ?? 2 });
   }
 
   function saveProvince(provinceId: string) {
@@ -175,9 +180,22 @@ export function ShippingPage() {
                         className="w-24 h-8"
                       />
                       <span className="text-sm">THB</span>
-                      <Button size="sm" variant="ghost" onClick={() => saveZone(zone.id)} disabled={updateZoneMutation.isPending}>
-                        <Save className="h-3 w-3" />
-                      </Button>
+                      {(() => {
+                        const zoneDirty = isZoneEditDirty({ baseFee: editBaseFee }, { baseFee: originalZoneBaseFee });
+                        const disabled = !zoneDirty || updateZoneMutation.isPending;
+                        return (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => saveZone(zone.id)}
+                            disabled={disabled}
+                            title={!zoneDirty ? t('shipping.noChangesToSave') : undefined}
+                            aria-label={t('shipping.save')}
+                          >
+                            <Save className="h-3 w-3" />
+                          </Button>
+                        );
+                      })()}
                       <Button size="sm" variant="ghost" onClick={() => setEditingZone(null)}>
                         <X className="h-3 w-3" />
                       </Button>
@@ -252,14 +270,31 @@ export function ShippingPage() {
                             </td>
                             <td className="px-4 py-2 text-right">
                               {isEditingThis ? (
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => saveProvince(province.id!)}>
-                                    <Save className="h-3 w-3" />
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingProvince(null)}>
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                                (() => {
+                                  const dirty = isProvinceEditDirty(
+                                    { addonFee: editAddonFee, shippingDays: editShippingDays },
+                                    originalProvince,
+                                  );
+                                  const disabled = !dirty || updateProvinceMutation.isPending;
+                                  return (
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => saveProvince(province.id!)}
+                                        disabled={disabled}
+                                        title={!dirty ? t('shipping.noChangesToSave') : undefined}
+                                        aria-label={t('shipping.save')}
+                                      >
+                                        <Save className="h-3 w-3" />
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setEditingProvince(null)}>
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <div className="flex items-center justify-end gap-1">
                                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEditProvince(province)}>

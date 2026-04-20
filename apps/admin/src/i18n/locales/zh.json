@@ -483,7 +483,9 @@
     "shippingDays": "运输天数",
     "days": "天",
     "originProvince": "发货省份",
-    "originProvinceDesc": "商品发货所在省份（影响运输时间计算）"
+    "originProvinceDesc": "商品发货所在省份（影响运输时间计算）",
+    "save": "保存",
+    "noChangesToSave": "没有可保存的更改"
   },
   "settings": {
     "title": "设置",
