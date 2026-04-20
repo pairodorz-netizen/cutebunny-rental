@@ -6,16 +6,9 @@ import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag } from 'lucide-react';
+import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
 
 type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
-
-interface ConfigItem {
-  id: string;
-  key: string;
-  value: unknown;
-  label: string | null;
-  group: string;
-}
 
 interface AdminUserItem {
   id: string;
@@ -75,15 +68,6 @@ export function SettingsPage() {
   // Store address state (#1)
   const [editingAddress, setEditingAddress] = useState<Record<string, unknown> | null>(null);
 
-  // Config state
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [showAddConfig, setShowAddConfig] = useState(false);
-  const [newConfigKey, setNewConfigKey] = useState('');
-  const [newConfigValue, setNewConfigValue] = useState('');
-  const [newConfigLabel, setNewConfigLabel] = useState('');
-  const [newConfigGroup, setNewConfigGroup] = useState('general');
-
   // User state
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -101,12 +85,6 @@ export function SettingsPage() {
 
   // Audit state
   const [auditPage, setAuditPage] = useState(1);
-
-  const configQuery = useQuery({
-    queryKey: ['settings-config'],
-    queryFn: () => adminApi.settings.config(),
-    enabled: activeTab === 'config',
-  });
 
   const usersQuery = useQuery({
     queryKey: ['settings-users'],
@@ -138,28 +116,6 @@ export function SettingsPage() {
     enabled: activeTab === 'audit',
   });
 
-  const updateConfigMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) =>
-      adminApi.settings.updateConfig(key, { value }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings-config'] });
-      setEditingKey(null);
-    },
-  });
-
-  const createConfigMutation = useMutation({
-    mutationFn: (body: { key: string; value: string; label?: string; group?: string }) =>
-      adminApi.settings.createConfig(body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings-config'] });
-      setShowAddConfig(false);
-      setNewConfigKey('');
-      setNewConfigValue('');
-      setNewConfigLabel('');
-      setNewConfigGroup('general');
-    },
-  });
-
   const [createUserError, setCreateUserError] = useState('');
 
   const createUserMutation = useMutation({
@@ -186,26 +142,9 @@ export function SettingsPage() {
     },
   });
 
-  const configs = (configQuery.data?.data ?? []) as ConfigItem[];
   const users = (usersQuery.data?.data ?? []) as AdminUserItem[];
   const notifData = notifQuery.data as { data: NotificationItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
   const auditData = auditQuery.data as { data: AuditLogItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
-
-  // Filter out internal configs managed by dedicated tabs (Categories, Store Address)
-  const visibleConfigs = configs.filter((cfg) => !['product_categories', 'store_addresses'].includes(cfg.key));
-
-  // Group configs by group
-  const groupedConfigs: Record<string, ConfigItem[]> = {};
-  visibleConfigs.forEach((cfg) => {
-    const g = cfg.group || 'general';
-    if (!groupedConfigs[g]) groupedConfigs[g] = [];
-    groupedConfigs[g].push(cfg);
-  });
-
-  const startEdit = (cfg: ConfigItem) => {
-    setEditingKey(cfg.key);
-    setEditValue(typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value));
-  };
 
   return (
     <div>
@@ -226,111 +165,8 @@ export function SettingsPage() {
         ))}
       </div>
 
-      {/* Config Tab */}
-      {activeTab === 'config' && (
-        <div className="space-y-6">
-          {configQuery.isLoading ? (
-            <div className="rounded-lg border p-8 text-center text-muted-foreground">{t('common.loading')}</div>
-          ) : (
-            <>
-              {Object.entries(groupedConfigs).map(([group, items]) => (
-                <div key={group} className="rounded-lg border">
-                  <div className="p-4 border-b bg-muted/30">
-                    <h3 className="font-semibold capitalize">{group.replace(/_/g, ' ')}</h3>
-                  </div>
-                  <div className="divide-y">
-                    {items.map((cfg) => (
-                      <div key={cfg.key} className="flex items-center justify-between p-3 gap-4">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium">{cfg.label || cfg.key}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{cfg.key}</p>
-                        </div>
-                        {editingKey === cfg.key ? (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              className="w-48 h-8"
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              disabled={updateConfigMutation.isPending}
-                              onClick={() => updateConfigMutation.mutate({ key: cfg.key, value: editValue })}
-                            >
-                              <Save className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setEditingKey(null)}>
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono bg-muted px-2 py-1 rounded">{typeof cfg.value === 'string' ? cfg.value : JSON.stringify(cfg.value)}</span>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(cfg)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {visibleConfigs.length === 0 && !showAddConfig && (
-                <div className="rounded-lg border p-8 text-center text-muted-foreground">
-                  {t('settings.noConfig')}
-                </div>
-              )}
-
-              {showAddConfig ? (
-                <div className="rounded-lg border p-4 space-y-3">
-                  <h3 className="font-semibold text-sm">{t('settings.addConfig')}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">{t('settings.configKey')}</label>
-                      <Input value={newConfigKey} onChange={(e) => setNewConfigKey(e.target.value)} placeholder="late_fee_per_day" className="h-8" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">{t('settings.configValue')}</label>
-                      <Input value={newConfigValue} onChange={(e) => setNewConfigValue(e.target.value)} placeholder="200" className="h-8" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">{t('settings.configLabel')}</label>
-                      <Input value={newConfigLabel} onChange={(e) => setNewConfigLabel(e.target.value)} placeholder="Late Fee Per Day (THB)" className="h-8" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">{t('settings.configGroup')}</label>
-                      <Input value={newConfigGroup} onChange={(e) => setNewConfigGroup(e.target.value)} placeholder="fees" className="h-8" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={!newConfigKey || !newConfigValue || createConfigMutation.isPending}
-                      onClick={() => createConfigMutation.mutate({
-                        key: newConfigKey, value: newConfigValue,
-                        label: newConfigLabel || undefined, group: newConfigGroup || 'general',
-                      })}
-                    >
-                      <Save className="h-3.5 w-3.5 mr-1" /> {t('common.save')}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowAddConfig(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button variant="outline" onClick={() => setShowAddConfig(true)}>
-                  <Plus className="h-4 w-4 mr-2" /> {t('settings.addConfig')}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      {/* Config Tab — redesigned grouped form UI (#31) */}
+      {activeTab === 'config' && <SystemConfigForm />}
 
       {/* Users Tab */}
       {activeTab === 'users' && (

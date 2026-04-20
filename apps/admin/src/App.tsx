@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProtectedLayout } from '@/components/layout/protected-layout';
+import { ToastProvider } from '@/components/ui/toast';
 import { LoginPage } from '@/pages/login';
 import { DashboardPage } from '@/pages/dashboard';
 import { OrdersPage } from '@/pages/orders';
@@ -17,6 +18,7 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -35,6 +37,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
