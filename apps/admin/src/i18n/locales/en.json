@@ -483,7 +483,9 @@
     "shippingDays": "Transit Days",
     "days": "days",
     "originProvince": "Origin Province",
-    "originProvinceDesc": "Province where items ship from (affects transit time calculation)"
+    "originProvinceDesc": "Province where items ship from (affects transit time calculation)",
+    "save": "Save",
+    "noChangesToSave": "No changes to save"
   },
   "settings": {
     "title": "Settings",
