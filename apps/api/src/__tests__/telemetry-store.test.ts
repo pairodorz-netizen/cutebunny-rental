@@ -292,7 +292,7 @@ describe('createTelemetryStore — storage mirror + clear()', () => {
     const rec = mirrored[0];
     const serialised = JSON.stringify(rec);
     expect(serialised).not.toMatch(/Bearer\s+[A-Za-z0-9]/);
-    expect(serialised).not.toMatch(/eyJ[A-Za-z0-9_\-]+/);
+    expect(serialised).not.toMatch(/eyJ[A-Za-z0-9_-]+/);
     expect(Object.keys(rec)).not.toContain('requestBody');
     expect(Object.keys(rec)).not.toContain('responseBody');
   });
