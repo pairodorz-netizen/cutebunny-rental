@@ -3,7 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, API_BASE, type AdminProduct, type AdminComboSet, type BulkImportResult } from '@/lib/api';
-import { ApiNetworkError, formatApiNetworkError } from '@cutebunny/shared/diagnostics';
+import {
+  ApiNetworkError,
+  formatApiNetworkError,
+  AdminApiError,
+  classifyAdminApiError,
+} from '@cutebunny/shared/diagnostics';
 import { startCreateProductSubmit, type TelemetryHandle } from '@/lib/diag/telemetry-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -602,8 +607,10 @@ function ProductForm({
   const [showSoldForm, setShowSoldForm] = useState(false);
   const [sellingPrice, setSellingPrice] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [skuFieldError, setSkuFieldError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState<ApiNetworkError | null>(null);
   const [debugCopied, setDebugCopied] = useState(false);
+  const skuInputRef = useRef<HTMLInputElement>(null);
   // Initial Stock (create mode only)
   const [showInitialStock, setShowInitialStock] = useState(false);
   const [initialStockQty, setInitialStockQty] = useState('1');
@@ -618,13 +625,33 @@ function ProductForm({
   const categoryList = categoriesQuery.data?.data ?? ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
 
   function handleMutationError(err: Error, fallback: string) {
+    // BUG-404-A02: route admin API errors (content-type-aware envelope
+    // reader) into inline/toast/fallback kinds BEFORE the generic
+    // ApiNetworkError path. The reader always produces an
+    // AdminApiError with a readable `displayMessage` — never a raw
+    // JSON.parse crash on plain-text 500 bodies anymore.
+    setSkuFieldError(null);
+    if (err instanceof AdminApiError) {
+      setNetworkError(null);
+      const decision = classifyAdminApiError(err);
+      if (decision.kind === 'inline' && decision.fieldKey === 'sku') {
+        setFormError(null);
+        setSkuFieldError(decision.displayMessage);
+        // Focus the SKU input so the user can correct it immediately.
+        // Defer to the next tick so React has flushed the error render.
+        queueMicrotask(() => skuInputRef.current?.focus());
+        return;
+      }
+      setFormError(decision.displayMessage);
+      return;
+    }
     if (err instanceof ApiNetworkError) {
       setNetworkError(err);
       setFormError(null);
-    } else {
-      setNetworkError(null);
-      setFormError(err.message || fallback);
+      return;
     }
+    setNetworkError(null);
+    setFormError(err.message || fallback);
   }
 
   const createMutation = useMutation({
@@ -686,6 +713,7 @@ function ProductForm({
 
   function handleSubmit() {
     setFormError(null);
+    setSkuFieldError(null);
     setNetworkError(null);
 
     // BUG401-A02: open a telemetry record at submit-handler ENTRY, before
@@ -788,7 +816,26 @@ function ProductForm({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="text-sm font-medium">SKU</label>
-            <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="D001" />
+            <Input
+              ref={skuInputRef}
+              value={sku}
+              onChange={(e) => {
+                setSku(e.target.value);
+                if (skuFieldError) setSkuFieldError(null);
+              }}
+              placeholder="D001"
+              aria-invalid={skuFieldError ? true : undefined}
+              aria-describedby={skuFieldError ? 'sku-field-error' : undefined}
+            />
+            {skuFieldError && (
+              <div
+                id="sku-field-error"
+                data-testid="sku-field-error"
+                className="mt-1 text-xs text-destructive"
+              >
+                {skuFieldError}
+              </div>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.category')}</label>
