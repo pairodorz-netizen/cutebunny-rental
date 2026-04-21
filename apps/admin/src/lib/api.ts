@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { buildApiNetworkError } from '@cutebunny/shared/diagnostics';
+
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function getToken(): string | null {
   try {
@@ -13,6 +15,27 @@ function getToken(): string | null {
   return null;
 }
 
+// BUG401-A02 Track A: turn opaque `TypeError: Failed to fetch` into a
+// structured ApiNetworkError so the admin can show a "Copy debug info"
+// banner instead of silently swallowing the root cause.
+async function fetchWithDiagnostics(url: string, init: RequestInit, tokenPresent: boolean): Promise<Response> {
+  const method = (init.method || 'GET').toUpperCase();
+  const startedAt = Date.now();
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    throw buildApiNetworkError({
+      url,
+      method,
+      tokenPresent,
+      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      err,
+      startedAt,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    });
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -23,7 +46,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const url = `${API_BASE}${path}`;
+  const res = await fetchWithDiagnostics(url, { ...options, headers }, !!token);
 
   if (res.status === 401) {
     localStorage.removeItem('auth-storage');
@@ -45,7 +69,8 @@ async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
   // Do NOT set Content-Type — browser sets multipart/form-data boundary automatically
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+  const url = `${API_BASE}${path}`;
+  const res = await fetchWithDiagnostics(url, { method: 'POST', headers, body: formData }, !!token);
 
   if (res.status === 401) {
     localStorage.removeItem('auth-storage');

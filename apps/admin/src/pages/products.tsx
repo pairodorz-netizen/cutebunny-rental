@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, type AdminProduct, type AdminComboSet, type BulkImportResult } from '@/lib/api';
+import { ApiNetworkError, formatApiNetworkError } from '@cutebunny/shared/diagnostics';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -600,6 +601,8 @@ function ProductForm({
   const [showSoldForm, setShowSoldForm] = useState(false);
   const [sellingPrice, setSellingPrice] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<ApiNetworkError | null>(null);
+  const [debugCopied, setDebugCopied] = useState(false);
   // Initial Stock (create mode only)
   const [showInitialStock, setShowInitialStock] = useState(false);
   const [initialStockQty, setInitialStockQty] = useState('1');
@@ -613,20 +616,26 @@ function ProductForm({
   });
   const categoryList = categoriesQuery.data?.data ?? ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
 
+  function handleMutationError(err: Error, fallback: string) {
+    if (err instanceof ApiNetworkError) {
+      setNetworkError(err);
+      setFormError(null);
+    } else {
+      setNetworkError(null);
+      setFormError(err.message || fallback);
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
     onSuccess,
-    onError: (err: Error) => {
-      setFormError(err.message || 'Failed to create product');
-    },
+    onError: (err: Error) => handleMutationError(err, 'Failed to create product'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => adminApi.products.update(product!.id, body),
     onSuccess,
-    onError: (err: Error) => {
-      setFormError(err.message || 'Failed to update product');
-    },
+    onError: (err: Error) => handleMutationError(err, 'Failed to update product'),
   });
 
   const markSoldMutation = useMutation({
@@ -657,8 +666,25 @@ function ProductForm({
     setUploadingFiles(false);
   }
 
+  async function copyNetworkDebug() {
+    if (!networkError) return;
+    const text = formatApiNetworkError(networkError);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+    }
+    setDebugCopied(true);
+    setTimeout(() => setDebugCopied(false), 2000);
+  }
+
   function handleSubmit() {
     setFormError(null);
+    setNetworkError(null);
     // Frontend validation (#7)
     if (!sku.trim()) { setFormError('SKU is required'); return; }
     if (!name.trim()) { setFormError('Product name is required'); return; }
@@ -1000,6 +1026,36 @@ function ProductForm({
         {formError && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
             {formError}
+          </div>
+        )}
+
+        {networkError && (
+          <div
+            className="rounded-lg border border-red-400 bg-red-50 p-3 text-sm text-red-900 space-y-2"
+            data-testid="products-network-error"
+          >
+            <div className="font-medium">
+              {t('products.networkErrorTitle', 'Could not reach the API')}
+            </div>
+            <div className="text-xs opacity-80">
+              {t(
+                'products.networkErrorHint',
+                'The browser could not complete the request. Copy the debug info below and share it with support.',
+              )}
+            </div>
+            <pre className="whitespace-pre-wrap break-all bg-white/60 rounded p-2 font-mono text-[11px] leading-tight">
+{formatApiNetworkError(networkError)}
+            </pre>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={copyNetworkDebug}>
+                {debugCopied
+                  ? t('common.copied', 'Copied')
+                  : t('products.copyDebug', 'Copy debug info')}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setNetworkError(null)}>
+                {t('common.dismiss', 'Dismiss')}
+              </Button>
+            </div>
           </div>
         )}
 
