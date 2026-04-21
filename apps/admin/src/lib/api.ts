@@ -1,4 +1,5 @@
 import { buildApiNetworkError } from '@cutebunny/shared/diagnostics';
+import type { TelemetryHandle } from './diag/telemetry-store';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -15,15 +16,39 @@ function getToken(): string | null {
   return null;
 }
 
-// BUG401-A02 Track A: turn opaque `TypeError: Failed to fetch` into a
-// structured ApiNetworkError so the admin can show a "Copy debug info"
-// banner instead of silently swallowing the root cause.
-async function fetchWithDiagnostics(url: string, init: RequestInit, tokenPresent: boolean): Promise<Response> {
+/**
+ * BUG401-A02 Track A: turn opaque `TypeError: Failed to fetch` into a
+ * structured ApiNetworkError. A02 adds optional telemetry recording via
+ * `diagHandle` — when present, fetch start/end is observed for the
+ * already-open submit record. Observe-and-rethrow only: rejected fetches
+ * stay rejected, and HTTP 401 stays as a resolved Response with status
+ * 401.
+ */
+async function fetchWithDiagnostics(
+  url: string,
+  init: RequestInit,
+  tokenPresent: boolean,
+  diagHandle?: TelemetryHandle,
+): Promise<Response> {
   const method = (init.method || 'GET').toUpperCase();
   const startedAt = Date.now();
+  diagHandle?.markFetchStart(startedAt);
   try {
-    return await fetch(url, init);
+    const res = await fetch(url, init);
+    diagHandle?.finalizeResolved({
+      status: res.status,
+      ok: res.ok,
+      type: res.type as 'basic' | 'cors' | 'opaque' | 'error',
+      headers: res.headers,
+    });
+    return res;
   } catch (err) {
+    const errName = err instanceof Error ? err.name : 'Error';
+    const errMsg = err instanceof Error ? err.message : typeof err === 'string' ? err : null;
+    diagHandle?.finalizeRejected({
+      errorName: errName,
+      errorMessage: errMsg,
+    });
     throw buildApiNetworkError({
       url,
       method,
@@ -36,7 +61,11 @@ async function fetchWithDiagnostics(url: string, init: RequestInit, tokenPresent
   }
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+export interface RequestContext {
+  diagHandle?: TelemetryHandle;
+}
+
+async function request<T>(path: string, options?: RequestInit, ctx?: RequestContext): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -47,7 +76,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
 
   const url = `${API_BASE}${path}`;
-  const res = await fetchWithDiagnostics(url, { ...options, headers }, !!token);
+  const res = await fetchWithDiagnostics(url, { ...options, headers }, !!token, ctx?.diagHandle);
 
   if (res.status === 401) {
     localStorage.removeItem('auth-storage');
@@ -655,11 +684,15 @@ export const adminApi = {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: AdminProduct[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/products?${qs}`);
     },
-    create: (body: Record<string, unknown>) =>
-      request<{ data: AdminProduct }>('/api/v1/admin/products', {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
+    create: (body: Record<string, unknown>, ctx?: RequestContext) =>
+      request<{ data: AdminProduct }>(
+        '/api/v1/admin/products',
+        {
+          method: 'POST',
+          body: JSON.stringify(body),
+        },
+        ctx,
+      ),
     update: (id: string, body: Record<string, unknown>) =>
       request<{ data: AdminProduct }>(`/api/v1/admin/products/${id}`, {
         method: 'PATCH',

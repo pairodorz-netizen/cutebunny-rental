@@ -3,6 +3,8 @@ export * from './validators';
 export * from './i18n';
 export * from './forms/shipping-form';
 export * from './diagnostics/api-network-error';
+export * from './diagnostics/telemetry';
+export * from './diagnostics/telemetry-store';
 export { prisma, PrismaClient } from './prisma';
 export type {
   Product as PrismaProduct,
