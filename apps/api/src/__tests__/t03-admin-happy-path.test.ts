@@ -551,7 +551,11 @@ describe('T03: Admin Happy Path E2E', () => {
       });
       expect(res.status).toBe(409);
       const body = await res.json();
-      expect(body.error.code).toBe('DUPLICATE_SKU');
+      // BUG-404-A01: admin product create now returns the sku_conflict
+      // envelope shape so the frontend (A02) can branch on a single code
+      // whether the pre-check or the Prisma P2002 path fires.
+      expect(body.error.code).toBe('sku_conflict');
+      expect(body.error.field).toBe('sku');
     });
   });
 

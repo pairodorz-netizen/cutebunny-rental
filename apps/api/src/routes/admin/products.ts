@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
@@ -7,6 +7,63 @@ import { getAdmin } from '../../middleware/auth';
 import { Prisma, type ProductCategory } from '@prisma/client';
 
 const adminProducts = new Hono();
+
+// BUG-404-A01 — structured error envelope for admin product routes.
+//
+// Background: the admin Create Product flow previously returned a
+// plain-text "Internal Server Error" when Prisma raised a unique-
+// constraint violation (P2002 on `sku`), which caused the admin UI
+// to crash its `res.json()` call. This catch-all:
+//
+//   * Maps Prisma P2002 where `meta.target` includes `sku` → 409
+//     sku_conflict envelope.
+//   * Falls back to a raw-pg SQLSTATE 23505 shape detection for the
+//     case where Prisma's mapping layer is bypassed (e.g. raw
+//     `$queryRaw`) — same 409 sku_conflict envelope.
+//   * Swallows every other uncaught throw into a redacted 500
+//     internal_error envelope: no stack, no raw DB message, no PII.
+//
+// All responses are `application/json` (Hono's `c.json` sets that
+// header automatically). Success path (201 + product JSON) is NOT
+// touched by this handler.
+function skuConflictResponse(c: Context): Response {
+  return c.json(
+    { error: { code: 'sku_conflict', field: 'sku', message: 'SKU already exists' } },
+    409,
+  );
+}
+
+adminProducts.onError((err, c) => {
+  // 1. Prisma-layered unique violation.
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+    const meta = err.meta as { target?: unknown } | undefined;
+    const target = meta?.target;
+    const fields = Array.isArray(target)
+      ? target.map((t) => String(t))
+      : typeof target === 'string'
+        ? [target]
+        : [];
+    if (fields.some((f) => f.toLowerCase().includes('sku'))) {
+      return skuConflictResponse(c);
+    }
+  }
+
+  // 2. SQLSTATE 23505 fallback — when the Prisma mapping layer is
+  //    absent (raw pg error) or a wrapped error surfaces differently.
+  const rawMsg = err instanceof Error ? err.message : String(err);
+  if (
+    /\b23505\b/.test(rawMsg) ||
+    /duplicate key value violates unique constraint/i.test(rawMsg)
+  ) {
+    return skuConflictResponse(c);
+  }
+
+  // 3. Catch-all. Redact everything — no stack, no raw DB text.
+  return c.json(
+    { error: { code: 'internal_error', message: 'Unexpected server error' } },
+    500,
+  );
+});
 
 // A02: GET /api/v1/admin/products — Product list
 adminProducts.get('/', async (c) => {
@@ -457,10 +514,16 @@ adminProducts.post('/', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid product data', parsed.error.flatten());
   }
 
-  // Check SKU uniqueness (only among active products — soft-deleted ones have prefixed SKUs)
+  // Check SKU uniqueness (only among active products — soft-deleted ones
+  // have prefixed SKUs). BUG-404-A01: the envelope matches the shape the
+  // onError catch-all emits for Prisma P2002 so the admin frontend can
+  // branch on a single `code` regardless of which guard fired.
   const existing = await db.product.findFirst({ where: { sku: parsed.data.sku, deletedAt: null } });
   if (existing) {
-    return error(c, 409, 'DUPLICATE_SKU', `SKU "${parsed.data.sku}" already exists`);
+    return c.json(
+      { error: { code: 'sku_conflict', field: 'sku', message: 'SKU already exists' } },
+      409,
+    );
   }
 
   // Resolve brand: brand_id takes priority, then brand_name (find-or-create)
