@@ -10,7 +10,8 @@
     "./validators": "./src/validators/index.ts",
     "./i18n": "./src/i18n/index.ts",
     "./prisma": "./src/prisma.ts",
-    "./forms": "./src/forms/index.ts"
+    "./forms": "./src/forms/index.ts",
+    "./diagnostics": "./src/diagnostics/index.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",
