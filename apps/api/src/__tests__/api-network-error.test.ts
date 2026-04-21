@@ -31,7 +31,6 @@ describe('buildApiNetworkError', () => {
     expect(err.payload.tokenPresent).toBe(true);
     expect(err.payload.online).toBe(true);
     expect(err.payload.elapsedMs).toBe(123);
-    expect(err.payload.errorName === undefined || err.payload.name === 'TypeError').toBe(true);
     expect(err.payload.name).toBe('TypeError');
     expect(err.payload.startedAt).toBe('2023-11-14T22:13:20.000Z');
     expect(err.payload.userAgent).toBe('Mozilla/5.0 test');
