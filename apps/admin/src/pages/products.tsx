@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, type AdminProduct, type AdminComboSet, type BulkImportResult } from '@/lib/api';
+import { adminApi, API_BASE, type AdminProduct, type AdminComboSet, type BulkImportResult } from '@/lib/api';
 import { ApiNetworkError, formatApiNetworkError } from '@cutebunny/shared/diagnostics';
+import { startCreateProductSubmit, type TelemetryHandle } from '@/lib/diag/telemetry-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -627,7 +628,8 @@ function ProductForm({
   }
 
   const createMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
+    mutationFn: (args: { body: Record<string, unknown>; diagHandle?: TelemetryHandle }) =>
+      adminApi.products.create(args.body, { diagHandle: args.diagHandle }),
     onSuccess,
     onError: (err: Error) => handleMutationError(err, 'Failed to create product'),
   });
@@ -685,6 +687,43 @@ function ProductForm({
   function handleSubmit() {
     setFormError(null);
     setNetworkError(null);
+
+    // BUG401-A02: open a telemetry record at submit-handler ENTRY, before
+    // any validation/serialization/upload/fetch. Active only when the
+    // DIAG_BAR flag is on; inactive handle is a no-op. Create-mode only.
+    const diagHandle: TelemetryHandle | undefined = mode === 'create'
+      ? startCreateProductSubmit({
+          frontendDeploymentId:
+            (import.meta.env?.VITE_VERCEL_DEPLOYMENT_ID as string | undefined) ??
+            (import.meta.env?.VITE_COMMIT_SHA as string | undefined) ??
+            'unknown',
+          apiBaseUrl: API_BASE,
+          requestUrl: `${API_BASE}/api/v1/admin/products`,
+          contentType: 'application/json',
+          hasAuthorizationHeader: (() => {
+            try {
+              const raw = localStorage.getItem('auth-storage');
+              if (!raw) return false;
+              const parsed = JSON.parse(raw);
+              return Boolean(parsed?.state?.token);
+            } catch {
+              return false;
+            }
+          })(),
+          authTokenPresent: (() => {
+            try {
+              const raw = localStorage.getItem('auth-storage');
+              if (!raw) return false;
+              const parsed = JSON.parse(raw);
+              return Boolean(parsed?.state?.token);
+            } catch {
+              return false;
+            }
+          })(),
+          authTokenExpiresAt: null,
+        })
+      : undefined;
+
     // Frontend validation (#7)
     if (!sku.trim()) { setFormError('SKU is required'); return; }
     if (!name.trim()) { setFormError('Product name is required'); return; }
@@ -694,6 +733,9 @@ function ProductForm({
     if (!price3 || Number(price3) <= 0) { setFormError('3-day rental price is required'); return; }
     if (!price5 || Number(price5) <= 0) { setFormError('5-day rental price is required'); return; }
 
+    // Bracket serialization for H3-b separation (serialization started but
+    // fetch never fired ⇒ pre-fetch failure).
+    diagHandle?.markSerializationStart();
     const manualUrls = imageUrls.filter((u) => u.trim());
     const uploadUrls = uploadedImages.map((img) => img.url);
     const allUrls = [...uploadUrls, ...manualUrls];
@@ -722,11 +764,12 @@ function ProductForm({
         ...(initialStockNote ? { note: initialStockNote } : {}),
       };
     }
+    diagHandle?.markSerializationEnd();
 
     if (mode === 'edit' && product) {
       updateMutation.mutate(body);
     } else {
-      createMutation.mutate(body);
+      createMutation.mutate({ body, diagHandle });
     }
   }
 
