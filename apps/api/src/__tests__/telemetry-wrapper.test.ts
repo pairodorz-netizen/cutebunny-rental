@@ -17,7 +17,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   createTelemetryStore,
   type EnvironmentProbe,
-} from '../../../../packages/shared/src/diagnostics/telemetry-store';
+} from '@cutebunny/shared/diagnostics';
 
 interface Handle {
   markFetchStart(now?: number): void;

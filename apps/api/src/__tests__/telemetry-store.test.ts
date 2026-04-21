@@ -18,9 +18,9 @@ import { describe, it, expect } from 'vitest';
 import {
   createTelemetryStore,
   type EnvironmentProbe,
-  type StorageAdapter,
   type StartSubmitInput,
-} from '../../../../packages/shared/src/diagnostics/telemetry-store';
+  type StorageAdapter,
+} from '@cutebunny/shared/diagnostics';
 
 function fixedEnv(overrides: Partial<EnvironmentProbe> = {}): EnvironmentProbe {
   let t = 1_700_000_000_000;
@@ -37,9 +37,9 @@ function fixedEnv(overrides: Partial<EnvironmentProbe> = {}): EnvironmentProbe {
 function memStorage(): StorageAdapter & { dump(): Record<string, string> } {
   const m = new Map<string, string>();
   return {
-    get: (k) => m.get(k) ?? null,
-    set: (k, v) => void m.set(k, v),
-    remove: (k) => void m.delete(k),
+    get: (k: string) => m.get(k) ?? null,
+    set: (k: string, v: string) => void m.set(k, v),
+    remove: (k: string) => void m.delete(k),
     dump: () => Object.fromEntries(m),
   };
 }
