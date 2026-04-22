@@ -149,6 +149,12 @@ model Product {
   description     String?         @default("")
   descriptionI18n Json?           @map("description_i18n") @db.JsonB
   category        ProductCategory
+  // BUG-504-A06 step 1/3 — nullable FK to the new source-of-truth
+  // `categories` table. Written alongside `category` during the
+  // transition window (commit 2). Flipped to NOT NULL after backfill
+  // verification. The legacy `category` enum column is dropped in
+  // commit 3, gated by FINAL_CUTOVER=1.
+  categoryId      String?         @map("category_id") @db.Uuid
   size            String[]
   color           String[]
   rentalPrice1Day Int             @map("rental_price_1day")
@@ -177,6 +183,7 @@ model Product {
   lowStockThreshold Int             @default(5) @map("low_stock_threshold")
 
   brand               Brand?               @relation(fields: [brandId], references: [id])
+  categoryRef         Category?            @relation(fields: [categoryId], references: [id])
   images              ProductImage[]
   inventoryStatusLogs InventoryStatusLog[]
   availabilitySlots   AvailabilityCalendar[]
@@ -443,6 +450,11 @@ model Category {
   sortOrder       Int      @default(0) @map("sort_order")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // BUG-504-A06 step 1/3 — backref for the forthcoming products.category_id
+  // FK. No cascading delete: the RESTRICT rule lives on the FK itself so
+  // that removing a category with live products is rejected at the DB.
+  products        Product[]
 
   @@index([sortOrder])
   @@index([visibleFrontend])

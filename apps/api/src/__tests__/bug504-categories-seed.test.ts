@@ -124,14 +124,20 @@ describe('BUG-504-A01 — Prisma schema change', () => {
     expect(body).toMatch(/@@map\("categories"\)/);
   });
 
-  it('does NOT touch the Product.category enum column (non-breaking)', () => {
+  it('leaves Product.category enum column intact (legacy column survives A01; dropped in A06 commit 3)', () => {
     const schema = readFileSync(SCHEMA_PATH, 'utf8');
     const productMatch = schema.match(/model\s+Product\s*\{([\s\S]*?)\n\}/);
     expect(productMatch, 'Product model not found').not.toBeNull();
     const productBody = productMatch![1];
-    // category field is still the enum type; NO categoryId FK added in A01.
+    // The enum column is the A01/A05-era source of truth and is still
+    // present during the A06 transition window. The A01 invariant
+    // against `categoryId` was lifted by BUG-504-A06 step 1/3 — the
+    // nullable FK lives on Product from that commit onward, so we no
+    // longer assert its absence here. The column only disappears in
+    // A06 commit 3, gated by FINAL_CUTOVER=1; a dedicated gate in
+    // bug504-a06-products-fk.test.ts will assert the drop at that
+    // point.
     expect(productBody).toMatch(/\bcategory\s+ProductCategory\b/);
-    expect(productBody).not.toMatch(/\bcategoryId\b/);
   });
 
   it('does NOT modify FinanceCategory (ledger is a separate concern)', () => {
