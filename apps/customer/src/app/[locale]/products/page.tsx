@@ -86,28 +86,33 @@ export default function ProductsPage() {
                     </button>
                   </div>
                 )}
-                {!categoriesQuery.isLoading && !categoriesQuery.isError &&
-                  visibleCategories.map((row) => {
-                    const label = categoryLabel(row);
-                    const active = selectedCategory === row.slug;
-                    return (
-                      <button
-                        key={row.slug}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
-                          setSelectedCategory(active ? null : row.slug)
-                        }
-                        className={`block w-full text-left text-sm px-2 py-1 rounded transition-colors ${
-                          active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'hover:bg-muted'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                {!categoriesQuery.isLoading && !categoriesQuery.isError && (
+                  <div data-testid="category-filter-list">
+                    {visibleCategories.map((row) => {
+                      const label = categoryLabel(row);
+                      const active = selectedCategory === row.slug;
+                      return (
+                        <button
+                          key={row.slug}
+                          type="button"
+                          data-testid="category-filter-option"
+                          data-slug={row.slug}
+                          aria-pressed={active}
+                          onClick={() =>
+                            setSelectedCategory(active ? null : row.slug)
+                          }
+                          className={`block w-full text-left text-sm px-2 py-1 rounded transition-colors ${
+                            active
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-muted'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
             <div>
