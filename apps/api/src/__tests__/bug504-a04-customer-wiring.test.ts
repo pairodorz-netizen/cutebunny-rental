@@ -177,7 +177,10 @@ describe('BUG-504-A04 — customer wiring (static source guards)', () => {
     const src = readSrc(CUSTOMER_PRODUCTS_PAGE);
     expect(src).toMatch(/visible_frontend/);
     // The filter must be applied before the map that produces buttons.
-    expect(src).toMatch(/\.filter\([^)]*visible_frontend/);
+    // Allow arbitrary arrow-function body (incl. parens) before the
+    // property reference — the point is simply "there is a .filter(...)
+    // call that references visible_frontend".
+    expect(src).toMatch(/\.filter\([^;]*visible_frontend/);
   });
 
   // ─── Gate c — admin dropdown cutover ───────────────────────────────

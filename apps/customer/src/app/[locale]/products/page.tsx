@@ -1,15 +1,19 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useState } from 'react';
-import { api } from '@/lib/api';
+import { api, type Category } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
-import { useLocale } from 'next-intl';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
-const CATEGORIES = ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional'];
 
+// BUG-504-A04: customer category filter is now backed by the A02 public
+// endpoint. The previous hardcoded slug array + capitalize hack is gone;
+// labels come from name_th / name_en and re-render on locale switch via
+// `useLocale()`. Hidden categories (`visible_frontend=false`) are
+// filtered out client-side so A02 stays a single source of truth for
+// both customer and admin reads.
 export default function ProductsPage() {
   const t = useTranslations('products');
   const locale = useLocale();
@@ -18,6 +22,17 @@ export default function ProductsPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.categories.list(),
+    // A02 emits Cache-Control: public, max-age=300 — React Query's
+    // client cache mirrors that so repeated navigations stay fast.
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const visibleCategories: Category[] = (categoriesQuery.data?.data ?? [])
+    .filter((row) => row.visible_frontend);
+
   const params: Record<string, string> = {
     locale,
     page: String(page),
@@ -25,6 +40,7 @@ export default function ProductsPage() {
   };
   if (selectedSize) params.size = selectedSize;
   if (selectedColor) params.color = selectedColor;
+  if (selectedCategory) params.category = selectedCategory;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['products', params],
@@ -33,6 +49,10 @@ export default function ProductsPage() {
 
   const products = data?.data ?? [];
   const meta = data?.meta;
+
+  function categoryLabel(row: Category): string {
+    return locale === 'th' ? row.name_th : row.name_en;
+  }
 
   return (
     <div className="container py-8">
@@ -44,17 +64,50 @@ export default function ProductsPage() {
             <div>
               <h3 className="font-semibold mb-2">{t('filter.category')}</h3>
               <div className="space-y-1">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                    className={`block w-full text-left text-sm px-2 py-1 rounded capitalize transition-colors ${
-                      selectedCategory === cat ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+                {categoriesQuery.isLoading && (
+                  <div className="space-y-1" aria-busy="true">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-7 w-full rounded bg-muted animate-pulse"
+                      />
+                    ))}
+                  </div>
+                )}
+                {categoriesQuery.isError && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-destructive">{t('error')}</p>
+                    <button
+                      type="button"
+                      onClick={() => categoriesQuery.refetch()}
+                      className="block w-full text-left text-sm px-2 py-1 rounded border hover:bg-muted"
+                    >
+                      {t('retry')}
+                    </button>
+                  </div>
+                )}
+                {!categoriesQuery.isLoading && !categoriesQuery.isError &&
+                  visibleCategories.map((row) => {
+                    const label = categoryLabel(row);
+                    const active = selectedCategory === row.slug;
+                    return (
+                      <button
+                        key={row.slug}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          setSelectedCategory(active ? null : row.slug)
+                        }
+                        className={`block w-full text-left text-sm px-2 py-1 rounded transition-colors ${
+                          active
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-muted'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
             <div>

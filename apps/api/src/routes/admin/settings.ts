@@ -530,6 +530,27 @@ adminSettings.post('/notifications/send', async (c) => {
 });
 
 // ─── CATEGORY MANAGEMENT ────────────────────────────────────────────────────
+//
+// BUG-504-A04: these endpoints are DEPRECATED in favour of the A03
+// DB-backed `/api/v1/admin/categories` router. Body shapes are frozen
+// for the last release cycle; every response carries RFC 8594
+// `Deprecation` / `Sunset` / `Link` advisory headers so consumers can
+// discover the successor. Full removal is scheduled for BUG-504-A06.
+
+// Six months out (≫ 30-day migration buffer required by the A04 gate).
+const LEGACY_SUNSET_MS = 180 * 24 * 60 * 60 * 1000;
+
+function applyLegacyCategoriesDeprecation(
+  c: Parameters<Parameters<typeof adminSettings.get>[1]>[0],
+): void {
+  const sunset = new Date(Date.now() + LEGACY_SUNSET_MS).toUTCString();
+  c.header('Deprecation', 'true');
+  c.header('Sunset', sunset);
+  c.header(
+    'Link',
+    '</api/v1/admin/categories>; rel="successor-version"',
+  );
+}
 
 // GET /api/v1/admin/settings/categories
 adminSettings.get('/categories', async (c) => {
@@ -537,6 +558,7 @@ adminSettings.get('/categories', async (c) => {
   const cfg = await db.systemConfig.findUnique({ where: { key: 'product_categories' } });
   const defaults = ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
   const categories: string[] = cfg ? (Array.isArray(cfg.value) ? cfg.value as string[] : defaults) : defaults;
+  applyLegacyCategoriesDeprecation(c);
   return success(c, categories);
 });
 
@@ -568,6 +590,7 @@ adminSettings.put('/categories', requireRole('superadmin'), async (c) => {
     details: { key: 'product_categories', categories: parsed.data.categories },
   });
 
+  applyLegacyCategoriesDeprecation(c);
   return success(c, parsed.data.categories);
 });
 
@@ -604,6 +627,7 @@ adminSettings.delete('/categories/:name', requireRole('superadmin'), async (c) =
     details: { deleted_category: name },
   });
 
+  applyLegacyCategoriesDeprecation(c);
   return success(c, { deleted: true, category: name });
 });
 

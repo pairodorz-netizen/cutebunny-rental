@@ -1,9 +1,34 @@
-import { useTranslations } from 'next-intl';
+'use client';
+
+import { useTranslations, useLocale } from 'next-intl';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
+import { api, type Category } from '@/lib/api';
+
+// BUG-504-A04: the landing-page "Shop by Category" grid is now backed by
+// the A02 public endpoint. Previous hardcoded 4-slug array + capitalize
+// hack removed. We show the top-N `visible_frontend` rows ordered by
+// `sort_order ASC` and render locale-aware labels.
+const CATEGORY_GRID_LIMIT = 4;
 
 export default function HomePage() {
   const t = useTranslations();
+  const locale = useLocale();
+
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => api.categories.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const gridCategories: Category[] = (categoriesQuery.data?.data ?? [])
+    .filter((row) => row.visible_frontend)
+    .slice(0, CATEGORY_GRID_LIMIT);
+
+  function categoryLabel(row: Category): string {
+    return locale === 'th' ? row.name_th : row.name_en;
+  }
 
   return (
     <div>
@@ -46,14 +71,38 @@ export default function HomePage() {
         <div className="container">
           <h2 className="text-3xl font-bold text-center mb-8">{t('home.categories.title')}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {['wedding', 'evening', 'cocktail', 'casual'].map((cat) => (
-              <div
-                key={cat}
-                className="rounded-lg border bg-card p-6 text-center hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <span className="text-sm font-medium capitalize">{cat}</span>
+            {categoriesQuery.isLoading &&
+              Array.from({ length: CATEGORY_GRID_LIMIT }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border bg-card p-6 h-[72px] animate-pulse"
+                  aria-busy="true"
+                />
+              ))}
+            {categoriesQuery.isError && (
+              <div className="col-span-2 md:col-span-4 text-center space-y-2">
+                <p className="text-sm text-destructive">{t('products.error')}</p>
+                <button
+                  type="button"
+                  onClick={() => categoriesQuery.refetch()}
+                  className="px-3 py-1 rounded border text-sm hover:bg-muted"
+                >
+                  {t('products.retry')}
+                </button>
               </div>
-            ))}
+            )}
+            {!categoriesQuery.isLoading && !categoriesQuery.isError &&
+              gridCategories.map((row) => (
+                <Link
+                  key={row.slug}
+                  href={`/products?category=${row.slug}`}
+                  className="rounded-lg border bg-card p-6 text-center hover:shadow-md transition-shadow"
+                >
+                  <span className="text-sm font-medium">
+                    {categoryLabel(row)}
+                  </span>
+                </Link>
+              ))}
           </div>
         </div>
       </section>
