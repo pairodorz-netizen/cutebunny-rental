@@ -167,11 +167,19 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
     }
   });
 
-  // TODO (BUG-504-A06 or sibling): admin /settings/categories parity.
-  // Requires a CI-safe test-mode admin bearer against
-  // /api/v1/admin/categories. Until then the public A02 ↔ customer
-  // check above is the only guard — which is the reverse direction of
-  // the bug Qew originally flagged (customer lagging admin), so it
-  // covers the primary regression path.
-  test.skip('gate 7 — admin /settings/categories parity (needs admin bearer)', async () => {});
+  // TODO (BUG-504-A07): admin /settings/categories parity.
+  // Requires a CI-safe test-mode admin bearer (ADMIN_JWT_PROD,
+  // repo-scoped) against /api/v1/admin/categories. Until A07 mints
+  // that secret, the public A02 ↔ customer check above is the only
+  // Playwright guard on admin-side drift — which covers the primary
+  // regression path (customer lagging admin). A06.5 adds a runtime
+  // client-side drift banner + audit event that catches admin-side
+  // drift in the live SPA without needing a CI bearer.
+  test.skip('gate 7 — admin /settings/categories parity (needs ADMIN_JWT_PROD, BUG-504-A07)', async () => {});
+
+  // TODO (BUG-504-A07): assert the A06.5 DriftBanner appears in the
+  // admin SPA when the two endpoints disagree. Requires admin login
+  // (ADMIN_JWT_PROD) + a staged fixture that forces drift. Deferred
+  // to A07 alongside gate 7 above.
+  test.skip('gate 8 — A06.5 DriftBanner surfaces on mismatch (needs ADMIN_JWT_PROD, BUG-504-A07)', async () => {});
 });

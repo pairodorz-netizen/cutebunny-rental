@@ -184,14 +184,23 @@ describe('BUG-504-A04 — customer wiring (static source guards)', () => {
   });
 
   // ─── Gate c — admin dropdown cutover ───────────────────────────────
-  it('gate c: admin products.tsx consumes adminApi.categories.list() (A03 endpoint)', () => {
+  it('gate c: admin products.tsx consumes the A03 DB-backed categories endpoint', () => {
     const src = readSrc(ADMIN_PRODUCTS_PAGE);
-    expect(src).toMatch(/adminApi\.categories\.list\(/);
+    // BUG-504-A06.5: products.tsx now delegates the fetch to the
+    // drift-guard hook (`useAdminCategoriesWithDriftGuard`), which in
+    // turn calls `adminApi.categories.list()`. Accept either pattern.
+    const callsHook = /useAdminCategoriesWithDriftGuard\(/.test(src);
+    const callsDirect = /adminApi\.categories\.list\(/.test(src);
+    expect(callsHook || callsDirect).toBe(true);
     // And the legacy settings.categories() reader is gone from this file.
     expect(src).not.toMatch(/adminApi\.settings\.categories\(/);
-    // The React Query key is renamed (so the in-flight overlap across
-    // the CategoriesTab stays consistent).
-    expect(src).toMatch(/queryKey:\s*\[\s*['"`]admin-categories['"`]/);
+    // The React Query key stays `['admin-categories']` so CategoriesTab
+    // mutation invalidations still refresh this dropdown — either
+    // present directly on this file (pre-A06.5) or inside the hook.
+    const driftHookSrc = readSrc('apps/admin/src/lib/categories-drift-guard.ts');
+    const keyInPage = /queryKey:\s*\[\s*['"`]admin-categories['"`]/.test(src);
+    const keyInHook = /queryKey:\s*\[\s*['"`]admin-categories['"`]/.test(driftHookSrc);
+    expect(keyInPage || keyInHook).toBe(true);
   });
 
   it('gate c: admin products.tsx no longer hard-codes a fallback array', () => {

@@ -3,10 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
+import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
+import { DriftBanner } from '@/components/drift-banner';
 
 type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
 
@@ -537,12 +539,14 @@ function CategoriesTab() {
   });
   const [pendingDelete, setPendingDelete] = useState<CategoryRow | null>(null);
 
-  const categoriesQuery = useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: () => adminApi.categories.list(),
-  });
+  // BUG-504-A06.5: wrap the admin categories fetch with the drift guard
+  // hook (parallel fetch of /api/v1/categories + detectCategoryDrift).
+  // The query key stays `['admin-categories']` so existing mutation
+  // invalidations work unchanged.
+  const categoriesQuery = useAdminCategoriesWithDriftGuard();
 
-  const rows: CategoryRow[] = categoriesQuery.data?.data ?? [];
+  const rows: CategoryRow[] = categoriesQuery.data?.admin ?? [];
+  const driftReport = categoriesQuery.data?.report;
   const slugSet = new Set(rows.map((r) => r.slug));
   const nextSort = rows.length > 0 ? Math.max(...rows.map((r) => r.sort_order)) + 10 : 10;
 
@@ -672,6 +676,7 @@ function CategoriesTab() {
 
   return (
     <div className="space-y-4">
+      <DriftBanner report={driftReport} />
       <div className="rounded-lg border">
         <div className="p-4 border-b bg-muted/30">
           <h3 className="font-semibold">{t('settings.categoriesTitle')}</h3>
