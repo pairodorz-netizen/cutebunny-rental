@@ -33,6 +33,9 @@ const mockDb = vi.hoisted(() => {
     'availabilityCalendar',
     'systemConfig',
     'adminUser',
+    // BUG-504-A06 step 2/3: admin POST /products now resolves the
+    // category slug → FK via db.category.findUnique during dual-write.
+    'category',
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
@@ -145,6 +148,12 @@ describe('BUG-404-A01 — admin product create error envelope', () => {
       sku: 'D001',
       name: 'Minimal Test Product',
       category: 'wedding',
+      categoryId: '00000000-0000-0000-0000-0000000000c1',
+    });
+    // BUG-504-A06 step 2/3: dual-write resolver needs a category row.
+    mockDb.category.findUnique.mockResolvedValue({
+      id: '00000000-0000-0000-0000-0000000000c1',
+      slug: 'wedding',
     });
   });
 
