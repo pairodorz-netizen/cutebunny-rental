@@ -28,3 +28,7 @@ Thumbs.db
 # Test artifacts
 test-results.xml
 *.tsbuildinfo
+playwright-report/
+test-results/
+/blob-report/
+.playwright/

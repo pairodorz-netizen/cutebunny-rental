@@ -99,3 +99,38 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Security Audit
         run: pnpm audit --audit-level=critical || true
+
+  e2e-categories-parity:
+    # BUG-504-A05: Playwright parity guard between the A02 public
+    # /api/v1/categories endpoint and the customer filter UI. Boots the
+    # customer Next.js app via Playwright's webServer hook and asserts
+    # set / order / localized-label parity on /th and /en. Protects
+    # against the category-sync regression closed by A04.
+    runs-on: ubuntu-latest
+    needs: [build-customer]
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
+      E2E_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - run: pnpm --filter @cutebunny/shared build
+      - run: pnpm --filter @cutebunny/customer build
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run E2E parity guard
+        run: pnpm test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
