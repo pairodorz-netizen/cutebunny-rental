@@ -585,7 +585,7 @@ function ProductForm({
   onBack: () => void;
   onSuccess: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [sku, setSku] = useState(product?.sku ?? '');
   const [name, setName] = useState(product?.name ?? '');
   const [brandName, setBrandName] = useState(product?.brand ?? '');
@@ -617,12 +617,16 @@ function ProductForm({
   const [initialStockCost, setInitialStockCost] = useState('0');
   const [initialStockNote, setInitialStockNote] = useState('');
 
-  // #6: Fetch dynamic categories from API
+  // BUG-504-A04: cut the product-create dropdown over from the legacy
+  // SystemConfig.product_categories JSON blob (adminApi.settings.categories)
+  // to the A03 DB-backed endpoint. The A03 CategoriesTab already uses the
+  // same React Query key ('admin-categories') so edits there invalidate
+  // this dropdown synchronously within the single-tab session.
   const categoriesQuery = useQuery({
-    queryKey: ['settings-categories'],
-    queryFn: () => adminApi.settings.categories(),
+    queryKey: ['admin-categories'],
+    queryFn: () => adminApi.categories.list(),
   });
-  const categoryList = categoriesQuery.data?.data ?? ['wedding', 'evening', 'cocktail', 'casual', 'costume', 'traditional', 'accessories'];
+  const categoryRows = categoriesQuery.data?.data ?? [];
 
   function handleMutationError(err: Error, fallback: string) {
     // BUG-404-A02: route admin API errors (content-type-aware envelope
@@ -840,9 +844,13 @@ function ProductForm({
           <div>
             <label className="text-sm font-medium">{t('products.category')}</label>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              {categoryList.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
+              {categoryRows
+                .filter((row) => row.visible_backend)
+                .map((row) => (
+                  <option key={row.slug} value={row.slug}>
+                    {i18n.language === 'th' ? row.name_th : row.name_en}
+                  </option>
+                ))}
             </select>
           </div>
         </div>

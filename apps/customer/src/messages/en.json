@@ -36,6 +36,7 @@
     "empty": "No products found matching your criteria.",
     "prev": "Previous",
     "next": "Next",
+    "retry": "Retry",
     "filter": {
       "category": "Category",
       "size": "Size",

@@ -134,7 +134,23 @@ export interface ShippingFeeToggle {
   enabled: boolean;
 }
 
+// BUG-504-A04: customer-side category reader. Backs the product filter UI
+// on /products and the category grid on the home page. Payload mirrors
+// the A02 public endpoint shape (snake_case at the API boundary).
+export interface Category {
+  id: string;
+  slug: string;
+  name_th: string;
+  name_en: string;
+  sort_order: number;
+  visible_frontend: boolean;
+  visible_backend: boolean;
+}
+
 export const api = {
+  categories: {
+    list: () => request<{ data: Category[] }>('/api/v1/categories'),
+  },
   products: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
