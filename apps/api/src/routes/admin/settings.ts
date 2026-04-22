@@ -458,6 +458,38 @@ adminSettings.get('/audit-log', async (c) => {
   }
 });
 
+// POST /api/v1/admin/settings/audit-log — client-posted audit events
+// (BUG-504-A06.5). Narrow action whitelist: admin clients may only emit
+// the drift-detection event. Server-side audit writes still go through
+// `safeAuditLog` inline in the relevant mutation handlers; this POST is
+// *only* for passive client-side observations.
+const postAuditLogSchema = z.object({
+  action: z.enum(['category.drift_detected']),
+  resource: z.literal('categories'),
+  resource_id: z.string().nullable().optional(),
+  details: z.record(z.unknown()),
+});
+
+adminSettings.post('/audit-log', async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = postAuditLogSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid audit log payload', parsed.error.flatten());
+  }
+
+  await safeAuditLog(db, {
+    adminId: admin.sub,
+    action: parsed.data.action,
+    resource: parsed.data.resource,
+    resourceId: parsed.data.resource_id ?? null,
+    details: parsed.data.details as Prisma.InputJsonValue,
+  });
+
+  return success(c, { recorded: true });
+});
+
 // ─── NOTIFICATIONS ──────────────────────────────────────────────────────────
 
 // GET /api/v1/admin/settings/notifications

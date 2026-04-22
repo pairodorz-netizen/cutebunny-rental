@@ -917,6 +917,13 @@ export const adminApi = {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: Array<{ id: string; admin_email: string; admin_name: string; action: string; resource: string; resource_id: string | null; details: Record<string, unknown> | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/audit-log?${qs}`);
     },
+    // BUG-504-A06.5: client-posted audit events. Narrow whitelist on
+    // the server side — today only `category.drift_detected`.
+    postAuditLog: (body: { action: string; resource: string; resource_id?: string | null; details: Record<string, unknown> }) =>
+      request<{ data: { recorded: boolean } }>('/api/v1/admin/settings/audit-log', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     notifications: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: Array<{ id: string; order_id: string | null; customer_id: string | null; channel: string; recipient: string; subject: string | null; body: string; status: string; error_message: string | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/notifications?${qs}`);

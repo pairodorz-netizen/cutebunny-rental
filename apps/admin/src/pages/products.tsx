@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, API_BASE, type AdminProduct, type AdminComboSet, type BulkImportResult } from '@/lib/api';
+import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
 import {
   ApiNetworkError,
   formatApiNetworkError,
@@ -10,6 +11,7 @@ import {
   classifyAdminApiError,
 } from '@cutebunny/shared/diagnostics';
 import { startCreateProductSubmit, type TelemetryHandle } from '@/lib/diag/telemetry-store';
+import { DriftBanner } from '@/components/drift-banner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -622,11 +624,12 @@ function ProductForm({
   // to the A03 DB-backed endpoint. The A03 CategoriesTab already uses the
   // same React Query key ('admin-categories') so edits there invalidate
   // this dropdown synchronously within the single-tab session.
-  const categoriesQuery = useQuery({
-    queryKey: ['admin-categories'],
-    queryFn: () => adminApi.categories.list(),
-  });
-  const categoryRows = categoriesQuery.data?.data ?? [];
+  // BUG-504-A06.5: wrap in the drift guard hook (parallel fetch of
+  // /api/v1/categories + detectCategoryDrift). Key stays the same so
+  // CategoriesTab mutation invalidations still refresh this dropdown.
+  const categoriesQuery = useAdminCategoriesWithDriftGuard();
+  const categoryRows = categoriesQuery.data?.admin ?? [];
+  const driftReport = categoriesQuery.data?.report;
 
   function handleMutationError(err: Error, fallback: string) {
     // BUG-404-A02: route admin API errors (content-type-aware envelope
@@ -843,15 +846,18 @@ function ProductForm({
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.category')}</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              {categoryRows
-                .filter((row) => row.visible_backend)
-                .map((row) => (
-                  <option key={row.slug} value={row.slug}>
-                    {i18n.language === 'th' ? row.name_th : row.name_en}
-                  </option>
-                ))}
-            </select>
+            <div className="mt-1 space-y-2">
+              <DriftBanner report={driftReport} />
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                {categoryRows
+                  .filter((row) => row.visible_backend)
+                  .map((row) => (
+                    <option key={row.slug} value={row.slug}>
+                      {i18n.language === 'th' ? row.name_th : row.name_en}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
         </div>
 
