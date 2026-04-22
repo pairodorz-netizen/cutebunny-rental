@@ -1,4 +1,4 @@
-import { buildApiNetworkError } from '@cutebunny/shared/diagnostics';
+import { buildApiNetworkError, parseAdminErrorResponse } from '@cutebunny/shared/diagnostics';
 import type { TelemetryHandle } from './diag/telemetry-store';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -84,11 +84,14 @@ async function request<T>(path: string, options?: RequestInit, ctx?: RequestCont
     throw new Error('Unauthorized');
   }
 
-  const json = await res.json();
+  // BUG-404-A02: content-type-aware reader. Errors are NEVER parsed as
+  // JSON blindly — parseAdminErrorResponse handles non-JSON bodies
+  // (e.g. plain-text "Internal Server Error") without crashing the
+  // admin UI on `JSON.parse`. Success bodies are still JSON.
   if (!res.ok) {
-    throw new Error(json.error?.message || `API error: ${res.status}`);
+    throw await parseAdminErrorResponse(res);
   }
-  return json;
+  return (await res.json()) as T;
 }
 
 async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
@@ -107,11 +110,10 @@ async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
     throw new Error('Unauthorized');
   }
 
-  const json = await res.json();
   if (!res.ok) {
-    throw new Error(json.error?.message || `API error: ${res.status}`);
+    throw await parseAdminErrorResponse(res);
   }
-  return json;
+  return (await res.json()) as T;
 }
 
 export interface DashboardStats {
