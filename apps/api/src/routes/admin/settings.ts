@@ -412,16 +412,51 @@ adminSettings.delete('/users/:id', requireRole('superadmin'), async (c) => {
 // ─── AUDIT LOG ──────────────────────────────────────────────────────────────
 
 // GET /api/v1/admin/settings/audit-log
+//
+// BUG-504-A08 extended the query surface so A06.5 drift-detection
+// events can be queried without hitting the database directly. New
+// params (all optional, additive):
+//   • action=<string>           — exact filter on log.action
+//   • resource=<string>         — exact filter on log.resource
+//   • since=<ISO8601>           — createdAt >= since (inclusive)
+//   • limit=<1..100>            — alias for per_page (takes precedence
+//                                 when both are provided, matches the
+//                                 audit-forensic convention)
+//   • page=<int>                — 1-based (unchanged)
+//
+// The response preserves the existing admin-UI shape (admin_email,
+// admin_name, resource_id, details, created_at, ip_address) and adds
+// the A08 forensic aliases (actor_id, payload, detected_at) alongside
+// them so both the /settings?tab=audit UI and a forensic consumer can
+// read the same payload without a transform layer.
 adminSettings.get('/audit-log', async (c) => {
   const db = getDb();
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1'));
-  const perPage = Math.min(100, Math.max(1, parseInt(c.req.query('per_page') ?? '50')));
+  const rawLimit = c.req.query('limit') ?? c.req.query('per_page') ?? '50';
+  const perPage = Math.min(100, Math.max(1, parseInt(rawLimit)));
   const resource = c.req.query('resource');
   const action = c.req.query('action');
+  const sinceRaw = c.req.query('since');
+
+  let sinceDate: Date | undefined;
+  if (sinceRaw) {
+    const parsed = new Date(sinceRaw);
+    if (Number.isNaN(parsed.getTime())) {
+      return error(
+        c,
+        400,
+        'VALIDATION_ERROR',
+        '`since` must be a valid ISO 8601 timestamp',
+        { since: sinceRaw },
+      );
+    }
+    sinceDate = parsed;
+  }
 
   const where: Record<string, unknown> = {};
   if (resource) where.resource = resource;
   if (action) where.action = action;
+  if (sinceDate) where.createdAt = { gte: sinceDate };
 
   // Wrap in try-catch to handle schema drift (e.g. missing ip_address column)
   try {
@@ -440,21 +475,35 @@ adminSettings.get('/audit-log', async (c) => {
       id: log.id,
       admin_email: log.admin?.email ?? 'system',
       admin_name: log.admin?.name ?? 'System',
+      // BUG-504-A08 forensic aliases — coexist with the UI fields
+      // above so neither consumer needs a transform layer.
+      actor_id: log.admin?.id ?? log.adminId ?? null,
       action: log.action,
       resource: log.resource,
       resource_id: log.resourceId,
       details: log.details,
+      payload: log.details,
       ip_address: (log as Record<string, unknown>).ipAddress ?? null,
       created_at: log.createdAt.toISOString(),
+      detected_at: log.createdAt.toISOString(),
     })), {
       page,
       per_page: perPage,
+      limit: perPage,
       total,
+      count: total,
       total_pages: Math.ceil(total / perPage),
     });
   } catch {
     // Schema drift: return empty audit log rather than crashing
-    return success(c, [], { page, per_page: perPage, total: 0, total_pages: 0 });
+    return success(c, [], {
+      page,
+      per_page: perPage,
+      limit: perPage,
+      total: 0,
+      count: 0,
+      total_pages: 0,
+    });
   }
 });
 
