@@ -18,6 +18,16 @@ const mockDb = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    // BUG-405-A01: admin order status handler now wraps the CORE
+    // writes (order.update + orderStatusLog.create) in a single
+    // $transaction batch. The default mock just runs the ops and
+    // returns their resolved values, mirroring Prisma's sequential
+    // batch semantics for contract-level assertions.
+    $transaction: vi.fn(async (ops: unknown) => {
+      if (typeof ops === 'function') return (ops as (tx: unknown) => unknown)(db);
+      if (Array.isArray(ops)) return Promise.all(ops as Promise<unknown>[]);
+      return [];
+    }),
   };
   for (const model of models) {
     db[model] = {

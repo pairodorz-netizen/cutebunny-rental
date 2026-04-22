@@ -25,7 +25,12 @@ const ORDER_STATUS_MESSAGES: Record<string, { subject: string; template: (orderN
     template: (orderNumber) =>
       `We have received the return for order ${orderNumber}. Your items are being inspected. Your deposit will be processed soon.`,
   },
-  ready: {
+  // BUG-405-A01: renamed stale `ready` key to `finished` to match the
+  // OrderStatus enum post-rename (see migration 1f0c2c9). Prior to this
+  // rename the admin status handler silently skipped customer email
+  // notifications for Cleaning→Finished transitions because the lookup
+  // missed. Behavior now: 'finished' → email logged; 'ready' → no-op.
+  finished: {
     subject: 'Order Complete',
     template: (orderNumber) =>
       `Order ${orderNumber} is complete. Your deposit refund is being processed. Thank you for renting with CuteBunny!`,

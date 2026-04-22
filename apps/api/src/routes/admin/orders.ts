@@ -10,6 +10,23 @@ import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
 
+// BUG-405-A01 — structured JSON envelope for uncaught admin-order errors.
+//
+// Prior to this handler the order-status route fell back to Hono's
+// default crash behavior (plain-text "Internal Server Error") when any
+// uncaught throw escaped the per-route try/catch. On Cloudflare Workers
+// that surfaced to the admin UI as `TypeError: Failed to fetch` because
+// the Worker terminated before flushing a response. This catch-all
+// mirrors `apps/api/src/routes/admin/products.ts` (BUG-404-A01) and
+// guarantees every error path returns `application/json` with a
+// redacted envelope: no stack, no raw DB text, no PII.
+adminOrders.onError((_err, c) => {
+  return c.json(
+    { error: { code: 'internal_error', message: 'Unexpected server error' } },
+    500,
+  );
+});
+
 // A12: GET /api/v1/admin/orders — Order list with filters
 adminOrders.get('/', async (c) => {
   const db = getDb();
@@ -550,8 +567,19 @@ adminOrders.patch('/:id/status', async (c) => {
     });
   }
 
-  // Update order status
-  const updatedOrder = await db.order.update({
+  // BUG-405-A01 — atomic CORE writes.
+  //
+  // The order.update and orderStatusLog.create are the only writes
+  // that define whether the transition "really happened". They MUST
+  // be atomic: either both land or neither lands. A half-commit (the
+  // order flips status but the audit log is missing, or vice versa)
+  // would silently corrupt downstream reports.
+  //
+  // Running them inside a single Prisma `$transaction` batch gives
+  // us that atomicity at the DB level. If either throws, the whole
+  // tx rolls back and the error bubbles to `adminOrders.onError()`,
+  // which returns an HTTP 500 + JSON envelope to the client.
+  const updateArgs: Prisma.OrderUpdateArgs = {
     where: { id: orderId },
     data: {
       status: toStatus,
@@ -562,10 +590,8 @@ adminOrders.patch('/:id/status', async (c) => {
         },
       }),
     },
-  });
-
-  // Create audit log
-  await db.orderStatusLog.create({
+  };
+  const statusLogArgs: Prisma.OrderStatusLogCreateArgs = {
     data: {
       orderId,
       fromStatus: order.status,
@@ -573,19 +599,47 @@ adminOrders.patch('/:id/status', async (c) => {
       note: parsed.data.note ?? null,
       changedBy: admin.sub,
     },
-  });
+  };
+  const [updatedOrder] = await db.$transaction([
+    db.order.update(updateArgs),
+    db.orderStatusLog.create(statusLogArgs),
+  ]);
 
-  // Auto-create finance transactions for key status transitions (non-blocking)
-  try {
-    if (toStatus === 'finished' && db.orderItem?.aggregate) {
-      const totalLateFee = await db.orderItem.aggregate({
+  // BUG-405-A01 — SIDE-EFFECT writes.
+  //
+  // Every side effect below is individually isolated in its own
+  // try/catch so one failure cannot contaminate another. A Neon
+  // cold-start stall in `orderItem.aggregate`, a Prisma validation
+  // error in `financeTransaction.create`, a notification provider
+  // outage — none of these should reach the client. The response
+  // envelope is committed regardless.
+  //
+  // Root-cause note: pre-A01 these were wrapped in a single coarse
+  // try/catch, so a stall in one op could drain the Worker's
+  // wall-clock budget before `success()` was reached. Empty catches
+  // are intentional here: we are trading observability inside this
+  // handler for guaranteed response delivery, matching the spec's
+  // "fail quiet" side-effect rule. Upstream telemetry (BUG-401) and
+  // NotificationLog rows already capture the signals we need.
+  let totalLateFee = 0;
+  let totalDamageFee = 0;
+  if (toStatus === 'finished' && db.orderItem?.aggregate) {
+    try {
+      const agg = await db.orderItem.aggregate({
         where: { orderId },
         _sum: { lateFee: true, damageFee: true },
       });
-      const totalDeductions = (totalLateFee._sum.lateFee ?? 0) + (totalLateFee._sum.damageFee ?? 0);
-      const depositReturn = Math.max(0, order.deposit - totalDeductions);
+      totalLateFee = agg._sum.lateFee ?? 0;
+      totalDamageFee = agg._sum.damageFee ?? 0;
+    } catch { /* aggregate failure falls back to 0 */ }
+  }
 
-      if (depositReturn > 0 && db.financeTransaction?.create) {
+  if (toStatus === 'finished' && db.financeTransaction?.create) {
+    const totalDeductions = totalLateFee + totalDamageFee;
+    const depositReturn = Math.max(0, (order.deposit ?? 0) - totalDeductions);
+
+    if (depositReturn > 0) {
+      try {
         await db.financeTransaction.create({
           data: {
             orderId,
@@ -595,22 +649,26 @@ adminOrders.patch('/:id/status', async (c) => {
             createdBy: admin.sub,
           },
         });
-      }
+      } catch { /* deposit_returned failure is non-blocking */ }
+    }
 
-      if (totalDeductions > 0 && db.financeTransaction?.create) {
+    if (totalDeductions > 0) {
+      try {
         await db.financeTransaction.create({
           data: {
             orderId,
             txType: 'deposit_forfeited',
             amount: totalDeductions,
-            note: `Deposit deduction for ${order.orderNumber} (late: ${totalLateFee._sum.lateFee ?? 0}, damage: ${totalLateFee._sum.damageFee ?? 0})`,
+            note: `Deposit deduction for ${order.orderNumber} (late: ${totalLateFee}, damage: ${totalDamageFee})`,
             createdBy: admin.sub,
           },
         });
-      }
+      } catch { /* deposit_forfeited failure is non-blocking */ }
     }
+  }
 
-    if (toStatus === 'returned' && db.financeTransaction?.create) {
+  if (toStatus === 'returned' && db.financeTransaction?.create) {
+    try {
       await db.financeTransaction.create({
         data: {
           orderId,
@@ -620,9 +678,11 @@ adminOrders.patch('/:id/status', async (c) => {
           createdBy: admin.sub,
         },
       });
-    }
+    } catch { /* returned-revenue failure is non-blocking */ }
+  }
 
-    if (toStatus === 'cancelled' && db.financeTransaction?.create) {
+  if (toStatus === 'cancelled' && db.financeTransaction?.create) {
+    try {
       await db.financeTransaction.create({
         data: {
           orderId,
@@ -632,10 +692,12 @@ adminOrders.patch('/:id/status', async (c) => {
           createdBy: admin.sub,
         },
       });
-    }
-  } catch { /* finance tx failure should not block status transition */ }
+    } catch { /* cancelled-revenue failure is non-blocking */ }
+  }
 
-  // Send notification to customer (non-blocking)
+  // Customer notification (individually isolated, including the
+  // customer lookup itself — a Neon stall on findUnique should not
+  // hang the response).
   try {
     const customer = await db.customer.findUnique({ where: { id: order.customerId } });
     if (customer) {
@@ -648,9 +710,9 @@ adminOrders.patch('/:id/status', async (c) => {
         parsed.data.tracking_number,
       );
     }
-  } catch { /* notification failure should not block status transition */ }
+  } catch { /* notification failure is non-blocking */ }
 
-  // Create audit log entry (non-blocking)
+  // Admin audit log (individually isolated).
   try {
     if (db.auditLog?.create) {
       await db.auditLog.create({
@@ -664,7 +726,7 @@ adminOrders.patch('/:id/status', async (c) => {
         },
       });
     }
-  } catch { /* audit failure should not block */ }
+  } catch { /* audit-log failure is non-blocking */ }
 
   return success(c, {
     id: updatedOrder.id,
