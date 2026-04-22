@@ -943,6 +943,27 @@ export const adminApi = {
         body: JSON.stringify(body),
       }),
   },
+  // BUG-504-A03: DB-backed taxonomy CRUD (superadmin writes). Separate
+  // from `settings.categories` (legacy SystemConfig JSON blob still used
+  // by products.tsx dropdown — migrated alongside A04 customer wiring).
+  categories: {
+    list: () =>
+      request<{ data: Array<{ id: string; slug: string; name_th: string; name_en: string; sort_order: number; visible_frontend: boolean; visible_backend: boolean }> }>(
+        '/api/v1/admin/categories',
+      ),
+    create: (body: { slug: string; name_th: string; name_en: string; sort_order: number; visible_frontend?: boolean; visible_backend?: boolean }) =>
+      request<{ data: { id: string; slug: string; name_th: string; name_en: string; sort_order: number; visible_frontend: boolean; visible_backend: boolean } }>(
+        '/api/v1/admin/categories',
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+    update: (id: string, body: Partial<{ slug: string; name_th: string; name_en: string; sort_order: number; visible_frontend: boolean; visible_backend: boolean }>) =>
+      request<{ data: { id: string; slug: string; name_th: string; name_en: string; sort_order: number; visible_frontend: boolean; visible_backend: boolean } }>(
+        `/api/v1/admin/categories/${id}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      ),
+    remove: (id: string) =>
+      request<void>(`/api/v1/admin/categories/${id}`, { method: 'DELETE' }),
+  },
   images: {
     upload: (productId: string, file: File) => {
       const formData = new FormData();

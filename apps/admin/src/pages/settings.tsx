@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
 
 type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
@@ -60,10 +60,6 @@ export function SettingsPage() {
     setActiveTab(tab);
     setSearchParams({ tab });
   };
-
-  // Category state (#6)
-  const [newCategory, setNewCategory] = useState('');
-  const [editingCategory, setEditingCategory] = useState<{ index: number; value: string } | null>(null);
 
   // Store address state (#1)
   const [editingAddress, setEditingAddress] = useState<Record<string, unknown> | null>(null);
@@ -494,8 +490,8 @@ export function SettingsPage() {
           ) : null}
         </div>
       )}
-      {/* Categories Tab (#6) */}
-      {activeTab === 'categories' && <CategoriesTab newCategory={newCategory} setNewCategory={setNewCategory} editingCategory={editingCategory} setEditingCategory={setEditingCategory} />}
+      {/* Categories Tab (#6) — BUG-504-A03 DB-backed CRUD */}
+      {activeTab === 'categories' && <CategoriesTab />}
 
       {/* Store Address Tab (#1) */}
       {activeTab === 'store' && <StoreAddressTab editingAddress={editingAddress} setEditingAddress={setEditingAddress} />}
@@ -508,61 +504,170 @@ export function SettingsPage() {
 
 // ─── CATEGORIES TAB (#6) ────────────────────────────────────────────────────
 
-function CategoriesTab({ newCategory, setNewCategory, editingCategory, setEditingCategory }: {
-  newCategory: string;
-  setNewCategory: (v: string) => void;
-  editingCategory: { index: number; value: string } | null;
-  setEditingCategory: (v: { index: number; value: string } | null) => void;
-}) {
+// BUG-504-A03: DB-backed categories CRUD (replaces the legacy
+// SystemConfig.product_categories string[] experience). The legacy
+// endpoint is still consumed by products.tsx:create-dropdown; its
+// retirement is scheduled for the A04 customer-wiring atom so this
+// change stays strictly non-breaking.
+interface CategoryRow {
+  id: string;
+  slug: string;
+  name_th: string;
+  name_en: string;
+  sort_order: number;
+  visible_frontend: boolean;
+  visible_backend: boolean;
+}
+
+type DraftRow = Omit<CategoryRow, 'id'>;
+
+function CategoriesTab() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<DraftRow | null>(null);
+  const [newDraft, setNewDraft] = useState<DraftRow>({
+    slug: '',
+    name_th: '',
+    name_en: '',
+    sort_order: 0,
+    visible_frontend: true,
+    visible_backend: true,
+  });
+  const [pendingDelete, setPendingDelete] = useState<CategoryRow | null>(null);
 
   const categoriesQuery = useQuery({
-    queryKey: ['settings-categories'],
-    queryFn: () => adminApi.settings.categories(),
+    queryKey: ['admin-categories'],
+    queryFn: () => adminApi.categories.list(),
+  });
+
+  const rows: CategoryRow[] = categoriesQuery.data?.data ?? [];
+  const slugSet = new Set(rows.map((r) => r.slug));
+  const nextSort = rows.length > 0 ? Math.max(...rows.map((r) => r.sort_order)) + 10 : 10;
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
+    // A02 public list cached ≤ 5min; keep admin query invalidation
+    // separate so the admin reads stay fresh regardless of edge TTL.
+    queryClient.invalidateQueries({ queryKey: ['settings-categories'] });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: (body: DraftRow) => adminApi.categories.create(body),
+    onSuccess: () => {
+      invalidate();
+      setNewDraft({
+        slug: '',
+        name_th: '',
+        name_en: '',
+        sort_order: nextSort,
+        visible_frontend: true,
+        visible_backend: true,
+      });
+      setFormError(null);
+    },
+    onError: (err: Error) => setFormError(err.message),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (categories: string[]) => adminApi.settings.updateCategories(categories),
+    mutationFn: ({ id, body }: { id: string; body: Partial<DraftRow> }) =>
+      adminApi.categories.update(id, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings-categories'] });
-      setNewCategory('');
-      setEditingCategory(null);
+      invalidate();
+      setEditingId(null);
+      setEditDraft(null);
+      setFormError(null);
     },
+    onError: (err: Error) => setFormError(err.message),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (name: string) => adminApi.settings.deleteCategory(name),
+    mutationFn: (id: string) => adminApi.categories.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['settings-categories'] });
-      setDeleteError(null);
+      invalidate();
+      setPendingDelete(null);
+      setFormError(null);
     },
-    onError: (err: Error) => {
-      setDeleteError(err.message);
-    },
+    onError: (err: Error) => setFormError(err.message),
   });
 
-  const categories = categoriesQuery.data?.data ?? [];
+  const SLUG_RE = /^[a-z0-9_-]+$/;
 
-  const handleAdd = () => {
-    if (!newCategory.trim()) return;
-    const updated = [...categories, newCategory.trim().toLowerCase()];
-    updateMutation.mutate(updated);
+  const handleCreate = () => {
+    const slug = newDraft.slug.trim();
+    const nameTh = newDraft.name_th.trim();
+    const nameEn = newDraft.name_en.trim();
+    if (!slug || !SLUG_RE.test(slug)) {
+      setFormError(t('settings.categoryErrorSlugFormat'));
+      return;
+    }
+    if (slugSet.has(slug)) {
+      setFormError(t('settings.categoryErrorSlugDuplicate'));
+      return;
+    }
+    if (!nameTh || !nameEn) {
+      setFormError(t('settings.categoryErrorNameRequired'));
+      return;
+    }
+    createMutation.mutate({
+      ...newDraft,
+      slug,
+      name_th: nameTh,
+      name_en: nameEn,
+      sort_order: Number.isFinite(newDraft.sort_order) ? newDraft.sort_order : nextSort,
+    });
   };
 
-  const handleRename = () => {
-    if (!editingCategory || !editingCategory.value.trim()) return;
-    const updated = [...categories];
-    updated[editingCategory.index] = editingCategory.value.trim().toLowerCase();
-    updateMutation.mutate(updated);
+  const startEdit = (row: CategoryRow) => {
+    setEditingId(row.id);
+    setEditDraft({
+      slug: row.slug,
+      name_th: row.name_th,
+      name_en: row.name_en,
+      sort_order: row.sort_order,
+      visible_frontend: row.visible_frontend,
+      visible_backend: row.visible_backend,
+    });
+    setFormError(null);
   };
 
-  const handleReorder = (from: number, to: number) => {
-    const updated = [...categories];
-    const [moved] = updated.splice(from, 1);
-    updated.splice(to, 0, moved);
-    updateMutation.mutate(updated);
+  const commitEdit = () => {
+    if (!editingId || !editDraft) return;
+    const original = rows.find((r) => r.id === editingId);
+    if (!original) return;
+    const slug = editDraft.slug.trim();
+    const nameTh = editDraft.name_th.trim();
+    const nameEn = editDraft.name_en.trim();
+    if (!slug || !SLUG_RE.test(slug)) {
+      setFormError(t('settings.categoryErrorSlugFormat'));
+      return;
+    }
+    if (slug !== original.slug && slugSet.has(slug)) {
+      setFormError(t('settings.categoryErrorSlugDuplicate'));
+      return;
+    }
+    if (!nameTh || !nameEn) {
+      setFormError(t('settings.categoryErrorNameRequired'));
+      return;
+    }
+    const body: Partial<DraftRow> = {};
+    if (slug !== original.slug) body.slug = slug;
+    if (nameTh !== original.name_th) body.name_th = nameTh;
+    if (nameEn !== original.name_en) body.name_en = nameEn;
+    if (editDraft.sort_order !== original.sort_order) body.sort_order = editDraft.sort_order;
+    if (editDraft.visible_frontend !== original.visible_frontend) body.visible_frontend = editDraft.visible_frontend;
+    if (editDraft.visible_backend !== original.visible_backend) body.visible_backend = editDraft.visible_backend;
+    if (Object.keys(body).length === 0) {
+      setEditingId(null);
+      setEditDraft(null);
+      return;
+    }
+    updateMutation.mutate({ id: editingId, body });
+  };
+
+  const toggleVisibility = (row: CategoryRow, field: 'visible_frontend' | 'visible_backend') => {
+    updateMutation.mutate({ id: row.id, body: { [field]: !row[field] } });
   };
 
   return (
@@ -572,59 +677,203 @@ function CategoriesTab({ newCategory, setNewCategory, editingCategory, setEditin
           <h3 className="font-semibold">{t('settings.categoriesTitle')}</h3>
           <p className="text-xs text-muted-foreground mt-1">{t('settings.categoriesDesc')}</p>
         </div>
-        <div className="divide-y">
-          {categories.map((cat, i) => (
-            <div key={`${cat}-${i}`} className="flex items-center justify-between p-3 gap-4">
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col gap-0.5">
-                  <button onClick={() => i > 0 && handleReorder(i, i - 1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={i === 0}>
-                    <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 2L2 6h8z" fill="currentColor"/></svg>
-                  </button>
-                  <button onClick={() => i < categories.length - 1 && handleReorder(i, i + 1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30" disabled={i === categories.length - 1}>
-                    <svg width="12" height="12" viewBox="0 0 12 12"><path d="M6 10l4-4H2z" fill="currentColor"/></svg>
-                  </button>
-                </div>
-                {editingCategory?.index === i ? (
-                  <div className="flex items-center gap-2">
-                    <Input value={editingCategory.value} onChange={(e) => setEditingCategory({ index: i, value: e.target.value })} className="w-40 h-8" />
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleRename} disabled={updateMutation.isPending}>
-                      <Save className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setEditingCategory(null)}>
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : (
-                  <span className="text-sm font-medium capitalize">{cat}</span>
+
+        {categoriesQuery.isLoading ? (
+          <div className="p-4 text-sm text-muted-foreground">{t('common.loading')}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left">{t('settings.categoryCol_slug')}</th>
+                  <th className="px-3 py-2 text-left">{t('settings.categoryCol_nameTh')}</th>
+                  <th className="px-3 py-2 text-left">{t('settings.categoryCol_nameEn')}</th>
+                  <th className="px-3 py-2 text-right">{t('settings.categoryCol_sortOrder')}</th>
+                  <th className="px-3 py-2 text-center">{t('settings.categoryCol_visibleFrontend')}</th>
+                  <th className="px-3 py-2 text-center">{t('settings.categoryCol_visibleBackend')}</th>
+                  <th className="px-3 py-2 text-right">{t('common.edit')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((row) => {
+                  const editing = editingId === row.id && editDraft;
+                  return (
+                    <tr key={row.id} data-slug={row.slug}>
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {editing ? (
+                          <Input value={editDraft.slug} onChange={(e) => setEditDraft({ ...editDraft, slug: e.target.value })} className="h-8 w-32" />
+                        ) : (
+                          row.slug
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {editing ? (
+                          <Input value={editDraft.name_th} onChange={(e) => setEditDraft({ ...editDraft, name_th: e.target.value })} className="h-8 w-40" />
+                        ) : (
+                          row.name_th
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        {editing ? (
+                          <Input value={editDraft.name_en} onChange={(e) => setEditDraft({ ...editDraft, name_en: e.target.value })} className="h-8 w-40" />
+                        ) : (
+                          row.name_en
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {editing ? (
+                          <Input
+                            type="number"
+                            value={editDraft.sort_order}
+                            onChange={(e) => setEditDraft({ ...editDraft, sort_order: Number(e.target.value) })}
+                            className="h-8 w-20 text-right"
+                          />
+                        ) : (
+                          row.sort_order
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          disabled={updateMutation.isPending}
+                          onClick={() => toggleVisibility(row, 'visible_frontend')}
+                          aria-label={t('settings.categoryCol_visibleFrontend')}
+                          aria-pressed={row.visible_frontend}
+                        >
+                          {row.visible_frontend ? (
+                            <Eye className="h-3.5 w-3.5" />
+                          ) : (
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          disabled={updateMutation.isPending}
+                          onClick={() => toggleVisibility(row, 'visible_backend')}
+                          aria-label={t('settings.categoryCol_visibleBackend')}
+                          aria-pressed={row.visible_backend}
+                        >
+                          {row.visible_backend ? (
+                            <Eye className="h-3.5 w-3.5" />
+                          ) : (
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {editing ? (
+                            <>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={commitEdit} disabled={updateMutation.isPending} aria-label={t('common.save')}>
+                                <Save className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setEditingId(null); setEditDraft(null); setFormError(null); }} aria-label={t('common.cancel')}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => startEdit(row)} aria-label={t('common.edit')}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => setPendingDelete(row)} aria-label={t('common.delete')}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                      {t('settings.categoriesEmpty')}
+                    </td>
+                  </tr>
                 )}
-              </div>
-              {editingCategory?.index !== i && (
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setEditingCategory({ index: i, value: cat })}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={() => deleteMutation.mutate(cat)} disabled={deleteMutation.isPending}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {deleteError && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-          {deleteError}
+      {formError && (
+        <div role="alert" className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {formError}
         </div>
       )}
 
-      <div className="flex gap-2">
-        <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder={t('settings.newCategoryPlaceholder')} className="w-60 h-9" onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
-        <Button size="sm" onClick={handleAdd} disabled={!newCategory.trim() || updateMutation.isPending}>
-          <Plus className="h-4 w-4 mr-1" /> {t('settings.addCategory')}
-        </Button>
+      {/* ── Create-new form ───────────────────────────────────────── */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <h4 className="font-semibold text-sm">{t('settings.categoryCreateTitle')}</h4>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{t('settings.categoryCol_slug')}</label>
+            <Input value={newDraft.slug} onChange={(e) => setNewDraft({ ...newDraft, slug: e.target.value })} placeholder="new-slug" className="h-9 font-mono text-xs" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{t('settings.categoryCol_nameTh')}</label>
+            <Input value={newDraft.name_th} onChange={(e) => setNewDraft({ ...newDraft, name_th: e.target.value })} placeholder="ชื่อภาษาไทย" className="h-9" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{t('settings.categoryCol_nameEn')}</label>
+            <Input value={newDraft.name_en} onChange={(e) => setNewDraft({ ...newDraft, name_en: e.target.value })} placeholder="English name" className="h-9" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">{t('settings.categoryCol_sortOrder')}</label>
+            <Input
+              type="number"
+              value={newDraft.sort_order || ''}
+              onChange={(e) => setNewDraft({ ...newDraft, sort_order: Number(e.target.value) })}
+              placeholder={String(nextSort)}
+              className="h-9"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>
+            <Plus className="h-4 w-4 mr-1" /> {t('settings.addCategory')}
+          </Button>
+        </div>
       </div>
+
+      {/* ── Delete confirm dialog ───────────────────────────────── */}
+      {pendingDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => !deleteMutation.isPending && setPendingDelete(null)}
+        >
+          <div className="bg-background rounded-lg shadow-lg p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h4 className="font-semibold mb-2">{t('settings.categoryDeleteTitle')}</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              {t('settings.categoryDeleteConfirm', { slug: pendingDelete.slug })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setPendingDelete(null)} disabled={deleteMutation.isPending}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => deleteMutation.mutate(pendingDelete.id)}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t('common.delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
