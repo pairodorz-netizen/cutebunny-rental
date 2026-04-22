@@ -176,10 +176,11 @@ describe('BUG-504-A01 — migration SQL file', () => {
     const dir = findCategoriesMigrationDir();
     const sql = readFileSync(join(dir!, 'migration.sql'), 'utf8');
     // Trigger function exists.
-    expect(sql).toMatch(/CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+[\w"\.]*set_updated_at/i);
+    expect(sql).toMatch(/CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+[\w".]*set_updated_at/i);
     // Trigger bound to categories on BEFORE UPDATE, invoking the function.
-    expect(sql).toMatch(/CREATE\s+TRIGGER\s+\w+\s+BEFORE\s+UPDATE\s+ON\s+"categories"/i);
-    expect(sql).toMatch(/FOR EACH ROW\s+EXECUTE\s+(FUNCTION|PROCEDURE)\s+[\w"\.]*set_updated_at/i);
+    // Trigger name may be quoted ("..._set_updated_at") or bare; accept both.
+    expect(sql).toMatch(/CREATE\s+TRIGGER\s+[\w"]+\s+BEFORE\s+UPDATE\s+ON\s+"categories"/i);
+    expect(sql).toMatch(/FOR EACH ROW\s+EXECUTE\s+(FUNCTION|PROCEDURE)\s+[\w".]*set_updated_at/i);
   });
 
   it('migration.sql seeds exactly 7 rows matching the ProductCategory enum', () => {
