@@ -423,6 +423,32 @@ model SystemConfig {
   @@map("system_configs")
 }
 
+// BUG-504-A01 — product taxonomy table.
+//
+// This is the forthcoming single source of truth for product categories
+// surfaced in customer + admin UIs. Seeded from the `ProductCategory`
+// enum so every existing product row has a matching slug; the enum
+// column on Product stays as-is in A01 and is only cut over later in
+// A06 (after admin + customer wiring land in A02–A05).
+//
+// NOT related to `FinanceCategory` (revenue/expense ledger). Keep the
+// two models independent.
+model Category {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  slug            String   @unique
+  nameTh          String   @map("name_th")
+  nameEn          String   @map("name_en")
+  visibleFrontend Boolean  @default(true) @map("visible_frontend")
+  visibleBackend  Boolean  @default(true) @map("visible_backend")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@index([visibleFrontend])
+  @@map("categories")
+}
+
 model NotificationLog {
   id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   channel      String
