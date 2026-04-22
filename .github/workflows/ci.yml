@@ -112,6 +112,11 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
       E2E_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
+      # BUG-504-A07: admin-side parity gates (7 + 8) skip gracefully
+      # when ADMIN_JWT_PROD is unset so forks/branches without access
+      # to the repo secret can still run the public gates.
+      E2E_ADMIN_URL: https://admin-eight-rouge.vercel.app
+      ADMIN_JWT_PROD: ${{ secrets.ADMIN_JWT_PROD }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
