@@ -84,7 +84,7 @@ const ADMIN_UUID = '00000000-0000-0000-0000-000000000099';
 
 async function adminToken(): Promise<string> {
   const { createToken } = await import('../middleware/auth');
-  return createToken(ADMIN_UUID, 'admin@cutebunny.rental', 'admin');
+  return createToken(ADMIN_UUID, 'admin@cutebunny.rental', 'staff');
 }
 
 const DRIFT_LOG_ROW = {
