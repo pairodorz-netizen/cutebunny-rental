@@ -4,6 +4,7 @@ import { getDb, resetDb } from './lib/db';
 import { setEnv, type Env } from './lib/env';
 import { requireAuth } from './middleware/auth';
 import products from './routes/products';
+import categories from './routes/categories';
 import cart from './routes/cart';
 import orders from './routes/orders';
 import shipping from './routes/shipping';
@@ -80,6 +81,7 @@ app.get('/health', async (c) => {
 
 // ─── Customer Storefront APIs (v1) ─────────────────────────────────────
 app.route('/api/v1/products', products);
+app.route('/api/v1/categories', categories);
 app.route('/api/v1/cart', cart);
 app.route('/api/v1/orders', orders);
 app.route('/api/v1/shipping', shipping);
