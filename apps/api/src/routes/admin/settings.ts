@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
@@ -540,9 +541,7 @@ adminSettings.post('/notifications/send', async (c) => {
 // Six months out (≫ 30-day migration buffer required by the A04 gate).
 const LEGACY_SUNSET_MS = 180 * 24 * 60 * 60 * 1000;
 
-function applyLegacyCategoriesDeprecation(
-  c: Parameters<Parameters<typeof adminSettings.get>[1]>[0],
-): void {
+function applyLegacyCategoriesDeprecation(c: Context): void {
   const sunset = new Date(Date.now() + LEGACY_SUNSET_MS).toUTCString();
   c.header('Deprecation', 'true');
   c.header('Sunset', sunset);

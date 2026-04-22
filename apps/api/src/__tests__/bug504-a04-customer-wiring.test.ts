@@ -131,7 +131,7 @@ function countHardcodedSlugClusters(source: string): number {
   // Find every JS array literal and count how many canonical slugs it
   // references — any cluster with ≥3 slugs in a single array is treated
   // as a hardcoded category list.
-  const arrayLiterals = stripped.match(/\[[^\[\]\n]{0,400}\]/g) ?? [];
+  const arrayLiterals = stripped.match(/\[[^[\]\n]{0,400}\]/g) ?? [];
   let clusters = 0;
   for (const arr of arrayLiterals) {
     const hits = CANONICAL_SLUGS.filter((slug) => {
