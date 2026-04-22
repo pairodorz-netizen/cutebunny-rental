@@ -14,6 +14,9 @@ const mockDb = vi.hoisted(() => {
     'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
     'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
     'financeCategory', 'systemConfig', 'notificationLog',
+    // BUG-504-A06 step 2/3: admin POST /products now resolves the
+    // category slug → FK via db.category.findUnique during dual-write.
+    'category',
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
@@ -514,6 +517,12 @@ describe('T03: Admin Happy Path E2E', () => {
         sku: 'EVE-100',
         name: 'Evening Gown',
         category: 'evening',
+        categoryId: '00000000-0000-0000-0000-0000000000c2',
+      });
+      // BUG-504-A06 step 2/3: dual-write resolver needs a category row.
+      mockDb.category.findUnique.mockResolvedValue({
+        id: '00000000-0000-0000-0000-0000000000c2',
+        slug: 'evening',
       });
 
       const res = await app.request('/api/v1/admin/products', {
@@ -543,6 +552,14 @@ describe('T03: Admin Happy Path E2E', () => {
       const token = await getAdminToken();
 
       mockDb.product.findFirst.mockResolvedValue(MOCK_PRODUCT);
+      // BUG-504-A06 step 2/3: dual-write resolver runs before the
+      // duplicate-SKU pre-check; give it a valid category row so the
+      // 409 assertion below reflects the pre-check path, not a 422
+      // from the resolver itself.
+      mockDb.category.findUnique.mockResolvedValue({
+        id: '00000000-0000-0000-0000-0000000000c1',
+        slug: 'wedding',
+      });
 
       const res = await app.request('/api/v1/admin/products', {
         method: 'POST',
