@@ -7,6 +7,8 @@ const DB_MODELS = [
   'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
   'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
   'financeCategory', 'systemConfig', 'notificationLog',
+  // BUG-504-A01: product taxonomy table (consumed by A02 route).
+  'category',
 ] as const;
 
 /**
