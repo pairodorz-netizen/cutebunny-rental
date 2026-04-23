@@ -43,8 +43,8 @@ describe('BUG-CAL-04 — stickyLeftStyle', () => {
     expect(style.position).toBe('sticky');
     expect(style.left).toBe(210);
     expect(style.boxShadow).toBeTruthy();
-    // Box-shadow must be on the right edge (positive x-offset).
-    expect(style.boxShadow).toMatch(/^\d+px\s+\d+px/);
+    // Box-shadow must be on the right edge (positive x-offset, first token).
+    expect(style.boxShadow).toMatch(/^[1-9]\d*px\b/);
   });
 
   it('Name body cell: sticky, left=210, body zIndex, box-shadow still present', () => {
