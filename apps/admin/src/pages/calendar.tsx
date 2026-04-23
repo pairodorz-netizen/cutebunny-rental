@@ -97,7 +97,7 @@ export function CalendarPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left p-2 sticky left-0 bg-muted/50 min-w-[150px]">{t('products.name')}</th>
+                <th className="text-left p-2 sticky left-0 bg-muted/50 min-w-[200px]">{t('products.name')}</th>
                 {dates.map((date) => (
                   <th key={date} className="text-center p-2 min-w-[32px]">
                     {new Date(date + 'T00:00:00').getDate()}
@@ -106,19 +106,26 @@ export function CalendarPage() {
               </tr>
             </thead>
             <tbody>
-              {products.map((product) => {
-                const slotMap = new Map(product.slots.map((s) => [s.date, s.status]));
+              {products.map((row) => {
+                const slotMap = new Map(row.slots.map((s) => [s.date, s.status]));
+                const rowKey = row.unit_id ?? `${row.product_id}#${row.unit_index}`;
                 return (
-                  <tr key={product.id} className="border-b">
-                    <td className="p-2 sticky left-0 bg-background font-medium truncate max-w-[150px]" title={`${product.sku} - ${product.name}`}>
-                      {product.name}
+                  <tr key={rowKey} className="border-b">
+                    <td
+                      className="p-2 sticky left-0 bg-background font-medium truncate max-w-[200px]"
+                      title={`${row.sku} - ${row.display_name}`}
+                    >
+                      {row.display_name}
                     </td>
                     {dates.map((date) => {
                       const status = slotMap.get(date) ?? 'available';
                       const color = STATUS_COLORS[status] ?? 'bg-gray-50';
                       return (
                         <td key={date} className="p-1 text-center">
-                          <div className={`w-6 h-6 rounded mx-auto flex items-center justify-center ${color}`} title={`${product.name}: ${status}`}>
+                          <div
+                            className={`w-6 h-6 rounded mx-auto flex items-center justify-center ${color}`}
+                            title={`${row.display_name}: ${status}`}
+                          >
                             {status !== 'available' ? status[0].toUpperCase() : ''}
                           </div>
                         </td>
