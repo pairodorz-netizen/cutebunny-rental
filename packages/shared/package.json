@@ -15,7 +15,8 @@
     "./categories-drift-guard": "./src/categories-drift-guard.ts",
     "./calendar-sort": "./src/calendar-sort.ts",
     "./calendar-filter": "./src/calendar-filter.ts",
-    "./calendar-dates": "./src/calendar-dates.ts"
+    "./calendar-dates": "./src/calendar-dates.ts",
+    "./calendar-columns": "./src/calendar-columns.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

@@ -22,6 +22,7 @@ import {
   dayOfMonth,
   endOfMonthYMD,
 } from '@cutebunny/shared/calendar-dates';
+import { CALENDAR_LEFT_COLUMNS } from '@cutebunny/shared/calendar-columns';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -165,29 +166,37 @@ export function CalendarPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th
-                  className="text-left p-2 sticky left-0 bg-muted/50 min-w-[200px] cursor-pointer select-none hover:bg-muted"
-                  onClick={() => handleHeaderClick('name')}
-                  aria-sort={
-                    sort.sortBy === 'name'
-                      ? sort.direction === 'asc'
-                        ? 'ascending'
-                        : 'descending'
-                      : 'none'
-                  }
-                  data-testid="calendar-header-name"
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {t('products.name')}
-                    {sort.sortBy === 'name' ? (
-                      sort.direction === 'asc' ? (
-                        <ChevronUp className="h-3 w-3" aria-hidden />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" aria-hidden />
-                      )
-                    ) : null}
-                  </span>
-                </th>
+                {/* BUG-CAL-07 — SKU / Brand / Name in that exact order; widths
+                    come from the shared spec (90 / 120 / 200). All three are
+                    sortable (inherits BUG-CAL-02 collator). ATOM 04 will wire
+                    sticky-left using the same widths. */}
+                {CALENDAR_LEFT_COLUMNS.map((col) => (
+                  <th
+                    key={col.sortKey}
+                    className="text-left p-2 bg-muted/50 cursor-pointer select-none hover:bg-muted"
+                    style={{ minWidth: col.width, width: col.width }}
+                    onClick={() => handleHeaderClick(col.sortKey)}
+                    aria-sort={
+                      sort.sortBy === col.sortKey
+                        ? sort.direction === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                    }
+                    data-testid={`calendar-header-${col.sortKey}`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {sort.sortBy === col.sortKey ? (
+                        sort.direction === 'asc' ? (
+                          <ChevronUp className="h-3 w-3" aria-hidden />
+                        ) : (
+                          <ChevronDown className="h-3 w-3" aria-hidden />
+                        )
+                      ) : null}
+                    </span>
+                  </th>
+                ))}
                 {dates.map((date) => (
                   <th key={date} className="text-center p-2 min-w-[32px]">
                     {dayOfMonth(date)}
@@ -201,9 +210,30 @@ export function CalendarPage() {
                 const rowKey = row.unit_id ?? `${row.product_id}#${row.unit_index}`;
                 return (
                   <tr key={rowKey} className="border-b">
+                    {/* BUG-CAL-07 — three data cells matching the header spec;
+                        widths mirror the spec so sticky positioning in ATOM 04
+                        has a stable layout to anchor against. */}
                     <td
-                      className="p-2 sticky left-0 bg-background font-medium truncate max-w-[200px]"
-                      title={`${row.sku} - ${row.display_name}`}
+                      className="p-2 bg-background truncate"
+                      style={{ minWidth: 90, width: 90, maxWidth: 90 }}
+                      title={row.sku}
+                      data-testid="calendar-cell-sku"
+                    >
+                      {row.sku}
+                    </td>
+                    <td
+                      className="p-2 bg-background truncate"
+                      style={{ minWidth: 120, width: 120, maxWidth: 120 }}
+                      title={row.brand ?? ''}
+                      data-testid="calendar-cell-brand"
+                    >
+                      {row.brand ?? ''}
+                    </td>
+                    <td
+                      className="p-2 bg-background font-medium truncate"
+                      style={{ minWidth: 200, width: 200, maxWidth: 200 }}
+                      title={row.display_name}
+                      data-testid="calendar-cell-name"
                     >
                       {row.display_name}
                     </td>
