@@ -375,12 +375,22 @@ export interface AdminCustomerDetail extends AdminCustomer {
   }>;
 }
 
-export interface CalendarProduct {
-  id: string;
+/**
+ * BUG-CAL-01 — one row per inventory unit. `display_name` carries the
+ * `#N` suffix already applied server-side when `stock_on_hand > 1`;
+ * the raw `name` is retained separately for clients that need it.
+ */
+export interface CalendarUnitRow {
+  product_id: string;
+  unit_id: string | null;
+  unit_index: number;
   sku: string;
   name: string;
+  display_name: string;
+  brand: string | null;
   category: string;
   thumbnail: string | null;
+  stock_on_hand: number;
   slots: Array<{ date: string; status: string; order_id: string | null }>;
 }
 
@@ -772,7 +782,7 @@ export const adminApi = {
   calendar: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
-      return request<{ data: CalendarProduct[] }>(`/api/v1/admin/calendar?${qs}`);
+      return request<{ data: CalendarUnitRow[] }>(`/api/v1/admin/calendar?${qs}`);
     },
   },
   customers: {
