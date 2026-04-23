@@ -12,7 +12,8 @@
     "./prisma": "./src/prisma.ts",
     "./forms": "./src/forms/index.ts",
     "./diagnostics": "./src/diagnostics/index.ts",
-    "./categories-drift-guard": "./src/categories-drift-guard.ts"
+    "./categories-drift-guard": "./src/categories-drift-guard.ts",
+    "./calendar-sort": "./src/calendar-sort.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

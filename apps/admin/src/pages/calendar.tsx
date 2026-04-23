@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import {
+  sortCalendarRows,
+  nextSortState,
+  type CalendarSortKey,
+  type CalendarSortDirection,
+} from '@cutebunny/shared/calendar-sort';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -35,7 +41,20 @@ export function CalendarPage() {
     queryFn: () => adminApi.calendar.list({ date_from: startDate, date_to: endDate }),
   });
 
-  const products = data?.data ?? [];
+  // BUG-CAL-02 — locale-aware name-ASC by default with SKU tiebreaker;
+  // Name header toggles asc/desc. SKU+Brand headers arrive in ATOM 07.
+  const [sort, setSort] = useState<{ sortBy: CalendarSortKey; direction: CalendarSortDirection }>(
+    { sortBy: 'name', direction: 'asc' },
+  );
+  const rawRows = data?.data ?? [];
+  const products = useMemo(
+    () => sortCalendarRows(rawRows, sort.sortBy, sort.direction),
+    [rawRows, sort],
+  );
+
+  function handleHeaderClick(key: CalendarSortKey) {
+    setSort((prev) => nextSortState(prev, key));
+  }
   const currentMonth = new Date(startDate);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
@@ -97,7 +116,29 @@ export function CalendarPage() {
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="text-left p-2 sticky left-0 bg-muted/50 min-w-[200px]">{t('products.name')}</th>
+                <th
+                  className="text-left p-2 sticky left-0 bg-muted/50 min-w-[200px] cursor-pointer select-none hover:bg-muted"
+                  onClick={() => handleHeaderClick('name')}
+                  aria-sort={
+                    sort.sortBy === 'name'
+                      ? sort.direction === 'asc'
+                        ? 'ascending'
+                        : 'descending'
+                      : 'none'
+                  }
+                  data-testid="calendar-header-name"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {t('products.name')}
+                    {sort.sortBy === 'name' ? (
+                      sort.direction === 'asc' ? (
+                        <ChevronUp className="h-3 w-3" aria-hidden />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" aria-hidden />
+                      )
+                    ) : null}
+                  </span>
+                </th>
                 {dates.map((date) => (
                   <th key={date} className="text-center p-2 min-w-[32px]">
                     {new Date(date + 'T00:00:00').getDate()}
