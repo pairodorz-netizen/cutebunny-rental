@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
+import { Input } from '@/components/ui/input';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
 import {
   sortCalendarRows,
@@ -9,6 +11,12 @@ import {
   type CalendarSortKey,
   type CalendarSortDirection,
 } from '@cutebunny/shared/calendar-sort';
+import {
+  filterCalendarRows,
+  filtersFromQuery,
+  filtersToQuery,
+  type CalendarFilters,
+} from '@cutebunny/shared/calendar-filter';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -46,11 +54,30 @@ export function CalendarPage() {
   const [sort, setSort] = useState<{ sortBy: CalendarSortKey; direction: CalendarSortDirection }>(
     { sortBy: 'name', direction: 'asc' },
   );
-  const rawRows = data?.data ?? [];
-  const products = useMemo(
-    () => sortCalendarRows(rawRows, sort.sortBy, sort.direction),
-    [rawRows, sort],
-  );
+
+  // BUG-CAL-03 — SKU / Brand / Name filters, 300ms debounce, URL-synced.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [rawFilters, setRawFilters] = useState<CalendarFilters>(() => filtersFromQuery(searchParams));
+  const [debouncedFilters, setDebouncedFilters] = useState<CalendarFilters>(rawFilters);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(rawFilters);
+      // URL sync: drop empty keys so the location stays tidy.
+      setSearchParams(filtersToQuery(rawFilters), { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+    // setSearchParams is stable enough for this effect; we only care about filter edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawFilters.sku, rawFilters.brand, rawFilters.name]);
+
+  const rawRows = data?.data;
+  const products = useMemo(() => {
+    const rows = rawRows ?? [];
+    return filterCalendarRows(
+      sortCalendarRows(rows, sort.sortBy, sort.direction),
+      debouncedFilters,
+    );
+  }, [rawRows, sort, debouncedFilters]);
 
   function handleHeaderClick(key: CalendarSortKey) {
     setSort((prev) => nextSortState(prev, key));
@@ -91,6 +118,31 @@ export function CalendarPage() {
         <button onClick={nextMonth} className="p-2 hover:bg-muted rounded">
           <ChevronRight className="h-5 w-5" />
         </button>
+      </div>
+
+      {/* BUG-CAL-03 — filter header */}
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Input
+          data-testid="calendar-filter-sku"
+          placeholder="SKU"
+          value={rawFilters.sku ?? ''}
+          onChange={(e) => setRawFilters((f) => ({ ...f, sku: e.target.value }))}
+          className="h-8 text-xs"
+        />
+        <Input
+          data-testid="calendar-filter-brand"
+          placeholder={t('products.brand')}
+          value={rawFilters.brand ?? ''}
+          onChange={(e) => setRawFilters((f) => ({ ...f, brand: e.target.value }))}
+          className="h-8 text-xs"
+        />
+        <Input
+          data-testid="calendar-filter-name"
+          placeholder={t('products.name')}
+          value={rawFilters.name ?? ''}
+          onChange={(e) => setRawFilters((f) => ({ ...f, name: e.target.value }))}
+          className="h-8 text-xs"
+        />
       </div>
 
       {/* Legend */}
