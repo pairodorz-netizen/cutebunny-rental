@@ -17,6 +17,11 @@ import {
   filtersToQuery,
   type CalendarFilters,
 } from '@cutebunny/shared/calendar-filter';
+import {
+  generateMonthDays,
+  dayOfMonth,
+  endOfMonthYMD,
+} from '@cutebunny/shared/calendar-dates';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -37,12 +42,9 @@ export function CalendarPage() {
     return d.toISOString().split('T')[0];
   });
 
-  const endDate = (() => {
-    const d = new Date(startDate);
-    d.setMonth(d.getMonth() + 1);
-    d.setDate(0);
-    return d.toISOString().split('T')[0];
-  })();
+  // BUG-CAL-06 — derive the month end via pure string math so month boundaries
+  // don't drift across timezones (e.g. March 31 wrapping into April 1).
+  const endDate = endOfMonthYMD(startDate);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-calendar', startDate, endDate],
@@ -85,14 +87,9 @@ export function CalendarPage() {
   const currentMonth = new Date(startDate);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  // Generate all dates in the month
-  const dates: string[] = [];
-  const d = new Date(startDate);
-  const endD = new Date(endDate);
-  while (d <= endD) {
-    dates.push(d.toISOString().split('T')[0]);
-    d.setDate(d.getDate() + 1);
-  }
+  // BUG-CAL-06 — generate exactly N days where N = days-in-month (28/29/30/31),
+  // with zero timezone drift. No column "1" ever appears after column "31".
+  const dates: string[] = generateMonthDays(startDate);
 
   function prevMonth() {
     const d = new Date(startDate);
@@ -193,7 +190,7 @@ export function CalendarPage() {
                 </th>
                 {dates.map((date) => (
                   <th key={date} className="text-center p-2 min-w-[32px]">
-                    {new Date(date + 'T00:00:00').getDate()}
+                    {dayOfMonth(date)}
                   </th>
                 ))}
               </tr>
