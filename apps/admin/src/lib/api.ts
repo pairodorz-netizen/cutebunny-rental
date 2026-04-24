@@ -639,7 +639,18 @@ export const adminApi = {
   orders: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
-      return request<{ data: AdminOrder[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/orders?${qs}`);
+      return request<{
+        data: AdminOrder[];
+        meta: {
+          page: number;
+          per_page: number;
+          page_size?: number;
+          total: number;
+          total_pages: number;
+          has_more?: boolean;
+          include_stale?: boolean;
+        };
+      }>(`/api/v1/admin/orders?${qs}`);
     },
     detail: (id: string) =>
       request<{ data: AdminOrderDetail }>(`/api/v1/admin/orders/${id}`),

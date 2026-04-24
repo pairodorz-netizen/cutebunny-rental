@@ -6,6 +6,12 @@ import { isValidTransition, getAllowedTransitions, getTransitionError } from '..
 import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
 import { createLifecycleBlocks } from '../../lib/availability';
+import {
+  ARCHIVED_STATUSES,
+  DEFAULT_ARCHIVE_WINDOW_DAYS,
+  computeArchiveCutoff,
+  computePagination,
+} from '@cutebunny/shared/orders-archive-window';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -28,13 +34,21 @@ adminOrders.onError((_err, c) => {
 });
 
 // A12: GET /api/v1/admin/orders — Order list with filters
+//
+// BUG-ORDERS-ARCHIVE-01 — default 30-day window for historical statuses.
+// New query params (`from` / `to` / `include_stale` / `page_size`)
+// complement the legacy ones (`date_from` / `date_to` / `per_page`) so
+// callers don't have to migrate in lockstep.
 adminOrders.get('/', async (c) => {
   const db = getDb();
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10));
-  const perPage = Math.min(50, Math.max(1, parseInt(c.req.query('per_page') ?? '20', 10)));
+  const pageSizeParam = c.req.query('page_size') ?? c.req.query('per_page') ?? '50';
+  const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeParam, 10)));
   const statusFilter = c.req.query('status') as OrderStatus | undefined;
-  const dateFrom = c.req.query('date_from');
-  const dateTo = c.req.query('date_to');
+  const dateFrom = c.req.query('from') ?? c.req.query('date_from');
+  const dateTo = c.req.query('to') ?? c.req.query('date_to');
+  const includeStaleParam = c.req.query('include_stale');
+  const includeStale = includeStaleParam === 'true' || includeStaleParam === '1';
   const search = c.req.query('search');
   const searchSku = c.req.query('search_sku');
   const searchProductName = c.req.query('search_product_name');
@@ -91,6 +105,20 @@ adminOrders.get('/', async (c) => {
   if (searchTrackingNumber) {
     andConditions.push({ shippingSnapshot: { path: ['tracking_number'], string_contains: searchTrackingNumber } });
   }
+  // BUG-ORDERS-ARCHIVE-01 — hide finished/cancelled orders older than
+  // 30 days from the default view. Active statuses remain visible
+  // regardless of age (never hide work-in-progress). Opt-out via
+  // ?include_stale=true.
+  if (!includeStale) {
+    const cutoff = computeArchiveCutoff(new Date(), DEFAULT_ARCHIVE_WINDOW_DAYS);
+    andConditions.push({
+      OR: [
+        { status: { notIn: [...ARCHIVED_STATUSES] as OrderStatus[] } },
+        { updatedAt: { gte: cutoff } },
+      ],
+    });
+  }
+
   if (andConditions.length > 0) {
     where.AND = andConditions;
   }
@@ -121,8 +149,8 @@ adminOrders.get('/', async (c) => {
           orderBy: { createdAt: 'desc' },
         },
       },
-      skip: (page - 1) * perPage,
-      take: perPage,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       orderBy: { createdAt: 'desc' },
     }),
     db.order.count({ where }),
@@ -160,11 +188,15 @@ adminOrders.get('/', async (c) => {
     created_at: o.createdAt.toISOString(),
   }));
 
+  const pagination = computePagination({ total, page, pageSize });
   return success(c, data, {
     page,
-    per_page: perPage,
+    per_page: pageSize,
+    page_size: pageSize,
     total,
-    total_pages: Math.ceil(total / perPage),
+    total_pages: pagination.totalPages,
+    has_more: pagination.hasMore,
+    include_stale: includeStale,
   });
 });
 
