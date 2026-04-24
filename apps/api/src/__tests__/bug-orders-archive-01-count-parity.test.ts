@@ -188,10 +188,27 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
       expect(countsRest).toEqual(listRest);
     });
 
-    it('include_stale=true: list and counts both drop createdAt + archive cutoff', () => {
+    it('include_stale=true with bounds: list and counts keep createdAt; both drop archive cutoff (BUG-ORDERS-DATE-FILTER-01 rescope)', () => {
       const input = {
         from: '2026-03-25',
         to: '2026-04-24',
+        include_stale: 'true',
+      } as const;
+      const listWhere = buildOrdersWhere(input);
+      const countsWhere = buildOrdersCountsWhere(input);
+      expect(listWhere.createdAt).toBeDefined();
+      expect(countsWhere.createdAt).toBeDefined();
+      // Neither may carry an archive-cutoff AND-condition.
+      const listConds = (listWhere.AND ?? []) as Array<Record<string, unknown>>;
+      const countsConds = (countsWhere.AND ?? []) as Array<Record<string, unknown>>;
+      expect(listConds.some((c) => JSON.stringify(c).includes('updatedAt'))).toBe(false);
+      expect(countsConds.some((c) => JSON.stringify(c).includes('updatedAt'))).toBe(false);
+    });
+
+    it('include_stale=true with empty-string bounds (All Time): list and counts drop everything', () => {
+      const input = {
+        from: '',
+        to: '',
         include_stale: 'true',
       } as const;
       const listWhere = buildOrdersWhere(input);
