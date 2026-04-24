@@ -5,3 +5,22 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "development"
+
+# BUG-AUTH — KV-backed rate-limiter store. Counter entries survive
+# Worker redeploys + isolate restarts (15-min expirationTtl matches
+# the login rate-limit window).
+#
+# One-time owner setup (left commented so this PR's deploy doesn't
+# break against a missing namespace ID — flip live once the namespace
+# exists):
+#
+#   pnpm --filter @cutebunny/api exec wrangler kv:namespace create RATE_LIMIT_KV
+#
+# Copy the returned `id` and `preview_id` into the block below, then
+# uncomment + push a follow-up. Until that happens, `rateLimit()` falls
+# back to the in-memory Map (current behaviour).
+#
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "<paste-from-wrangler-kv-namespace-create>"
+# preview_id = "<paste-from-wrangler-kv-namespace-create-preview>"
