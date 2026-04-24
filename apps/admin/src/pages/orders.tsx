@@ -478,37 +478,54 @@ export function OrdersPage() {
     staleTime: 0,
   });
 
-  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-4) — the helper pins
-  // FOUR floors:
-  //   1) active-tab badge >= max(listTotal, visibleRowCount)
-  //   2) total badge     >= max(listTotal, visibleRowCount, visibleByStatusSum)
-  //   3) EVERY per-tab badge >= visibleRowCountsByStatus[tab]
-  //      (closes hotfix-3's gap: when the active tab is All-Statuses
-  //       and `/counts` stale-buckets Finished to 0, the Finished
-  //       badge would otherwise stay at 0 despite Finished rows
-  //       being visibly rendered.)
-  //   4) shape-agnostic visibleRowCount: prefer the already-coerced
-  //      `orders` array length over `listData?.data?.length` so any
-  //      future wire-shape drift (`{data: {items: [...]}}` etc.)
-  //      still produces a correct count.
-  const ordersForCounts: ReadonlyArray<{ status: string }> =
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-5) — client-side
+  // groupBy authority. After hotfix-4 merged and the minified helper
+  // was verified live in the bundle, the owner's production smoke
+  // STILL showed 0 on every tab with 2 finished rows visibly
+  // rendered. The only consistent explanation is that
+  // `visibleRowCountsByStatus` was reaching the helper empty from the
+  // component at runtime — most likely a wire-shape drift between
+  // `listData.data` (typed as array) and the actual JSON shape in the
+  // owner's browser. Fix: stop doing the groupBy in the component
+  // and pass the raw `orders` array to the helper as `ordersSource`;
+  // the helper does its own groupBy and treats the result as the
+  // sole source of truth when `/counts` reports all-zero buckets.
+  //
+  // Also exposes a `window.__ordersDebug` hook so the owner (and any
+  // future operator) can paste a one-liner in the URL bar to inspect
+  // the runtime state directly, without needing DevTools.
+  const ordersForCounts: ReadonlyArray<AdminOrder> =
     Array.isArray(listData?.data) ? listData.data : [];
-  const visibleRowCountsByStatus = ordersForCounts.reduce<Record<string, number>>(
-    (acc, o) => {
-      const s = o.status;
-      acc[s] = (acc[s] ?? 0) + 1;
-      return acc;
-    },
-    {},
-  );
   const { statusCounts, totalCount } = deriveStatusCounts({
     statuses: ORDER_STATUSES,
     statusFilter,
     countsByStatus: countsData?.data?.by_status,
     listTotal: listData?.meta?.total,
     visibleRowCount: ordersForCounts.length,
-    visibleRowCountsByStatus,
+    ordersSource: ordersForCounts,
   });
+  if (typeof window !== 'undefined') {
+    (window as unknown as { __ordersDebug?: unknown }).__ordersDebug = {
+      at: new Date().toISOString(),
+      statusFilter,
+      ordersForCountsLength: ordersForCounts.length,
+      listDataShape: (() => {
+        if (listData === undefined) return 'undefined';
+        if (listData === null) return 'null';
+        const raw = (listData as unknown as { data?: unknown }).data;
+        if (Array.isArray(raw)) return 'data:array';
+        if (raw !== null && typeof raw === 'object') {
+          return `data:object(keys=${Object.keys(raw as Record<string, unknown>).join('|')})`;
+        }
+        return `data:${typeof raw}`;
+      })(),
+      listMetaTotal: listData?.meta?.total,
+      countsStatus: countsData === undefined ? 'undefined' : 'present',
+      countsByStatus: countsData?.data?.by_status,
+      statusCounts,
+      totalCount,
+    };
+  }
 
   const carrierMutation = useMutation({
     mutationFn: ({ orderId, body }: { orderId: string; body: { carrier_code: string; tracking_number?: string } }) =>

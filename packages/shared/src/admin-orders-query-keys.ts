@@ -86,17 +86,58 @@ export function deriveStatusCounts(input: {
    * Finished rows are visibly rendered.
    */
   visibleRowCountsByStatus?: Record<string, number>;
+  /**
+   * hotfix-5: the raw list-query array the render path consumes. If
+   * provided, the helper does its own per-status groupBy here so the
+   * caller cannot accidentally pass an empty `visibleRowCountsByStatus`
+   * due to wire-shape drift. When `countsByStatus` looks meaningful
+   * but sums to 0 AND `ordersSource.length > 0`, the helper ignores
+   * `/counts` entirely and treats the client-side groupBy as the sole
+   * source of truth — defensive against an all-zeros `/counts` bucket
+   * (stale cache, archive-cutoff mis-applied, wire drift, …).
+   *
+   * Takes precedence over a provided `visibleRowCountsByStatus` when
+   * both are passed (the live groupBy is always fresher than any
+   * pre-computed map).
+   */
+  ordersSource?: ReadonlyArray<{ status: string }>;
 }): { statusCounts: Record<string, number>; totalCount: number } {
   // Treat `undefined`, `null`, AND an empty object as "counts
   // unavailable". Null emerged as a wire-shape edge case (see the
   // hotfix-3 test suite); Object.keys(null) would otherwise throw.
-  const countsAvailable =
+  let countsAvailable =
     input.countsByStatus !== undefined &&
     input.countsByStatus !== null &&
     Object.keys(input.countsByStatus).length > 0;
   const listTotalSafe = input.listTotal ?? 0;
   const visibleRowCountSafe = input.visibleRowCount ?? 0;
-  const visibleByStatus = input.visibleRowCountsByStatus ?? {};
+  // hotfix-5: derive the per-status map from the raw array when
+  // provided. Wins over any pre-computed map the caller passed.
+  const groupedFromSource: Record<string, number> = {};
+  if (input.ordersSource && Array.isArray(input.ordersSource)) {
+    for (const o of input.ordersSource) {
+      if (!o || typeof o.status !== 'string') continue;
+      groupedFromSource[o.status] = (groupedFromSource[o.status] ?? 0) + 1;
+    }
+  }
+  const sourceHasRows = Object.keys(groupedFromSource).length > 0;
+  const visibleByStatus: Record<string, number> = sourceHasRows
+    ? groupedFromSource
+    : input.visibleRowCountsByStatus ?? {};
+  // hotfix-5: when `/counts` is present but every bucket is 0 AND the
+  // client has visible rows, treat `/counts` as unavailable. This is
+  // the scenario the owner's production smoke kept hitting after
+  // hotfix-4: a stale `/counts` bucket was silently overriding the
+  // live groupBy floor because `visibleRowCountsByStatus` was being
+  // passed in empty from the component (wire-shape drift).
+  if (countsAvailable && sourceHasRows) {
+    const countsTotal = Object.values(
+      input.countsByStatus as Record<string, number>,
+    ).reduce((acc, n) => acc + (n ?? 0), 0);
+    if (countsTotal === 0) {
+      countsAvailable = false;
+    }
+  }
   // Floor applied to the active tab and to the All-Statuses total.
   const activeFloor = Math.max(listTotalSafe, visibleRowCountSafe);
   const statusCounts: Record<string, number> = {};
