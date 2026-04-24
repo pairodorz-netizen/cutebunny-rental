@@ -22,7 +22,7 @@ import {
   dayOfMonth,
   endOfMonthYMD,
 } from '@cutebunny/shared/calendar-dates';
-import { CALENDAR_LEFT_COLUMNS } from '@cutebunny/shared/calendar-columns';
+import { CALENDAR_LEFT_COLUMNS, stickyLeftStyle } from '@cutebunny/shared/calendar-columns';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -170,11 +170,19 @@ export function CalendarPage() {
                     come from the shared spec (90 / 120 / 200). All three are
                     sortable (inherits BUG-CAL-02 collator). ATOM 04 will wire
                     sticky-left using the same widths. */}
-                {CALENDAR_LEFT_COLUMNS.map((col) => (
+                {CALENDAR_LEFT_COLUMNS.map((col, i) => (
                   <th
                     key={col.sortKey}
-                    className="text-left p-2 bg-muted/50 cursor-pointer select-none hover:bg-muted"
-                    style={{ minWidth: col.width, width: col.width }}
+                    className="text-left p-2 cursor-pointer select-none hover:bg-muted"
+                    style={{
+                      minWidth: col.width,
+                      width: col.width,
+                      ...stickyLeftStyle({
+                        index: i,
+                        isHeader: true,
+                        totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
+                      }),
+                    }}
                     onClick={() => handleHeaderClick(col.sortKey)}
                     aria-sort={
                       sort.sortBy === col.sortKey
@@ -210,28 +218,59 @@ export function CalendarPage() {
                 const rowKey = row.unit_id ?? `${row.product_id}#${row.unit_index}`;
                 return (
                   <tr key={rowKey} className="border-b">
-                    {/* BUG-CAL-07 — three data cells matching the header spec;
-                        widths mirror the spec so sticky positioning in ATOM 04
-                        has a stable layout to anchor against. */}
+                    {/* BUG-CAL-07 + BUG-CAL-04 — three sticky-left data cells.
+                        Widths mirror the spec; stickyLeftStyle() pulls left
+                        offsets from cumulativeLeftOffsets() so header and body
+                        column alignment is mechanically guaranteed. The Name
+                        (rightmost) cell carries a right-edge box-shadow that
+                        appears during horizontal scroll as visual separation
+                        from the date cells sliding underneath. */}
                     <td
-                      className="p-2 bg-background truncate"
-                      style={{ minWidth: 90, width: 90, maxWidth: 90 }}
+                      className="p-2 truncate"
+                      style={{
+                        minWidth: 90,
+                        width: 90,
+                        maxWidth: 90,
+                        ...stickyLeftStyle({
+                          index: 0,
+                          isHeader: false,
+                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
+                        }),
+                      }}
                       title={row.sku}
                       data-testid="calendar-cell-sku"
                     >
                       {row.sku}
                     </td>
                     <td
-                      className="p-2 bg-background truncate"
-                      style={{ minWidth: 120, width: 120, maxWidth: 120 }}
+                      className="p-2 truncate"
+                      style={{
+                        minWidth: 120,
+                        width: 120,
+                        maxWidth: 120,
+                        ...stickyLeftStyle({
+                          index: 1,
+                          isHeader: false,
+                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
+                        }),
+                      }}
                       title={row.brand ?? ''}
                       data-testid="calendar-cell-brand"
                     >
                       {row.brand ?? ''}
                     </td>
                     <td
-                      className="p-2 bg-background font-medium truncate"
-                      style={{ minWidth: 200, width: 200, maxWidth: 200 }}
+                      className="p-2 font-medium truncate"
+                      style={{
+                        minWidth: 200,
+                        width: 200,
+                        maxWidth: 200,
+                        ...stickyLeftStyle({
+                          index: 2,
+                          isHeader: false,
+                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
+                        }),
+                      }}
                       title={row.display_name}
                       data-testid="calendar-cell-name"
                     >
