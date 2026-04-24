@@ -92,10 +92,7 @@ describe('BUG-ORDERS-ARCHIVE-01 · pure archive-window classifier', () => {
   it('isArchived tolerates ISO-string updatedAt (API hydration path)', () => {
     const old = new Date(CUTOFF.getTime() - 1).toISOString();
     expect(
-      isArchived(
-        { id: 'o1', status: 'finished', updatedAt: old },
-        CUTOFF,
-      ),
+      isArchived({ status: 'finished', updatedAt: old }, CUTOFF),
     ).toBe(true);
   });
 
