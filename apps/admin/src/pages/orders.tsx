@@ -6,7 +6,11 @@ import { adminApi } from '@/lib/api';
 import type { AdminOrder, AdminProduct } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DEFAULT_ARCHIVE_WINDOW_DAYS } from '@cutebunny/shared/orders-archive-window';
+import {
+  DEFAULT_ARCHIVE_WINDOW_DAYS,
+  resolveOrdersDatePreset,
+  type OrdersDatePreset,
+} from '@cutebunny/shared/orders-archive-window';
 import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
 const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
@@ -94,30 +98,11 @@ function daysAgo(n: number): string {
   return toDateInput(d);
 }
 
-function startOfYear(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-01-01`;
-}
-
-type OrdersDatePreset = 'today' | '7' | '30' | '90' | 'year' | 'all';
-
-function presetRange(preset: OrdersDatePreset): { from: string; to: string } {
-  const today = toDateInput(new Date());
-  switch (preset) {
-    case 'today':
-      return { from: today, to: today };
-    case '7':
-      return { from: daysAgo(7), to: today };
-    case '30':
-      return { from: daysAgo(30), to: today };
-    case '90':
-      return { from: daysAgo(90), to: today };
-    case 'year':
-      return { from: startOfYear(), to: today };
-    case 'all':
-      return { from: '', to: '' };
-  }
-}
+// BUG-ORDERS-ARCHIVE-01-HOTFIX — preset resolution + includeStale
+// coupling moved into @cutebunny/shared/orders-archive-window so the
+// "All Time clears bounds AND sets includeStale=true" contract is the
+// single testable source of truth. See
+// apps/api/src/__tests__/bug-orders-archive-01-hotfix.test.ts.
 
 function Thumbnail({ src, size = 32 }: { src: string | null; size?: number }) {
   if (!src) {
@@ -336,11 +321,11 @@ export function OrdersPage() {
   const [activePreset, setActivePreset] = useState<OrdersDatePreset>('30');
 
   const applyPreset = useCallback((preset: OrdersDatePreset) => {
-    const { from, to } = presetRange(preset);
+    const { from, to, includeStale: presetIncludeStale } = resolveOrdersDatePreset(preset);
     setDateFrom(from);
     setDateTo(to);
     setActivePreset(preset);
-    if (preset === 'all') setIncludeStale(true);
+    if (presetIncludeStale) setIncludeStale(true);
     setPage(1);
   }, []);
 

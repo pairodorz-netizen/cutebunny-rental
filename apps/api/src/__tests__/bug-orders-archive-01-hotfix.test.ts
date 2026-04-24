@@ -30,6 +30,7 @@ import {
   buildOrdersWindowFilter,
   computeArchiveCutoff,
   DEFAULT_ARCHIVE_WINDOW_DAYS,
+  resolveOrdersDatePreset,
 } from '@cutebunny/shared/orders-archive-window';
 
 const NOW = new Date('2026-04-24T12:00:00.000Z');
@@ -118,5 +119,52 @@ describe('BUG-ORDERS-ARCHIVE-01-HOTFIX · buildOrdersWindowFilter', () => {
       now: NOW,
     });
     expect(result.archiveCutoff).toEqual(computeArchiveCutoff(NOW, 90));
+  });
+});
+
+describe('BUG-ORDERS-ARCHIVE-01-HOTFIX · resolveOrdersDatePreset', () => {
+  it('"all" preset clears BOTH date bounds AND sets includeStale=true (owner contract)', () => {
+    // Owner verbatim: "'All Time + include_stale=true' must return ALL
+    // orders regardless of date window." This gate pins the frontend
+    // half of that contract so the preset chip can never regress to
+    // leaving stale bounds in place while the toggle is flipped.
+    expect(resolveOrdersDatePreset('all', NOW)).toEqual({
+      from: '',
+      to: '',
+      includeStale: true,
+    });
+  });
+
+  it('"today" preset sets from=to=today with includeStale=false', () => {
+    expect(resolveOrdersDatePreset('today', NOW)).toEqual({
+      from: '2026-04-24',
+      to: '2026-04-24',
+      includeStale: false,
+    });
+  });
+
+  it('"7" / "30" / "90" presets rewind by N days exactly, always includeStale=false', () => {
+    expect(resolveOrdersDatePreset('7', NOW).from).toBe('2026-04-17');
+    expect(resolveOrdersDatePreset('30', NOW).from).toBe('2026-03-25');
+    expect(resolveOrdersDatePreset('90', NOW).from).toBe('2026-01-24');
+    for (const p of ['7', '30', '90'] as const) {
+      expect(resolveOrdersDatePreset(p, NOW).includeStale).toBe(false);
+      expect(resolveOrdersDatePreset(p, NOW).to).toBe('2026-04-24');
+    }
+  });
+
+  it('"year" preset anchors from to Jan 1 of the current year', () => {
+    expect(resolveOrdersDatePreset('year', NOW)).toEqual({
+      from: '2026-01-01',
+      to: '2026-04-24',
+      includeStale: false,
+    });
+  });
+
+  it('only "all" sets includeStale=true; every other preset leaves it false', () => {
+    const presets = ['today', '7', '30', '90', 'year', 'all'] as const;
+    for (const p of presets) {
+      expect(resolveOrdersDatePreset(p, NOW).includeStale).toBe(p === 'all');
+    }
   });
 });
