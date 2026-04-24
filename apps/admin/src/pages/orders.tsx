@@ -467,20 +467,28 @@ export function OrdersPage() {
   // that were leaking zeros into the UI when parallel list calls
   // raced the data query. Shares the list route's WHERE helper on
   // the backend, so tab badges always match filtered rows.
+  //
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-3: dropped staleTime
+  // from 30s to 0 so the counts query always refetches on remount /
+  // focus, preventing a stale `by_status: {}` bucket from pinning
+  // badges at 0 after a successful mutation flow.
   const { data: countsData } = useQuery({
     queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY, countParams],
     queryFn: () => adminApi.orders.counts(countParams),
-    staleTime: 30000,
+    staleTime: 0,
   });
 
-  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — belt-and-suspenders
-  // fallback is pinned in a pure helper so it is testable from the
-  // vitest suite (see bug-orders-archive-01-count-parity-hotfix.test.ts).
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-3) — the helper pins a
+  // triple floor: Math.max(countsSum, listTotal, visibleRowCount).
+  // `visibleRowCount` is the authoritative ground truth (rows the
+  // user can actually see), so badges are immune to wire-shape drift
+  // in either /counts or list.meta.
   const { statusCounts, totalCount } = deriveStatusCounts({
     statuses: ORDER_STATUSES,
     statusFilter,
     countsByStatus: countsData?.data?.by_status,
     listTotal: listData?.meta?.total,
+    visibleRowCount: listData?.data?.length,
   });
 
   const carrierMutation = useMutation({
