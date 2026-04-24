@@ -46,6 +46,13 @@ export interface AdminApiErrorPayload {
   snippet: string | null;
   /** Original Content-Type header, for diagnostics only. */
   contentType: string | null;
+  /**
+   * Parsed `error.details` payload when kind='envelope' and the body
+   * carried one. Downstream classifiers (e.g. BUG-COMBO-DELETE-02 reading
+   * `details.rentalCount` for a 409 toast) can read this without having
+   * to re-parse the response body.
+   */
+  details?: unknown;
 }
 
 export class AdminApiError extends Error {
@@ -116,6 +123,7 @@ export async function parseAdminErrorResponse(res: Response): Promise<AdminApiEr
         const field = envObj && typeof envObj.field === 'string' ? envObj.field : null;
         const rawMessage = envObj && typeof envObj.message === 'string' ? envObj.message : '';
         const message = rawMessage.trim().length > 0 ? rawMessage.trim() : `API error: ${res.status}`;
+        const details = envObj && 'details' in envObj ? envObj.details : undefined;
         return new AdminApiError({
           status: res.status,
           kind: 'envelope',
@@ -124,6 +132,7 @@ export async function parseAdminErrorResponse(res: Response): Promise<AdminApiEr
           message,
           snippet: null,
           contentType,
+          details,
         });
       } catch {
         // malformed JSON → non-JSON fallback below

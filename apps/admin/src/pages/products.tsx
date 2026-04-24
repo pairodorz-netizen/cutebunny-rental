@@ -10,10 +10,15 @@ import {
   AdminApiError,
   classifyAdminApiError,
 } from '@cutebunny/shared/diagnostics';
+import {
+  classifyComboDeleteResult,
+  type ComboDeleteOutcome,
+} from '@cutebunny/shared/combo-delete-state';
 import { startCreateProductSubmit, type TelemetryHandle } from '@/lib/diag/telemetry-store';
 import { DriftBanner } from '@/components/drift-banner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/toast';
 import {
   Plus, Settings, X, ArrowLeft, Upload, Image, Download, Package,
   FileSpreadsheet, FileUp, Check, AlertCircle, DollarSign, Trash2, Loader2,
@@ -32,6 +37,7 @@ export function ProductsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('current');
   const [page, setPage] = useState(1);
   const [mode, setMode] = useState<FormMode>('list');
@@ -95,10 +101,85 @@ export function ProductsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
   });
 
-  const deleteComboMutation = useMutation({
-    mutationFn: (id: string) => adminApi.comboSets.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-combo-sets'] }),
+  // BUG-COMBO-DELETE-02 — combo set delete flow:
+  //   • trash → opens confirm dialog (deleteComboTarget holds the row)
+  //   • confirm → optimistic removal from react-query cache
+  //   • response routed through classifyComboDeleteResult():
+  //       200 success → toast + invalidate
+  //       409 ACTIVE_RENTALS → rollback + toast with rentalCount
+  //       404 NOT_FOUND → invalidate (stale cache) + toast
+  //       401 → redirect to /login
+  //       network/unknown → rollback + generic network toast
+  const [deleteComboTarget, setDeleteComboTarget] =
+    useState<AdminComboSet | null>(null);
+  const deleteComboMutation = useMutation<
+    { data: { id: string; deleted: boolean; mode?: string } },
+    unknown,
+    AdminComboSet,
+    { snapshot: { data: AdminComboSet[]; meta: unknown } | undefined }
+  >({
+    mutationFn: (cs) => adminApi.comboSets.delete(cs.id),
+    onMutate: async (cs) => {
+      await queryClient.cancelQueries({ queryKey: ['admin-combo-sets'] });
+      const snapshot = queryClient.getQueryData<{
+        data: AdminComboSet[];
+        meta: unknown;
+      }>(['admin-combo-sets']);
+      if (snapshot) {
+        queryClient.setQueryData(['admin-combo-sets'], {
+          ...snapshot,
+          data: snapshot.data.filter((row) => row.id !== cs.id),
+        });
+      }
+      return { snapshot };
+    },
+    onSuccess: () => {
+      const out = classifyComboDeleteResult({ status: 200, body: null });
+      applyComboDeleteOutcome(out, { rollback: undefined });
+      setDeleteComboTarget(null);
+      queryClient.invalidateQueries({ queryKey: ['admin-combo-sets'] });
+    },
+    onError: (err, _cs, ctx) => {
+      const out = deriveComboDeleteOutcome(err);
+      applyComboDeleteOutcome(out, { rollback: ctx?.snapshot });
+      if (out.refresh) {
+        queryClient.invalidateQueries({ queryKey: ['admin-combo-sets'] });
+      }
+      if (out.redirect) {
+        navigate('/login');
+      }
+      setDeleteComboTarget(null);
+    },
   });
+
+  function deriveComboDeleteOutcome(err: unknown): ComboDeleteOutcome {
+    if (err instanceof AdminApiError) {
+      return classifyComboDeleteResult({
+        status: err.payload.status,
+        body: {
+          error: {
+            code: err.payload.code ?? undefined,
+            message: err.payload.message,
+            details: err.payload.details,
+          },
+        },
+      });
+    }
+    return classifyComboDeleteResult({ error: err });
+  }
+
+  function applyComboDeleteOutcome(
+    out: ComboDeleteOutcome,
+    opts: {
+      rollback: { data: AdminComboSet[]; meta: unknown } | undefined;
+    },
+  ) {
+    if (out.rollback && opts.rollback) {
+      queryClient.setQueryData(['admin-combo-sets'], opts.rollback);
+    }
+    const message = t(out.toastKey, out.toastParams ?? {});
+    toast(message, out.toastVariant);
+  }
 
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -117,8 +198,13 @@ export function ProductsPage() {
     });
   }
 
-  function handleDeleteCombo(id: string) {
-    if (window.confirm(t('products.confirmDelete'))) deleteComboMutation.mutate(id);
+  function handleDeleteComboRequest(cs: AdminComboSet) {
+    setDeleteComboTarget(cs);
+  }
+
+  function handleDeleteComboConfirm() {
+    if (!deleteComboTarget) return;
+    deleteComboMutation.mutate(deleteComboTarget);
   }
 
   function openEditPage(product: AdminProduct) {
@@ -268,7 +354,7 @@ export function ProductsPage() {
             comboSets={comboSets}
             isLoading={isLoading}
             onEdit={(cs) => { setEditingCombo(cs); setMode('edit_combo'); }}
-            onDelete={handleDeleteCombo}
+            onDelete={handleDeleteComboRequest}
           />
         )}
 
@@ -292,6 +378,45 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Combo Set Confirmation Modal (BUG-COMBO-DELETE-02) */}
+      {deleteComboTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">{t('products.comboDeleteTitle')}</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {t('products.comboDeleteConfirm', {
+                name: deleteComboTarget.name,
+                sku: deleteComboTarget.sku,
+              })}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteComboTarget(null)}
+                disabled={deleteComboMutation.isPending}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteComboConfirm}
+                disabled={deleteComboMutation.isPending}
+                data-testid="combo-set-delete-confirm"
+              >
+                {deleteComboMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-1" />
+                )}
+                {t('common.delete')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Product Confirmation Modal */}
       {deleteTargetId && (
@@ -438,7 +563,7 @@ function ComboSetsTable({
   comboSets: AdminComboSet[];
   isLoading: boolean;
   onEdit: (cs: AdminComboSet) => void;
-  onDelete: (id: string) => void;
+  onDelete: (cs: AdminComboSet) => void;
 }) {
   const { t } = useTranslation();
 
@@ -498,7 +623,12 @@ function ComboSetsTable({
                   <button onClick={() => onEdit(cs)} className="p-1 hover:bg-muted rounded" title={t('common.edit')}>
                     <Settings className="h-4 w-4 text-muted-foreground" />
                   </button>
-                  <button onClick={() => onDelete(cs.id)} className="p-1 hover:bg-muted rounded" title={t('common.delete')}>
+                  <button
+                    onClick={() => onDelete(cs)}
+                    className="p-1 hover:bg-muted rounded"
+                    title={t('common.delete')}
+                    data-testid={`combo-set-delete-${cs.sku}`}
+                  >
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </div>
