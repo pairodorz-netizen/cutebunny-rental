@@ -267,4 +267,82 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — query-key consistency', 
       expect(totalCount).toBe(0);
     });
   });
+
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-3 — triple-floor fallback.
+  // Symptom after hotfix-2 merged: owner's browser STILL showed 0 badges
+  // on the All Statuses tab despite 2 Finished rows visible. Helper was
+  // already correct for the filtered-tab case, but the All-Statuses tab
+  // (statusFilter === '') bypassed the MAX invariant when listTotal was
+  // undefined (e.g., list query in flight or cache race). Adding a
+  // third floor — visibleRowCount — makes the helper immune to either
+  // listData.meta or /counts being stale: as long as rows are rendered,
+  // at least that many are reflected in the badges.
+  describe('deriveStatusCounts — visibleRowCount triple-floor (hotfix-3)', () => {
+    it('totalCount never smaller than visibleRowCount when listTotal undefined', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: undefined,
+        listTotal: undefined,
+        visibleRowCount: 2,
+      });
+      expect(totalCount).toBe(2);
+    });
+
+    it('active-tab badge never smaller than visibleRowCount even if listTotal is 0', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: { finished: 0 },
+        listTotal: 0,
+        visibleRowCount: 2,
+      });
+      expect(statusCounts.finished).toBe(2);
+    });
+
+    it('handles null countsByStatus (wire-shape edge case) without throwing', () => {
+      // Defensive: if /counts returns `by_status: null` (e.g. missing
+      // groupBy result), Object.keys(null) would throw. Treat null the
+      // same as undefined.
+      expect(() =>
+        deriveStatusCounts({
+          statuses: STATUSES,
+          statusFilter: 'finished',
+          countsByStatus: null as unknown as undefined,
+          listTotal: 2,
+          visibleRowCount: 2,
+        }),
+      ).not.toThrow();
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: null as unknown as undefined,
+        listTotal: 2,
+        visibleRowCount: 2,
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(totalCount).toBe(2);
+    });
+
+    it('visibleRowCount is ignored when not provided (backwards compat)', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 5 },
+        listTotal: 5,
+      });
+      expect(totalCount).toBe(5);
+    });
+
+    it('triple-floor: Math.max(sum, listTotal, visibleRowCount) always holds', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 1,
+        visibleRowCount: 3, // row count is authoritative ground truth
+      });
+      expect(totalCount).toBe(3);
+    });
+  });
 });
