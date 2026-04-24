@@ -96,6 +96,108 @@ export interface PaginationShape {
 }
 
 /**
+ * BUG-ORDERS-ARCHIVE-01-HOTFIX — single-source-of-truth decision helper
+ * for the admin /orders list date bounds + archive cutoff. Before this
+ * helper, the route applied the `createdAt` bounds independently of the
+ * `include_stale` short-circuit, so the owner's expected contract
+ * "All Time + include_stale=true must return ALL orders regardless of
+ * date window" was violated when bounds leaked through (e.g. stale
+ * default state, a preset misfire, or a user-entered bound left behind
+ * on toggle). The helper guarantees that `include_stale=true` is a
+ * hard bypass of every part of the window, and that the archive cutoff
+ * is applied exactly once when `include_stale=false`.
+ *
+ * Empty-string bounds are treated identically to `undefined` so the
+ * frontend preset="all" (which sets `from=''` / `to=''`) short-circuits
+ * cleanly even if the empty strings leak through the URL.
+ */
+export interface OrdersWindowFilterInput {
+  includeStale: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  now?: Date;
+  windowDays?: number;
+}
+
+export interface OrdersWindowFilterResult {
+  createdAt?: { gte?: Date; lte?: Date };
+  archiveCutoff?: Date;
+}
+
+export function buildOrdersWindowFilter({
+  includeStale,
+  dateFrom,
+  dateTo,
+  now = new Date(),
+  windowDays = DEFAULT_ARCHIVE_WINDOW_DAYS,
+}: OrdersWindowFilterInput): OrdersWindowFilterResult {
+  if (includeStale) return {};
+
+  const result: OrdersWindowFilterResult = {};
+  const createdAt: { gte?: Date; lte?: Date } = {};
+  if (dateFrom) createdAt.gte = new Date(dateFrom);
+  if (dateTo) createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
+  if (createdAt.gte || createdAt.lte) result.createdAt = createdAt;
+
+  result.archiveCutoff = computeArchiveCutoff(now, windowDays);
+  return result;
+}
+
+/**
+ * BUG-ORDERS-ARCHIVE-01-HOTFIX — pure resolver for the admin /orders
+ * date-range preset chips. Keeping this in shared (not in
+ * `orders.tsx`) makes the "All Time preset clears bounds AND sets
+ * includeStale=true" contract unit-testable, and any future consumer
+ * (customer portal, mobile) can't drift.
+ *
+ * Caller passes `now` so tests are hermetic. `from` / `to` are
+ * YYYY-MM-DD strings; `from === ''` / `to === ''` are the canonical
+ * "no bound" signal the frontend already filters out before building
+ * URL params.
+ */
+export type OrdersDatePreset = 'today' | '7' | '30' | '90' | 'year' | 'all';
+
+export interface OrdersPresetResolution {
+  from: string;
+  to: string;
+  includeStale: boolean;
+}
+
+function toYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function ymdDaysAgo(now: Date, n: number): string {
+  const d = new Date(now);
+  d.setDate(d.getDate() - n);
+  return toYMD(d);
+}
+
+export function resolveOrdersDatePreset(
+  preset: OrdersDatePreset,
+  now: Date = new Date(),
+): OrdersPresetResolution {
+  const today = toYMD(now);
+  switch (preset) {
+    case 'today':
+      return { from: today, to: today, includeStale: false };
+    case '7':
+      return { from: ymdDaysAgo(now, 7), to: today, includeStale: false };
+    case '30':
+      return { from: ymdDaysAgo(now, 30), to: today, includeStale: false };
+    case '90':
+      return { from: ymdDaysAgo(now, 90), to: today, includeStale: false };
+    case 'year':
+      return { from: `${now.getFullYear()}-01-01`, to: today, includeStale: false };
+    case 'all':
+      return { from: '', to: '', includeStale: true };
+  }
+}
+
+/**
  * Computes total_pages + has_more for the admin /orders list. Shape
  * matches what the frontend consumes via `meta.total_pages` /
  * `meta.has_more` so the prev/next control can disable at the edges

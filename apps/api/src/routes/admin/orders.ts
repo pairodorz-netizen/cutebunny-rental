@@ -8,8 +8,7 @@ import { sendOrderStatusNotification } from '../../lib/notifications';
 import { createLifecycleBlocks } from '../../lib/availability';
 import {
   ARCHIVED_STATUSES,
-  DEFAULT_ARCHIVE_WINDOW_DAYS,
-  computeArchiveCutoff,
+  buildOrdersWindowFilter,
   computePagination,
 } from '@cutebunny/shared/orders-archive-window';
 import type { OrderStatus, Prisma } from '@prisma/client';
@@ -63,11 +62,19 @@ adminOrders.get('/', async (c) => {
     where.status = statusFilter;
   }
 
-  if (dateFrom) {
-    where.createdAt = { ...((where.createdAt as Prisma.DateTimeFilter) ?? {}), gte: new Date(dateFrom) };
-  }
-  if (dateTo) {
-    where.createdAt = { ...((where.createdAt as Prisma.DateTimeFilter) ?? {}), lte: new Date(dateTo + 'T23:59:59.999Z') };
+  // BUG-ORDERS-ARCHIVE-01-HOTFIX — single source of truth for the
+  // date window + archive cutoff. When include_stale=true this returns
+  // an empty object: createdAt bounds + archive cutoff are BOTH
+  // bypassed so the owner's contract "All Time + include_stale=true
+  // returns ALL orders regardless of date window" holds even when the
+  // frontend leaks stale `from`/`to` through the query string.
+  const windowFilter = buildOrdersWindowFilter({
+    includeStale,
+    dateFrom: dateFrom ?? undefined,
+    dateTo: dateTo ?? undefined,
+  });
+  if (windowFilter.createdAt) {
+    where.createdAt = windowFilter.createdAt;
   }
 
   if (search) {
@@ -108,13 +115,13 @@ adminOrders.get('/', async (c) => {
   // BUG-ORDERS-ARCHIVE-01 — hide finished/cancelled orders older than
   // 30 days from the default view. Active statuses remain visible
   // regardless of age (never hide work-in-progress). Opt-out via
-  // ?include_stale=true.
-  if (!includeStale) {
-    const cutoff = computeArchiveCutoff(new Date(), DEFAULT_ARCHIVE_WINDOW_DAYS);
+  // ?include_stale=true (which sets windowFilter.archiveCutoff to
+  // undefined in the helper above).
+  if (windowFilter.archiveCutoff) {
     andConditions.push({
       OR: [
         { status: { notIn: [...ARCHIVED_STATUSES] as OrderStatus[] } },
-        { updatedAt: { gte: cutoff } },
+        { updatedAt: { gte: windowFilter.archiveCutoff } },
       ],
     });
   }
