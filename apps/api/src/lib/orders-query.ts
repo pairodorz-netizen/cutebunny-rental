@@ -40,9 +40,11 @@ export interface OrdersListQuery {
  * and the new BUG-ORDERS-ARCHIVE-01 params (`from` / `to` /
  * `include_stale`).
  *
- * When include_stale is truthy ('true' or '1'), the archive window
- * and any createdAt bounds are completely bypassed, matching the
- * BUG-ORDERS-ARCHIVE-01-HOTFIX contract.
+ * When include_stale is truthy ('true' or '1'), the archive-cutoff
+ * condition is bypassed, but any createdAt bounds the caller passed
+ * are STILL enforced (BUG-ORDERS-DATE-FILTER-01 rescope). Only the
+ * "All Time" preset — which emits empty-string `from`/`to` — clears
+ * the createdAt filter entirely.
  */
 export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {};

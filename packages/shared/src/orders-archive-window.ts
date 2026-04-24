@@ -131,15 +131,22 @@ export function buildOrdersWindowFilter({
   now = new Date(),
   windowDays = DEFAULT_ARCHIVE_WINDOW_DAYS,
 }: OrdersWindowFilterInput): OrdersWindowFilterResult {
-  if (includeStale) return {};
-
+  // BUG-ORDERS-DATE-FILTER-01 rescope: `includeStale=true` means
+  // "show archived rows inside the selected window", NOT "drop the
+  // date filter entirely". The archive cutoff is skipped, but any
+  // createdAt bounds the caller passes are ALWAYS honored. Only the
+  // "All Time" preset (which emits dateFrom='' / dateTo='') produces
+  // an entirely empty filter, because empty-string bounds collapse to
+  // `undefined` below.
   const result: OrdersWindowFilterResult = {};
   const createdAt: { gte?: Date; lte?: Date } = {};
   if (dateFrom) createdAt.gte = new Date(dateFrom);
   if (dateTo) createdAt.lte = new Date(dateTo + 'T23:59:59.999Z');
   if (createdAt.gte || createdAt.lte) result.createdAt = createdAt;
 
-  result.archiveCutoff = computeArchiveCutoff(now, windowDays);
+  if (!includeStale) {
+    result.archiveCutoff = computeArchiveCutoff(now, windowDays);
+  }
   return result;
 }
 

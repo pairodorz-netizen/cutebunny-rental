@@ -746,6 +746,7 @@ export function OrdersPage() {
             }`}
           >
             {t(`orders.datePreset.${preset === '7' ? 'week' : preset === '30' ? 'month' : preset === '90' ? 'quarter' : preset}`)}
+            {activePreset === preset && includeStale && preset !== 'all' ? ' (incl. archived)' : ''}
           </button>
         ))}
         <input
