@@ -425,4 +425,118 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — query-key consistency', 
       expect(statusCounts.finished).toBe(5);
     });
   });
+
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-5 — client-side groupBy
+  // authority. After hotfix-4 merged, the owner's browser STILL showed
+  // 0 on every tab with 2 finished rows visibly rendered. Live-bundle
+  // inspection confirmed hotfix-4's Math.max(value, perStatusFloor)
+  // was in the minified helper, which means `visibleRowCountsByStatus`
+  // must have been reaching the helper empty in the owner's runtime —
+  // most likely because the list-query response shape drifted away
+  // from `{data: [...]}` under some cache/race condition between PR
+  // #85 deploy and the owner's smoke. Fix: stop deriving the per-tab
+  // floor map inside the component and let the helper take the raw
+  // `ordersSource` array (same array the render path consumes) and
+  // compute the per-status groupBy internally. When every `/counts`
+  // bucket is 0 but `ordersSource.length > 0`, trust the client-side
+  // groupBy as the SOLE source (don't even floor against counts).
+  describe('deriveStatusCounts — client-side ordersSource authority (hotfix-5)', () => {
+    it('ordersSource drives per-status counts when /counts is all-zero', () => {
+      // Key P0 scenario: `/counts` returns every status bucket = 0
+      // (stale cache, archive-cutoff mis-applied, wire drift, …) and
+      // the list query has 2 finished rows in `ordersSource`. Every
+      // Finished-tab badge MUST read 2, even on the All-Statuses tab.
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: {
+          unpaid: 0,
+          paid_locked: 0,
+          shipped: 0,
+          returned: 0,
+          cleaning: 0,
+          repair: 0,
+          finished: 0,
+          cancelled: 0,
+        },
+        listTotal: 2,
+        ordersSource: [{ status: 'finished' }, { status: 'finished' }],
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.unpaid).toBe(0);
+      expect(totalCount).toBe(2);
+    });
+
+    it('ordersSource drives derivation when /counts is undefined entirely', () => {
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: undefined,
+        listTotal: undefined,
+        ordersSource: [
+          { status: 'finished' },
+          { status: 'finished' },
+          { status: 'unpaid' },
+        ],
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.unpaid).toBe(1);
+      expect(statusCounts.shipped).toBe(0);
+      expect(totalCount).toBe(3);
+    });
+
+    it('ordersSource beats a stale visibleRowCountsByStatus when both provided', () => {
+      // Belt-and-suspenders: if the caller passes both a stale
+      // pre-computed map AND the live ordersSource, the live groupBy
+      // wins — it is always computed from the current render array.
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+        ordersSource: [{ status: 'finished' }, { status: 'finished' }],
+        visibleRowCountsByStatus: { finished: 0 },
+      });
+      expect(statusCounts.finished).toBe(2);
+    });
+
+    it('/counts wins when larger than ordersSource (partial page scenario)', () => {
+      // User is on page 1 of 3 — ordersSource shows 2 finished, but
+      // `/counts` reports 5 across the full archive window. The badge
+      // must reflect the authoritative cross-page total (5), not the
+      // currently-rendered page count (2).
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 5 },
+        listTotal: 5,
+        ordersSource: [{ status: 'finished' }, { status: 'finished' }],
+      });
+      expect(statusCounts.finished).toBe(5);
+    });
+
+    it('omitting ordersSource preserves hotfix-4 semantics (backwards compat)', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+        visibleRowCount: 2,
+        visibleRowCountsByStatus: { finished: 2 },
+      });
+      expect(statusCounts.finished).toBe(2);
+    });
+  });
+
+  describe('orders.tsx source scan — hotfix-5 runtime telemetry', () => {
+    it('exposes window.__ordersDebug for live introspection', () => {
+      const src = readOrdersTsx();
+      expect(src).toMatch(/__ordersDebug/);
+    });
+
+    it('passes ordersSource to deriveStatusCounts', () => {
+      const src = readOrdersTsx();
+      expect(src).toMatch(/ordersSource\s*[:,]/);
+    });
+  });
 });
