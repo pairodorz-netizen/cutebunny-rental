@@ -76,6 +76,16 @@ export function deriveStatusCounts(input: {
    * Defaults to 0 (opt-in; hotfix-2 callers remain unchanged).
    */
   visibleRowCount?: number;
+  /**
+   * Per-status breakdown of the currently-rendered rows. Used as a
+   * fourth floor (hotfix-4): any tab's badge is guaranteed to be at
+   * least the number of rows of that status the user can actually
+   * see, regardless of what `/counts` reports for that bucket. Fixes
+   * the case where the active tab is "All Statuses" and the Finished
+   * tab's badge would otherwise trust `/counts` verbatim even though
+   * Finished rows are visibly rendered.
+   */
+  visibleRowCountsByStatus?: Record<string, number>;
 }): { statusCounts: Record<string, number>; totalCount: number } {
   // Treat `undefined`, `null`, AND an empty object as "counts
   // unavailable". Null emerged as a wire-shape edge case (see the
@@ -86,6 +96,7 @@ export function deriveStatusCounts(input: {
     Object.keys(input.countsByStatus).length > 0;
   const listTotalSafe = input.listTotal ?? 0;
   const visibleRowCountSafe = input.visibleRowCount ?? 0;
+  const visibleByStatus = input.visibleRowCountsByStatus ?? {};
   // Floor applied to the active tab and to the All-Statuses total.
   const activeFloor = Math.max(listTotalSafe, visibleRowCountSafe);
   const statusCounts: Record<string, number> = {};
@@ -93,6 +104,7 @@ export function deriveStatusCounts(input: {
     const fromCounts = countsAvailable
       ? input.countsByStatus?.[s]
       : undefined;
+    const perStatusFloor = visibleByStatus[s] ?? 0;
     let value: number;
     if (fromCounts !== undefined) {
       value = fromCounts;
@@ -108,6 +120,11 @@ export function deriveStatusCounts(input: {
     if (s === input.statusFilter) {
       value = Math.max(value, activeFloor);
     }
+    // Invariant 3 (hotfix-4): every tab's badge never smaller than
+    // the number of rows of that status visibly rendered. Fixes the
+    // case where non-active tab badges stay at 0 despite matching
+    // rows being on-screen.
+    value = Math.max(value, perStatusFloor);
     statusCounts[s] = value;
   }
   const totalFromCounts = countsAvailable
@@ -117,7 +134,12 @@ export function deriveStatusCounts(input: {
       )
     : undefined;
   const baseTotal = totalFromCounts ?? activeFloor;
-  // Invariant 2: All Statuses badge never smaller than the floor.
-  const totalCount = Math.max(baseTotal, activeFloor);
+  // Invariant 2: All Statuses badge never smaller than the floor
+  // OR the sum of per-status visible-row floors.
+  const visibleByStatusSum = Object.values(visibleByStatus).reduce(
+    (acc, n) => acc + (n ?? 0),
+    0,
+  );
+  const totalCount = Math.max(baseTotal, activeFloor, visibleByStatusSum);
   return { statusCounts, totalCount };
 }

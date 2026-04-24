@@ -478,17 +478,36 @@ export function OrdersPage() {
     staleTime: 0,
   });
 
-  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-3) — the helper pins a
-  // triple floor: Math.max(countsSum, listTotal, visibleRowCount).
-  // `visibleRowCount` is the authoritative ground truth (rows the
-  // user can actually see), so badges are immune to wire-shape drift
-  // in either /counts or list.meta.
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-4) — the helper pins
+  // FOUR floors:
+  //   1) active-tab badge >= max(listTotal, visibleRowCount)
+  //   2) total badge     >= max(listTotal, visibleRowCount, visibleByStatusSum)
+  //   3) EVERY per-tab badge >= visibleRowCountsByStatus[tab]
+  //      (closes hotfix-3's gap: when the active tab is All-Statuses
+  //       and `/counts` stale-buckets Finished to 0, the Finished
+  //       badge would otherwise stay at 0 despite Finished rows
+  //       being visibly rendered.)
+  //   4) shape-agnostic visibleRowCount: prefer the already-coerced
+  //      `orders` array length over `listData?.data?.length` so any
+  //      future wire-shape drift (`{data: {items: [...]}}` etc.)
+  //      still produces a correct count.
+  const ordersForCounts: ReadonlyArray<{ status: string }> =
+    Array.isArray(listData?.data) ? listData.data : [];
+  const visibleRowCountsByStatus = ordersForCounts.reduce<Record<string, number>>(
+    (acc, o) => {
+      const s = o.status;
+      acc[s] = (acc[s] ?? 0) + 1;
+      return acc;
+    },
+    {},
+  );
   const { statusCounts, totalCount } = deriveStatusCounts({
     statuses: ORDER_STATUSES,
     statusFilter,
     countsByStatus: countsData?.data?.by_status,
     listTotal: listData?.meta?.total,
-    visibleRowCount: listData?.data?.length,
+    visibleRowCount: ordersForCounts.length,
+    visibleRowCountsByStatus,
   });
 
   const carrierMutation = useMutation({
