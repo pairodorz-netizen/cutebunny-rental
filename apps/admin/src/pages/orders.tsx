@@ -456,23 +456,23 @@ export function OrdersPage() {
     enabled: !!afterSalesOrderId && showAfterSalesModal && afterSalesType === 'late_fee',
   });
 
-  // Status counts query (for tab badges) — BUG-ORDERS-ARCHIVE-01: share
-  // the same from/to/include_stale window so the badge "2" next to
-  // Finished reflects the filtered view, not the all-time total.
-  const statusCountQueries = ORDER_STATUSES.map((s) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery({
-      queryKey: ['admin-orders-count', s, countParams],
-      queryFn: () => adminApi.orders.list({ ...countParams, status: s }),
-      staleTime: 30000,
-    });
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — single backend call
+  // (`GET /api/v1/admin/orders/counts`) that returns every tab's
+  // count in one groupBy pass. Replaces N-per-status list queries
+  // that were leaking zeros into the UI when parallel list calls
+  // raced the data query. Shares the list route's WHERE helper on
+  // the backend, so tab badges always match filtered rows.
+  const { data: countsData } = useQuery({
+    queryKey: ['admin-orders-counts', countParams],
+    queryFn: () => adminApi.orders.counts(countParams),
+    staleTime: 30000,
   });
 
   const statusCounts: Record<string, number> = {};
-  ORDER_STATUSES.forEach((s, i) => {
-    statusCounts[s] = statusCountQueries[i].data?.meta?.total ?? 0;
+  ORDER_STATUSES.forEach((s) => {
+    statusCounts[s] = countsData?.data?.by_status?.[s] ?? 0;
   });
-  const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const totalCount = countsData?.data?.total ?? 0;
 
   const carrierMutation = useMutation({
     mutationFn: ({ orderId, body }: { orderId: string; body: { carrier_code: string; tracking_number?: string } }) =>
