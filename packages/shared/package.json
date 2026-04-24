@@ -19,7 +19,8 @@
     "./calendar-columns": "./src/calendar-columns.ts",
     "./calendar-state-machine": "./src/calendar-state-machine.ts",
     "./combo-delete-state": "./src/combo-delete-state.ts",
-    "./orders-archive-window": "./src/orders-archive-window.ts"
+    "./orders-archive-window": "./src/orders-archive-window.ts",
+    "./admin-orders-query-keys": "./src/admin-orders-query-keys.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",
