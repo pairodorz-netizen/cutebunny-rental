@@ -203,4 +203,68 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — query-key consistency', 
       expect(totalCount).toBe(10);
     });
   });
+
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-2 — previous PR #82 used
+  // nullish-coalescing (`??`) for the listTotal fallback, which treats
+  // numeric 0 as a *present* value. When /counts responds with a
+  // non-empty by_status whose sum is 0 (e.g. every value is 0, or a
+  // stale cache bucket), the fallback never fired and the badge read 0
+  // even while the list had rows. Contract pinned here: no badge may
+  // ever be smaller than the visible row count for the filtered tab.
+  describe('deriveStatusCounts — MAX-over-listTotal invariant (hotfix-2)', () => {
+    it('totalCount never smaller than listTotal when counts sum is 0', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+      });
+      expect(totalCount).toBe(2);
+    });
+
+    it('active-tab badge never smaller than listTotal when fromCounts is 0', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: { finished: 0, shipped: 5 },
+        listTotal: 2,
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.shipped).toBe(5);
+    });
+
+    it('totalCount never smaller than listTotal when counts sum < listTotal (filtered tab)', () => {
+      // User on Finished tab; list filtered to finished (listTotal=2);
+      // /counts has a bucket for shipped=5 but is missing finished
+      // entirely. Total must be >= listTotal so All Statuses badge
+      // never reads less than the visible Finished rows.
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: { shipped: 5 },
+        listTotal: 2,
+      });
+      expect(totalCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('non-active tab keeps fromCounts as-is (even when 0)', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: { unpaid: 0, finished: 1 },
+        listTotal: 1,
+      });
+      expect(statusCounts.unpaid).toBe(0);
+    });
+
+    it('listTotal undefined + counts sum 0 yields totalCount 0 (no hallucination)', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: undefined,
+      });
+      expect(totalCount).toBe(0);
+    });
+  });
 });
