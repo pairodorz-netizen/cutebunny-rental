@@ -1,3 +1,6 @@
+// BUG-AUTH: force Worker redeploy to flush the in-memory rate-limit Map.
+// Follow-up PR migrates rate-limiter to KV so counters persist across
+// isolates and reset paths don't require a full deploy.
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getDb, resetDb } from './lib/db';
