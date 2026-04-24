@@ -11,6 +11,11 @@ import {
   resolveOrdersDatePreset,
   type OrdersDatePreset,
 } from '@cutebunny/shared/orders-archive-window';
+import {
+  ADMIN_ORDERS_LIST_QUERY_KEY,
+  ADMIN_ORDERS_COUNTS_QUERY_KEY,
+  deriveStatusCounts,
+} from '@cutebunny/shared/admin-orders-query-keys';
 import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
 const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
@@ -437,7 +442,7 @@ export function OrdersPage() {
   if (dateTo) countParams.to = dateTo;
 
   const { data: listData, isLoading: listLoading } = useQuery({
-    queryKey: ['admin-orders', params],
+    queryKey: [ADMIN_ORDERS_LIST_QUERY_KEY, params],
     queryFn: () => adminApi.orders.list(params),
   });
 
@@ -463,16 +468,20 @@ export function OrdersPage() {
   // raced the data query. Shares the list route's WHERE helper on
   // the backend, so tab badges always match filtered rows.
   const { data: countsData } = useQuery({
-    queryKey: ['admin-orders-counts', countParams],
+    queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY, countParams],
     queryFn: () => adminApi.orders.counts(countParams),
     staleTime: 30000,
   });
 
-  const statusCounts: Record<string, number> = {};
-  ORDER_STATUSES.forEach((s) => {
-    statusCounts[s] = countsData?.data?.by_status?.[s] ?? 0;
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — belt-and-suspenders
+  // fallback is pinned in a pure helper so it is testable from the
+  // vitest suite (see bug-orders-archive-01-count-parity-hotfix.test.ts).
+  const { statusCounts, totalCount } = deriveStatusCounts({
+    statuses: ORDER_STATUSES,
+    statusFilter,
+    countsByStatus: countsData?.data?.by_status,
+    listTotal: listData?.meta?.total,
   });
-  const totalCount = countsData?.data?.total ?? 0;
 
   const carrierMutation = useMutation({
     mutationFn: ({ orderId, body }: { orderId: string; body: { carrier_code: string; tracking_number?: string } }) =>
@@ -488,7 +497,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       if (newStatus === 'shipped' && selectedCarrier && statusModalOrderId) {
         carrierMutation.mutate({
           orderId: statusModalOrderId,
@@ -510,7 +519,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setShowSlipModal(false);
       setSlipModalOrderId(null);
     },
@@ -536,7 +545,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setEditOrderId(null);
     },
   });
@@ -555,7 +564,7 @@ export function OrdersPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       const item = result.data.item;
       setEditItems((prev) => [...prev, { id: item.id, subtotal: item.subtotal, late_fee: 0, damage_fee: 0 }]);
       setRevenueImpacts((prev) => [...prev, { label: item.product_name, amount: result.data.additional_charge, type: 'additional' }]);
@@ -573,7 +582,7 @@ export function OrdersPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setEditItems((prev) => prev.filter((i) => i.id !== result.data.item_id));
       setRevenueImpacts((prev) => [...prev, { label: result.data.product_name, amount: result.data.refund_amount, type: 'refund' }]);
     },
@@ -591,7 +600,7 @@ export function OrdersPage() {
     mutationFn: (body: Parameters<typeof adminApi.orders.create>[0]) => adminApi.orders.create(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setShowCreateOrder(false);
       setCreateCustomerName(''); setCreateCustomerPhone(''); setCreateCustomerEmail('');
       setCreateStartDate(''); setCreateEndDate(''); setCreateDeposit('0'); setCreateDeliveryFee('0');
@@ -881,7 +890,7 @@ export function OrdersPage() {
                         onVerified={() => {
                           queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
                           queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-                          queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+                          queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
                         }}
                       />
                       {/* Quick action buttons in expanded view */}

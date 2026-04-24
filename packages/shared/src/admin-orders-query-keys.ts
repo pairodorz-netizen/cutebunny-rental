@@ -33,3 +33,48 @@ export const ADMIN_ORDER_DETAIL_QUERY_KEY = 'admin-order-detail' as const;
 export type AdminOrdersListQueryKey = typeof ADMIN_ORDERS_LIST_QUERY_KEY;
 export type AdminOrdersCountsQueryKey = typeof ADMIN_ORDERS_COUNTS_QUERY_KEY;
 export type AdminOrderDetailQueryKey = typeof ADMIN_ORDER_DETAIL_QUERY_KEY;
+
+/**
+ * BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — belt-and-suspenders
+ * derivation of the tab-count badge map. Trusts `/counts` first; falls
+ * back to the list query's `meta.total` for the currently filtered tab
+ * (and for "All Statuses" total) so the user never sees a stale 0
+ * badge while rows are visible. Non-active tabs stay at 0 when counts
+ * is missing — we have no data to derive them from.
+ */
+export function deriveStatusCounts(input: {
+  statuses: ReadonlyArray<string>;
+  statusFilter: string;
+  countsByStatus: Record<string, number> | undefined;
+  listTotal: number | undefined;
+}): { statusCounts: Record<string, number>; totalCount: number } {
+  // Treat `undefined` AND an empty object as "counts unavailable" — the
+  // observed P0 regression shipped `{ by_status: {} }` from the wire
+  // even though listData had rows. Empty is indistinguishable from
+  // "query hasn't resolved yet" from the UI's POV, so we fall back the
+  // same way in both cases.
+  const countsAvailable =
+    input.countsByStatus !== undefined &&
+    Object.keys(input.countsByStatus).length > 0;
+  const statusCounts: Record<string, number> = {};
+  for (const s of input.statuses) {
+    const fromCounts = countsAvailable
+      ? input.countsByStatus?.[s]
+      : undefined;
+    if (fromCounts !== undefined) {
+      statusCounts[s] = fromCounts;
+    } else if (s === input.statusFilter) {
+      statusCounts[s] = input.listTotal ?? 0;
+    } else {
+      statusCounts[s] = 0;
+    }
+  }
+  const totalFromCounts = countsAvailable
+    ? Object.values(input.countsByStatus as Record<string, number>).reduce(
+        (acc, n) => acc + n,
+        0,
+      )
+    : undefined;
+  const totalCount = totalFromCounts ?? input.listTotal ?? 0;
+  return { statusCounts, totalCount };
+}

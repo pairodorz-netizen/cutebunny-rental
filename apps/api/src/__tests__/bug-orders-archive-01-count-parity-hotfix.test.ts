@@ -28,7 +28,19 @@ import {
   ADMIN_ORDERS_COUNTS_QUERY_KEY,
   ADMIN_ORDERS_LIST_QUERY_KEY,
   ADMIN_ORDER_DETAIL_QUERY_KEY,
+  deriveStatusCounts,
 } from '@cutebunny/shared/admin-orders-query-keys';
+
+const STATUSES = [
+  'unpaid',
+  'paid_locked',
+  'shipped',
+  'returned',
+  'cleaning',
+  'repair',
+  'finished',
+  'cancelled',
+] as const;
 
 const ORDERS_TSX_PATH = path.resolve(
   __dirname,
@@ -111,6 +123,84 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — query-key consistency', 
             !line.trimStart().startsWith('import'),
         );
       expect(codeLines).toHaveLength(0);
+    });
+  });
+
+  describe('deriveStatusCounts — belt-and-suspenders fallback', () => {
+    it('trusts /counts response when present (happy path)', () => {
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 2, unpaid: 1 },
+        listTotal: 3,
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.unpaid).toBe(1);
+      expect(statusCounts.shipped).toBe(0);
+      expect(totalCount).toBe(3); // 2 + 1
+    });
+
+    it('falls back to listTotal for the currently filtered tab when counts is undefined', () => {
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: undefined,
+        listTotal: 2,
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.unpaid).toBe(0);
+      expect(totalCount).toBe(2);
+    });
+
+    it('keeps non-active tabs at 0 when counts is undefined (no data to derive)', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: undefined,
+        listTotal: 2,
+      });
+      for (const s of STATUSES) {
+        if (s !== 'finished') expect(statusCounts[s]).toBe(0);
+      }
+    });
+
+    it('returns totalCount = 0 when both counts and listTotal are undefined', () => {
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: undefined,
+        listTotal: undefined,
+      });
+      expect(totalCount).toBe(0);
+      for (const s of STATUSES) {
+        expect(statusCounts[s]).toBe(0);
+      }
+    });
+
+    it('treats empty counts object as "unavailable" and falls back for active tab (P0 regression path)', () => {
+      // Reproduces the observed regression shape: /counts returned
+      // { total: 0, by_status: {} } even though listData had rows.
+      // Empty `by_status` is indistinguishable from "query hasn't
+      // resolved yet" — so we fall back the same way as undefined.
+      const { statusCounts, totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: 'finished',
+        countsByStatus: {},
+        listTotal: 2,
+      });
+      expect(statusCounts.finished).toBe(2);
+      expect(statusCounts.unpaid).toBe(0);
+      expect(totalCount).toBe(2);
+    });
+
+    it('derives totalCount from sum of counts when available (not a separate field)', () => {
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { unpaid: 3, finished: 2, cancelled: 5 },
+        listTotal: 0,
+      });
+      expect(totalCount).toBe(10);
     });
   });
 });
