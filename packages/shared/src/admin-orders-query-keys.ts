@@ -35,44 +35,59 @@ export type AdminOrdersCountsQueryKey = typeof ADMIN_ORDERS_COUNTS_QUERY_KEY;
 export type AdminOrderDetailQueryKey = typeof ADMIN_ORDER_DETAIL_QUERY_KEY;
 
 /**
- * BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-2) — belt-and-suspenders
+ * BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-3) — triple-floor
  * derivation of the tab-count badge map.
  *
  * Invariants (contract the UI relies on):
- *   1. The active tab's badge is always >= the list query's filtered
- *      `meta.total`. User must never see a badge smaller than the rows
- *      currently rendered for that tab.
- *   2. The "All Statuses" total is always >= the list query's total,
- *      for the same reason.
+ *   1. The active tab's badge is always >= max(listTotal, visibleRowCount).
+ *      User must never see a badge smaller than the rows currently
+ *      rendered for that tab.
+ *   2. The "All Statuses" total is always >= max(listTotal, visibleRowCount).
  *   3. Non-active tabs trust `/counts` verbatim (0 from counts is a
  *      real 0 when the user is filtered to a different status).
  *
  * History:
  *   - hotfix-1 (PR #82): fixed the query-key typo in the invalidation
  *     chain; added naive `??`-based fallback to listTotal.
- *   - hotfix-2 (this module rev): the `??` operator treats numeric 0
- *     as a *present value*, so when `/counts` responded with a
- *     non-empty `by_status` summing to 0 (e.g. `{finished: 0}` from a
- *     stale cache bucket, or a groupBy shape edge case) the fallback
- *     never fired. Switched to MAX-over-listTotal so the list's
- *     observed row count always wins when it's larger than what
- *     `/counts` reports for the current tab.
+ *   - hotfix-2 (PR #83): the `??` operator treats numeric 0 as a
+ *     *present value*, so when `/counts` responded with a non-empty
+ *     `by_status` summing to 0 the fallback never fired. Switched to
+ *     MAX-over-listTotal.
+ *   - hotfix-3 (this rev): owner's production smoke STILL showed 0
+ *     badges despite the MAX fix, implying listTotal itself was also
+ *     unreliable under some cache/race condition. Third floor added:
+ *     `visibleRowCount` (= `listData?.data?.length`) is now the
+ *     authoritative minimum — if rows are rendered, at least that
+ *     many are reflected in the active tab and All-Statuses badges,
+ *     irrespective of `/counts` or `meta.total`. Also hardened
+ *     against `countsByStatus: null` from the wire, which previously
+ *     threw `Object.keys(null)`.
  */
 export function deriveStatusCounts(input: {
   statuses: ReadonlyArray<string>;
   statusFilter: string;
   countsByStatus: Record<string, number> | undefined;
   listTotal: number | undefined;
+  /**
+   * Number of rows actually rendered by the list query. When the
+   * caller's list view and the counts endpoint disagree (cache race,
+   * stale bucket, wire-shape drift), this is the ground truth: at
+   * minimum the user sees N rows, so badges must reflect that.
+   * Defaults to 0 (opt-in; hotfix-2 callers remain unchanged).
+   */
+  visibleRowCount?: number;
 }): { statusCounts: Record<string, number>; totalCount: number } {
-  // Treat `undefined` AND an empty object as "counts unavailable" — the
-  // observed P0 regression shipped `{ by_status: {} }` from the wire
-  // even though listData had rows. Empty is indistinguishable from
-  // "query hasn't resolved yet" from the UI's POV, so we fall back the
-  // same way in both cases.
+  // Treat `undefined`, `null`, AND an empty object as "counts
+  // unavailable". Null emerged as a wire-shape edge case (see the
+  // hotfix-3 test suite); Object.keys(null) would otherwise throw.
   const countsAvailable =
     input.countsByStatus !== undefined &&
+    input.countsByStatus !== null &&
     Object.keys(input.countsByStatus).length > 0;
   const listTotalSafe = input.listTotal ?? 0;
+  const visibleRowCountSafe = input.visibleRowCount ?? 0;
+  // Floor applied to the active tab and to the All-Statuses total.
+  const activeFloor = Math.max(listTotalSafe, visibleRowCountSafe);
   const statusCounts: Record<string, number> = {};
   for (const s of input.statuses) {
     const fromCounts = countsAvailable
@@ -82,16 +97,16 @@ export function deriveStatusCounts(input: {
     if (fromCounts !== undefined) {
       value = fromCounts;
     } else if (s === input.statusFilter) {
-      value = listTotalSafe;
+      value = activeFloor;
     } else {
       value = 0;
     }
-    // Invariant 1: active tab's badge never smaller than listTotal.
+    // Invariant 1: active tab's badge never smaller than the floor.
     // Applied even when fromCounts is a present numeric value (0),
     // because `/counts` may legitimately stale-bucket the active
     // status while the list query has already refetched.
     if (s === input.statusFilter) {
-      value = Math.max(value, listTotalSafe);
+      value = Math.max(value, activeFloor);
     }
     statusCounts[s] = value;
   }
@@ -101,8 +116,8 @@ export function deriveStatusCounts(input: {
         0,
       )
     : undefined;
-  const baseTotal = totalFromCounts ?? listTotalSafe;
-  // Invariant 2: All Statuses badge never smaller than listTotal.
-  const totalCount = Math.max(baseTotal, listTotalSafe);
+  const baseTotal = totalFromCounts ?? activeFloor;
+  // Invariant 2: All Statuses badge never smaller than the floor.
+  const totalCount = Math.max(baseTotal, activeFloor);
   return { statusCounts, totalCount };
 }
