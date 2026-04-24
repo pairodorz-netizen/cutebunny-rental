@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,17 @@ import {
   dayOfMonth,
   endOfMonthYMD,
 } from '@cutebunny/shared/calendar-dates';
-import { CALENDAR_LEFT_COLUMNS, stickyLeftStyle } from '@cutebunny/shared/calendar-columns';
+import {
+  CALENDAR_LEFT_COLUMNS,
+  stickyLeftStyle,
+} from '@cutebunny/shared/calendar-columns';
+import {
+  SLOT_STATES,
+  SLOT_STATE_LABELS,
+  canTransition,
+  type SlotState,
+} from '@cutebunny/shared/calendar-state-machine';
+import type { CalendarUnitRow } from '@/lib/api';
 
 const STATUS_COLORS: Record<string, string> = {
   available: 'bg-green-100 text-green-800',
@@ -87,6 +97,95 @@ export function CalendarPage() {
   }
   const currentMonth = new Date(startDate);
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  // BUG-CAL-05 — click-to-edit popover state + optimistic-update helpers.
+  // Only one popover is open at a time; clicking elsewhere closes it.
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => ['admin-calendar', startDate, endDate], [startDate, endDate]);
+  const [openCell, setOpenCell] = useState<{ rowKey: string; date: string } | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!openCell) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpenCell(null);
+      }
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenCell(null);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [openCell]);
+
+  async function applyCellEdit(params: {
+    row: CalendarUnitRow;
+    date: string;
+    from: SlotState;
+    to: SlotState;
+  }) {
+    const { row, date, from, to } = params;
+    const transition = canTransition(from, to);
+    if ('noop' in transition && transition.noop) {
+      setOpenCell(null);
+      return;
+    }
+    let confirmed = false;
+    if ('confirm' in transition && transition.confirm) {
+      // window.confirm is a minimal, accessible, zero-dep confirmation UX.
+      // Upgrades to a fancier dialog can happen in a follow-up without
+      // changing the server contract.
+      if (!window.confirm(transition.reason ?? `Change state to "${SLOT_STATE_LABELS[to]}"?`)) {
+        setOpenCell(null);
+        return;
+      }
+      confirmed = true;
+    }
+
+    // Optimistic update: patch the cached row's slot in place, remember
+    // the prior status for rollback.
+    const snapshot = queryClient.getQueryData<{ data: CalendarUnitRow[] } | undefined>(queryKey);
+    queryClient.setQueryData<{ data: CalendarUnitRow[] } | undefined>(queryKey, (prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        data: prev.data.map((r) => {
+          if (r.product_id !== row.product_id || r.unit_index !== row.unit_index) return r;
+          const otherSlots = r.slots.filter((s) => s.date !== date);
+          return {
+            ...r,
+            slots: [
+              ...otherSlots,
+              { date, status: to, order_id: null, unit_index: r.unit_index },
+            ],
+          };
+        }),
+      };
+    });
+    setOpenCell(null);
+
+    try {
+      await adminApi.calendar.patchCell({
+        product_id: row.product_id,
+        date,
+        unit_index: row.unit_index,
+        new_state: to,
+        confirmed,
+      });
+      // Refetch silently so any server-side derived fields stay fresh.
+      queryClient.invalidateQueries({ queryKey });
+    } catch (e) {
+      // Rollback on 4xx / 5xx. React Query won't auto-revert setQueryData.
+      queryClient.setQueryData(queryKey, snapshot);
+      // Surface minimally so the admin knows the edit didn't stick.
+      // eslint-disable-next-line no-alert
+      window.alert(`Failed to update slot: ${(e as Error).message}`);
+    }
+  }
 
   // BUG-CAL-06 — generate exactly N days where N = days-in-month (28/29/30/31),
   // with zero timezone drift. No column "1" ever appears after column "31".
@@ -277,16 +376,52 @@ export function CalendarPage() {
                       {row.display_name}
                     </td>
                     {dates.map((date) => {
-                      const status = slotMap.get(date) ?? 'available';
+                      const status = (slotMap.get(date) ?? 'available') as SlotState;
                       const color = STATUS_COLORS[status] ?? 'bg-gray-50';
+                      const isOpen =
+                        openCell?.rowKey === rowKey && openCell?.date === date;
                       return (
-                        <td key={date} className="p-1 text-center">
-                          <div
-                            className={`w-6 h-6 rounded mx-auto flex items-center justify-center ${color}`}
-                            title={`${row.display_name}: ${status}`}
+                        <td key={date} className="p-1 text-center relative">
+                          {/* BUG-CAL-05 — every cell is clickable; popover
+                              exposes the 8-state dropdown, state machine
+                              decides whether a confirm prompt is needed. */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenCell(isOpen ? null : { rowKey, date })
+                            }
+                            className={`w-6 h-6 rounded mx-auto flex items-center justify-center hover:ring-2 hover:ring-primary ${color}`}
+                            title={`${row.display_name} · ${date}: ${SLOT_STATE_LABELS[status]}`}
+                            data-testid={`calendar-slot-${rowKey}-${date}`}
                           >
                             {status !== 'available' ? status[0].toUpperCase() : ''}
-                          </div>
+                          </button>
+                          {isOpen ? (
+                            <div
+                              ref={popoverRef}
+                              role="menu"
+                              className="absolute left-1/2 -translate-x-1/2 z-40 mt-1 min-w-[140px] rounded border bg-background shadow-lg text-left text-xs"
+                              data-testid={`calendar-slot-popover-${rowKey}-${date}`}
+                            >
+                              {SLOT_STATES.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() =>
+                                    applyCellEdit({ row, date, from: status, to: s })
+                                  }
+                                  className={`block w-full px-3 py-1.5 hover:bg-muted ${s === status ? 'font-semibold' : ''}`}
+                                  data-testid={`calendar-slot-option-${s}`}
+                                >
+                                  <span
+                                    className={`inline-block w-2 h-2 rounded-full mr-2 align-middle ${STATUS_COLORS[s] ?? ''}`}
+                                  />
+                                  {SLOT_STATE_LABELS[s]}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                         </td>
                       );
                     })}

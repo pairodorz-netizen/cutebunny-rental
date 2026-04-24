@@ -16,7 +16,8 @@
     "./calendar-sort": "./src/calendar-sort.ts",
     "./calendar-filter": "./src/calendar-filter.ts",
     "./calendar-dates": "./src/calendar-dates.ts",
-    "./calendar-columns": "./src/calendar-columns.ts"
+    "./calendar-columns": "./src/calendar-columns.ts",
+    "./calendar-state-machine": "./src/calendar-state-machine.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

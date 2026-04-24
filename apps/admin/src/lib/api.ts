@@ -784,6 +784,20 @@ export const adminApi = {
       const qs = new URLSearchParams(params).toString();
       return request<{ data: CalendarUnitRow[] }>(`/api/v1/admin/calendar?${qs}`);
     },
+    // BUG-CAL-05 — click-to-edit cell. 409 body carries `error.code = CONFIRM_REQUIRED`
+    // and `error.message` explains the confirm prompt; the caller should flip
+    // `confirmed: true` and retry.
+    patchCell: (body: {
+      product_id: string;
+      date: string;
+      unit_index: number | null;
+      new_state: string;
+      confirmed?: boolean;
+    }) =>
+      request<{ data: { id?: string; from: string; to: string; noop: boolean } }>(
+        `/api/v1/admin/calendar/cell`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      ),
   },
   customers: {
     list: (params: Record<string, string>) => {
