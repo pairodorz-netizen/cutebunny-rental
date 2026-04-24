@@ -26,7 +26,7 @@
 // function level, not the handler level.
 
 import { describe, it, expect } from 'vitest';
-import { buildOrdersWhere } from '../lib/orders-query';
+import { buildOrdersWhere, buildOrdersCountsWhere } from '../lib/orders-query';
 import {
   buildOrdersWindowFilter,
   computeArchiveCutoff,
@@ -133,6 +133,51 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
       JSON.stringify(c).includes('updatedAt'),
     );
     expect(hasCutoff).toBe(false);
+  });
+
+  describe('buildOrdersCountsWhere · parity with buildOrdersWhere', () => {
+    it('ignores the caller-supplied status so the tab bar always sees every bucket', () => {
+      const withStatus = buildOrdersCountsWhere({
+        status: 'finished',
+        include_stale: 'true',
+      });
+      const withoutStatus = buildOrdersCountsWhere({ include_stale: 'true' });
+      expect(withStatus).toEqual(withoutStatus);
+      expect(withStatus.status).toBeUndefined();
+    });
+
+    it('preserves every other filter — date bounds, search, include_stale', () => {
+      const input = {
+        from: '2026-03-25',
+        to: '2026-04-24',
+        include_stale: 'false',
+        search_sku: 'SKU-42',
+        search_customer_phone: '0899',
+      } as const;
+      const listWhere = buildOrdersWhere(input);
+      const countsWhere = buildOrdersCountsWhere(input);
+      // Everything except `.status` must be identical — that's the
+      // whole point of sharing the helper.
+      const { status: _listStatus, ...listRest } = listWhere;
+      const { status: _countsStatus, ...countsRest } = countsWhere;
+      void _listStatus;
+      void _countsStatus;
+      expect(countsRest).toEqual(listRest);
+    });
+
+    it('include_stale=true: list and counts both drop createdAt + archive cutoff', () => {
+      const input = {
+        from: '2026-03-25',
+        to: '2026-04-24',
+        include_stale: 'true',
+      } as const;
+      const listWhere = buildOrdersWhere(input);
+      const countsWhere = buildOrdersCountsWhere(input);
+      expect(listWhere.createdAt).toBeUndefined();
+      expect(countsWhere.createdAt).toBeUndefined();
+      expect(listWhere.AND).toBeUndefined();
+      expect(countsWhere.AND).toBeUndefined();
+    });
   });
 
   it('archive cutoff boundary matches computeArchiveCutoff for DEFAULT window', () => {

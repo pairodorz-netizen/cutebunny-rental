@@ -652,6 +652,17 @@ export const adminApi = {
         };
       }>(`/api/v1/admin/orders?${qs}`);
     },
+    // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — tab-badge counts from a
+    // single backend groupBy pass. Replaces N-per-status list queries
+    // that were leaking zeros into the UI under React-Query cache
+    // races. Shares the list route's WHERE helper on the backend so
+    // parity is pinned at the function level.
+    counts: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{
+        data: { total: number; by_status: Record<string, number> };
+      }>(`/api/v1/admin/orders/counts${qs ? `?${qs}` : ''}`);
+    },
     detail: (id: string) =>
       request<{ data: AdminOrderDetail }>(`/api/v1/admin/orders/${id}`),
     updateStatus: (id: string, body: { to_status: string; tracking_number?: string; note?: string }) =>
