@@ -252,7 +252,14 @@
     "updated": "已更新",
     "delete": "删除",
     "deleteTitle": "删除产品",
-    "deleteConfirmMessage": "确定要删除此产品吗？产品将从列表中隐藏，但历史记录将保留。"
+    "deleteConfirmMessage": "确定要删除此产品吗？产品将从列表中隐藏，但历史记录将保留。",
+    "comboDeleteTitle": "删除组合套装",
+    "comboDeleteConfirm": "删除组合套装 {{name}} ({{sku}})？此操作无法撤销。",
+    "comboDeleteSuccess": "组合套装已成功删除",
+    "comboDeleteActiveRentals": "无法删除：该组合套装有 {{count}} 个活跃租赁",
+    "comboDeleteNotFound": "未找到组合套装 — 列表已刷新",
+    "comboDeleteAuthLost": "会话已过期 — 请重新登录",
+    "comboDeleteNetwork": "无法连接服务器，请重试。"
   },
   "stock": {
     "title": "库存管理",

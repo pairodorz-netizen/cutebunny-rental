@@ -252,7 +252,14 @@
     "updated": "อัปเดตแล้ว",
     "delete": "ลบ",
     "deleteTitle": "ลบสินค้า",
-    "deleteConfirmMessage": "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกซ่อนจากรายการแต่ประวัติจะยังคงอยู่"
+    "deleteConfirmMessage": "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกซ่อนจากรายการแต่ประวัติจะยังคงอยู่",
+    "comboDeleteTitle": "ลบ Combo Set",
+    "comboDeleteConfirm": "ลบ Combo Set {{name}} ({{sku}})? การกระทำนี้ย้อนไม่ได้.",
+    "comboDeleteSuccess": "ลบ Combo Set สำเร็จ",
+    "comboDeleteActiveRentals": "ลบไม่ได้: Combo Set นี้มีการเช่าอยู่ {{count}} รายการ",
+    "comboDeleteNotFound": "ไม่พบ Combo Set — รีเฟรชรายการแล้ว",
+    "comboDeleteAuthLost": "เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่",
+    "comboDeleteNetwork": "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง"
   },
   "stock": {
     "title": "จัดการสต็อก",

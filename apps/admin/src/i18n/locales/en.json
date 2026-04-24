@@ -252,7 +252,14 @@
     "updated": "updated",
     "delete": "Delete",
     "deleteTitle": "Delete Product",
-    "deleteConfirmMessage": "Are you sure you want to delete this product? This action will soft-delete the product — it will be hidden from listings but its history will be preserved."
+    "deleteConfirmMessage": "Are you sure you want to delete this product? This action will soft-delete the product — it will be hidden from listings but its history will be preserved.",
+    "comboDeleteTitle": "Delete Combo Set",
+    "comboDeleteConfirm": "Delete Combo Set {{name}} ({{sku}})? This action cannot be undone.",
+    "comboDeleteSuccess": "Combo set deleted successfully",
+    "comboDeleteActiveRentals": "Cannot delete: combo set has {{count}} active rental(s)",
+    "comboDeleteNotFound": "Combo set not found — list refreshed",
+    "comboDeleteAuthLost": "Session expired — please sign in again",
+    "comboDeleteNetwork": "Could not reach the server. Please try again."
   },
   "stock": {
     "title": "Stock Management",
