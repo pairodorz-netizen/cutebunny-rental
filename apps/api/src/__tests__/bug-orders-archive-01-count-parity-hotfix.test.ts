@@ -345,4 +345,84 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX — query-key consistency', 
       expect(totalCount).toBe(3);
     });
   });
+
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-4 — per-status floor.
+  // Symptom after hotfix-3 merged: owner's browser STILL showed 0 on
+  // the Finished tab badge while sitting on the All-Statuses tab with
+  // 2 Finished rows visibly rendered. The triple-floor only protected
+  // the ACTIVE tab's badge (via Math.max on statusFilter match) and
+  // the All-Statuses total. Non-active per-status badges still
+  // trusted `/counts` verbatim — so when `/counts` stale-bucketed the
+  // Finished status to 0 (or omitted it), the Finished tab showed 0
+  // while the row for that status was visibly rendered. Fix: accept
+  // an optional `visibleRowCountsByStatus` map and apply a fourth
+  // floor per-tab: badge >= max(fromCounts, visibleRowCountsByStatus).
+  describe('deriveStatusCounts — per-status visible-row floor (hotfix-4)', () => {
+    it('non-active tab badge never smaller than visibleRowCountsByStatus', () => {
+      // User is sitting on the All-Statuses tab (statusFilter='') and
+      // /counts says {finished: 0}, but the list query has 2 finished
+      // rows rendered. The Finished tab badge MUST read 2.
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+        visibleRowCount: 2,
+        visibleRowCountsByStatus: { finished: 2 },
+      });
+      expect(statusCounts.finished).toBe(2);
+    });
+
+    it('non-active tab badge never smaller than visibleRowCountsByStatus when counts omits the key', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { unpaid: 1 }, // finished key omitted
+        listTotal: 2,
+        visibleRowCount: 2,
+        visibleRowCountsByStatus: { finished: 2 },
+      });
+      expect(statusCounts.finished).toBe(2);
+    });
+
+    it('totalCount reflects per-status visible-row floor when counts sum is smaller', () => {
+      // counts reports sum=0 but we have 2 visible finished rows.
+      // totalCount must be >= sum of per-status visible-row floor.
+      const { totalCount } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+        visibleRowCount: 2,
+        visibleRowCountsByStatus: { finished: 2 },
+      });
+      expect(totalCount).toBe(2);
+    });
+
+    it('visibleRowCountsByStatus is ignored when not provided (backwards compat)', () => {
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 0 },
+        listTotal: 2,
+        visibleRowCount: 2,
+      });
+      // hotfix-3 semantics: non-active tab trusts counts → 0
+      expect(statusCounts.finished).toBe(0);
+    });
+
+    it('counts wins when larger than visible-row floor (user is on different tab with archived data)', () => {
+      // counts says {finished: 5} — there are more finished orders in
+      // the archive window than the current list page shows.
+      const { statusCounts } = deriveStatusCounts({
+        statuses: STATUSES,
+        statusFilter: '',
+        countsByStatus: { finished: 5 },
+        listTotal: 2,
+        visibleRowCount: 2,
+        visibleRowCountsByStatus: { finished: 2 },
+      });
+      expect(statusCounts.finished).toBe(5);
+    });
+  });
 });
