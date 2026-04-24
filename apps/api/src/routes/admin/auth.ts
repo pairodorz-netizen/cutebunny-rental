@@ -2,8 +2,18 @@ import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
-import { createToken } from '../../middleware/auth';
-import { rateLimit } from '../../middleware/rate-limit';
+import { createToken, requireAuth, requireRole } from '../../middleware/auth';
+import { rateLimit, clearRateLimit } from '../../middleware/rate-limit';
+
+interface RateLimitKVBinding {
+  get: (key: string) => Promise<string | null>;
+  put: (
+    key: string,
+    value: string,
+    options?: { expirationTtl?: number },
+  ) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+}
 
 const auth = new Hono();
 
@@ -47,6 +57,29 @@ auth.post('/login', rateLimit(5, 15), async (c) => {
       name: admin.name,
       role: admin.role,
     },
+  });
+});
+
+// BUG-AUTH operator escape hatch — superadmin-only KV reset path for a
+// specific IP's /login rate-limit counter. Enables clearing a real
+// lockout without a full Worker redeploy. Path-scoped to
+// /api/v1/admin/auth/login to match the key `rateLimit` writes.
+auth.delete('/rate-limit/:ip', requireAuth, requireRole('superadmin'), async (c) => {
+  const ip = c.req.param('ip');
+  if (!ip || ip.length === 0) {
+    return error(c, 400, 'VALIDATION_ERROR', 'IP parameter is required');
+  }
+
+  const kv = (c.env as { RATE_LIMIT_KV?: RateLimitKVBinding } | undefined)
+    ?.RATE_LIMIT_KV;
+
+  await clearRateLimit(ip, '/api/v1/admin/auth/login', kv);
+
+  return success(c, {
+    cleared: true,
+    ip,
+    path: '/api/v1/admin/auth/login',
+    backend: kv ? 'kv' : 'memory',
   });
 });
 
