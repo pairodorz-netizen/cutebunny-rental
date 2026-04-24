@@ -36,14 +36,25 @@ import {
 const NOW = new Date('2026-04-24T12:00:00.000Z');
 
 describe('BUG-ORDERS-ARCHIVE-01-HOTFIX · buildOrdersWindowFilter', () => {
-  it('includeStale=true short-circuits BOTH createdAt bounds and archive cutoff', () => {
+  // Originally asserted "includeStale=true bypasses BOTH bounds and
+  // archive cutoff". That contract was rescoped by BUG-ORDERS-DATE-
+  // FILTER-01 after owner smoke-tested 'Today + Show all' and observed
+  // that older rows were still visible — the bypass was correctly
+  // scoped to the archive cutoff, but over-broadly also bypassed the
+  // user-selected createdAt pill. This gate now pins the rescoped
+  // contract: includeStale=true skips archive cutoff only; any
+  // createdAt bounds the caller passes are always enforced. The
+  // "All Time" preset still behaves as before because it emits
+  // empty-string bounds, which produce `createdAt: undefined`.
+  it('includeStale=true with createdAt bounds still applies the bounds (BUG-ORDERS-DATE-FILTER-01 rescope)', () => {
     const result = buildOrdersWindowFilter({
       includeStale: true,
       dateFrom: '2026-03-25',
       dateTo: '2026-04-24',
       now: NOW,
     });
-    expect(result.createdAt).toBeUndefined();
+    expect(result.createdAt?.gte).toEqual(new Date('2026-03-25'));
+    expect(result.createdAt?.lte).toEqual(new Date('2026-04-24T23:59:59.999Z'));
     expect(result.archiveCutoff).toBeUndefined();
   });
 

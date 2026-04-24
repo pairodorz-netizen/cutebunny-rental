@@ -36,16 +36,39 @@ import {
 const NOW = new Date('2026-04-24T12:00:00.000Z');
 
 describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => {
-  it('include_stale=true produces a where WITHOUT createdAt bounds', () => {
-    // Owner's contract: All Time + include_stale=true must return ALL
-    // orders. The where clause must not carry a createdAt bound.
+  it('include_stale=true with bounds STILL applies createdAt bounds but skips archive cutoff', () => {
+    // Rescoped in BUG-ORDERS-DATE-FILTER-01: include_stale=true means
+    // "show archived rows within the selected window", not "drop the
+    // date filter entirely". Only preset="all" (empty-string bounds)
+    // clears the createdAt filter.
     const where = buildOrdersWhere({
       include_stale: 'true',
       from: '2026-03-25',
       to: '2026-04-24',
     });
+    expect(where.createdAt).toBeDefined();
+    expect((where.createdAt as { gte?: Date; lte?: Date }).gte).toEqual(
+      new Date('2026-03-25'),
+    );
+    expect((where.createdAt as { gte?: Date; lte?: Date }).lte).toEqual(
+      new Date('2026-04-24T23:59:59.999Z'),
+    );
+    // Archive cutoff must still be absent (that's the ONLY thing
+    // include_stale=true bypasses under the new contract).
+    const conds = (where.AND ?? []) as Array<Record<string, unknown>>;
+    const hasCutoff = conds.some((c) =>
+      JSON.stringify(c).includes('updatedAt'),
+    );
+    expect(hasCutoff).toBe(false);
+  });
+
+  it('include_stale=true with EMPTY-STRING bounds (preset="all") clears createdAt entirely', () => {
+    const where = buildOrdersWhere({
+      include_stale: 'true',
+      from: '',
+      to: '',
+    });
     expect(where.createdAt).toBeUndefined();
-    // And no archive cutoff condition inside where.AND.
     const conds = (where.AND ?? []) as Array<Record<string, unknown>>;
     const hasCutoff = conds.some((c) =>
       JSON.stringify(c).includes('updatedAt'),
