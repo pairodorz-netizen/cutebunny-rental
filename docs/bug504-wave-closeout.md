@@ -269,3 +269,47 @@ auto-deleted by GitHub on merge.
 
 **This workflow is CLOSED.** Reopen A07.5 via §4 when the `JWT_SECRET`
 rotation is convenient for the owner.
+
+---
+
+## 8. Post-closeout watch list
+
+Items that surfaced *after* the wave was closed and are being tracked
+without a dedicated atom yet.
+
+### 8.1 BUG-UX-TRANSIENT-5XX — "Unexpected server error" banner during deploy cutover
+
+**Status:** observed once, deferred. Open atom only on second occurrence.
+
+**Symptom:** A single transient banner reading `Unexpected server error`
+on the admin Categories page during the ~30-second window between
+`wrangler deploy` flipping the active Worker and the Vercel admin edge
+cache rolling over. Did not recur on reload.
+
+**Hypothesis (T3 advisory, 2026-04-26):** Cloudflare blue/green deploy
+cutover — a small fraction of requests during the active-version swap
+can land on a cold isolate that exceeds CPU budget OR races with
+module-load. Hono's global `onError()` returns the canonical
+`internal_error` envelope (`message: "Unexpected server error"`),
+which the admin frontend's `parseAdminErrorResponse` surfaces verbatim.
+Not drift-guard related (`s-maxage=30` from BUG-505-A01 targets stale
+data, not 5xx). Not a module-load throw (BUG-API-WORKER-CRASH-01 gates
+in `bug-api-worker-crash-01.test.ts` are green and would catch that).
+
+**Trigger threshold:** **2 occurrences in 7 days** of normal traffic
+(post-2026-04-26). On second occurrence, open `BUG-UX-TRANSIENT-5XX-A01`
+implementing **Option A** from the advisory:
+
+> React-Query mutation retry on 5xx: enable `retry` (1-2 attempts with
+> exponential backoff) on `useMutation` defaults so 5xx transients
+> auto-retry once before surfacing the banner. Estimated ~0.3 h.
+
+**Occurrence log:**
+
+| #   | Date (UTC)              | Worker deploy   | Notes                                  |
+|-----|-------------------------|-----------------|----------------------------------------|
+| 1   | 2026-04-26 ~01:00 JST   | `320f1dde`      | PR #90 rollover; did not recur on reload |
+
+If the second occurrence happens, append the row + open the atom. If 7
+days pass with no recurrence, this section can be folded into a generic
+"deploy-cutover noise" footnote.
