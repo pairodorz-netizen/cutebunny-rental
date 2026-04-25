@@ -313,3 +313,71 @@ implementing **Option A** from the advisory:
 If the second occurrence happens, append the row + open the atom. If 7
 days pass with no recurrence, this section can be folded into a generic
 "deploy-cutover noise" footnote.
+
+### 8.2 BUG-URGENT-ORDER-STATUS / Issue #45 — Verified resolved by PR #46
+
+**Status:** verified resolved, GitHub Issue [#45][issue-45] closed.
+Reopens only on second occurrence within 7 days.
+
+**Filed:** 2026-04-22 ~16:00 JST (ORD-26048933, Somchai, 4,960 THB).
+Reproduction: admin Categories→Orders status modal, `cleaning →
+finished` transition rejected with red `Failed to fetch` banner;
+status stuck at `cleaning`. Other transitions (`paid_locked → shipped
+→ returned → cleaning`) committed cleanly.
+
+**Root cause:** uncaught throws in the `cleaning → finished`
+side-effect chain (`orderItem.aggregate` + up to 2
+`financeTransaction.create` calls for `deposit_returned` /
+`deposit_forfeited`) terminated the Cloudflare Worker before a
+response could be flushed. Browser surfaced the dropped TCP/HTTP
+session as `TypeError: Failed to fetch`, which the admin frontend's
+`parseAdminErrorResponse` rendered verbatim. Other transitions had no
+side-effect fan-out (or only one finance insert) so they never
+exhausted the wall-clock budget. **Not** a missing FSM transition —
+`state-machine.ts` has always allowed `cleaning → finished` via
+`ORDER_TRANSITIONS.cleaning = ['repair', 'finished', 'returned',
+'cancelled']`.
+
+**Fix:** PR #46 (`f371534`, BUG-405-A01, merged 2026-04-22 16:49:40
+JST — *49 minutes after the issue was filed*) shipped three changes
+to `apps/api/src/routes/admin/orders.ts`:
+
+1. **`adminOrders.onError(...)` catch-all** returning a 500 JSON
+   envelope on uncaught throws, mirroring BUG-404-A01's pattern.
+   Replaces Hono's default plain-text crash that would terminate the
+   Worker mid-response.
+2. **Atomic `db.$transaction([order.update, orderStatusLog.create])`**
+   for the two writes that define whether the transition really
+   happened. Half-commits become impossible.
+3. **Per-side-effect `try/catch` isolation** around
+   `orderItem.aggregate`, `financeTransaction.create` (×2), customer
+   notification, and admin audit log. Any individual failure no
+   longer drains the wall-clock budget; the response envelope is
+   committed regardless.
+
+**Verification:**
+
+- Owner-side smoke 2026-04-26 ~02:00 JST: ORD-26048933 (Somchai,
+  4,960 THB) and ORD-26042674 (590 THB) both at `status=finished`.
+  No `Failed to fetch` on the admin orders page.
+- Cloudflare Workers Observability now permanent post-BUG-OBS-01;
+  query spec for owner re-verification (any time):
+  `(method = "PATCH") AND (path matches "/api/v1/admin/orders/.+/status$")
+   AND (timestamp >= 2026-04-22T07:49:40Z)`. Acceptance: zero
+  `outcome=exception` and zero `status=500` rows where the request
+  body's `to_status` is `finished` from a `cleaning` source.
+
+**Regression gates:** `bug405-orders-status-resilience.test.ts`
+
+- Gate #9 — `cleaning→finished happy path response shape is unchanged`.
+- Gate #14 — `cleaning→finished with EVERY side effect throwing still
+  commits 200 JSON`.
+
+**Watch window:** reopens only on a second occurrence before
+**2026-05-03 ~02:00 JST**. If a second occurrence lands inside that
+window, escalate to **Option A** from the T3 advisory (add a
+structured `[admin-orders-status]` JSON envelope mirroring BUG-504's
+`[admin-categories]` pattern, ~1 h). One occurrence pre-fix does not
+justify even Option A — the fix is already in place.
+
+[issue-45]: https://github.com/pairodorz-netizen/cutebunny-rental/issues/45
