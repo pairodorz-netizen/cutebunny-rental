@@ -179,12 +179,15 @@ describe('BUG-504-A02: GET /api/v1/categories', () => {
   });
 
   // ─── Gate 8 ─ Cache-Control ────────────────────────────────────────
-  it('gate 8: sets Cache-Control: public, max-age=300, s-maxage=300', async () => {
+  // BUG-505-A01 dropped the TTL from 300s → 30s so admin↔customer
+  // category drift caused by edge-cache lag self-heals within the
+  // human-perception threshold of "I just clicked delete".
+  it('gate 8: sets Cache-Control: public, max-age=30, s-maxage=30', async () => {
     const res = await app.request('/api/v1/categories');
     const cc = res.headers.get('cache-control') ?? '';
     expect(cc).toMatch(/public/);
-    expect(cc).toMatch(/max-age=300/);
-    expect(cc).toMatch(/s-maxage=300/);
+    expect(cc).toMatch(/max-age=30\b/);
+    expect(cc).toMatch(/s-maxage=30\b/);
   });
 
   // ─── Gate 9 ─ Content-Type ─────────────────────────────────────────
