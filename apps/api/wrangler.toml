@@ -6,6 +6,34 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "development"
 
+# BUG-OBS-01 — Cloudflare Workers Observability + Logs (source of truth).
+#
+# Without this block in wrangler.toml, every `wrangler deploy` was
+# silently resetting the dashboard-side observability toggles, so the
+# nested `logs.enabled = true` (re-enabled by hand) would survive only
+# until the next CI deploy. Pinning both layers in code makes the
+# config reproducible and stops the "where did my logs go?" loop.
+#
+# `[observability] enabled = true` gates the new unified Workers
+# Observability product (auto-instrumented analytics + log retention).
+# `[observability.logs] enabled = true` keeps the legacy Workers Logs
+# (real-time `wrangler tail` + dashboard Logs view) on. They are
+# related-but-different products and we want both. `invocation_logs`
+# captures one log entry per Worker invocation (request/response
+# metadata) so the structured `[admin-categories]` envelopes from
+# BUG-504-RC1+RC2 stay correlatable in the dashboard.
+#
+# `persist` is NOT a wrangler.toml field — log retention is implicit
+# when `logs.enabled = true`. Cloudflare's dashboard surfaces it as a
+# checkbox for UX clarity, but the wrangler schema does not accept it.
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # BUG-AUTH — KV-backed rate-limiter store. Counter entries survive
 # Worker redeploys + isolate restarts (15-min expirationTtl matches
 # the login rate-limit window).
