@@ -38,6 +38,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
+import {
+  buildAdminCrudLogEntry,
+  type AdminCrudOutcome,
+} from '@cutebunny/shared/diagnostics';
 import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
 import { getAdmin, requireRole } from '../../middleware/auth';
@@ -84,6 +88,33 @@ async function safeAuditLog(
   } catch {
     // Audit log is non-critical; swallow errors from schema drift.
   }
+}
+
+/**
+ * BUG-504-RC1-RC2 — structured CRUD log line.
+ *
+ * Cloudflare Workers Logs masks the path identifier; without a hash
+ * we cannot correlate "the failing DELETE" to "the offending row".
+ * `buildAdminCrudLogEntry` produces a deterministic 12-hex-char hash
+ * so two log lines for the same id collide while raw UUIDs never
+ * leak into the log stream.
+ *
+ * `console.log` here is intentionally `console.log` (not `console.error`)
+ * even on error outcomes: Workers Logs differentiates by the structured
+ * `outcome` / `error_code` fields, not by stream. Stays a single line
+ * so log-aggregation tools can JSON.parse it directly.
+ */
+function logAdminCategoryCrud(input: {
+  route: string;
+  method: 'POST' | 'PATCH' | 'DELETE';
+  identifier: string | null;
+  outcome: AdminCrudOutcome;
+  errorCode: string | null;
+  details?: Record<string, string | number | boolean | null>;
+}): void {
+  const entry = buildAdminCrudLogEntry(input);
+  // eslint-disable-next-line no-console
+  console.log('[admin-categories]', JSON.stringify(entry));
 }
 
 // ─── Schemas ────────────────────────────────────────────────────────────
@@ -167,11 +198,25 @@ adminCategories.patch('/:id', requireRole('superadmin'), async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
+    logAdminCategoryCrud({
+      route: '/api/v1/admin/categories/:id',
+      method: 'PATCH',
+      identifier: id,
+      outcome: 'validation_error',
+      errorCode: 'VALIDATION_ERROR',
+    });
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid category data', parsed.error.flatten());
   }
 
   const existing = (await db.category.findUnique({ where: { id } })) as CategoryRow | null;
   if (!existing) {
+    logAdminCategoryCrud({
+      route: '/api/v1/admin/categories/:id',
+      method: 'PATCH',
+      identifier: id,
+      outcome: 'not_found',
+      errorCode: 'NOT_FOUND',
+    });
     return error(c, 404, 'NOT_FOUND', 'Category not found');
   }
 
@@ -203,10 +248,26 @@ adminCategories.patch('/:id', requireRole('superadmin'), async (c) => {
     details: { changes: parsed.data },
   });
 
+  logAdminCategoryCrud({
+    route: '/api/v1/admin/categories/:id',
+    method: 'PATCH',
+    identifier: id,
+    outcome: 'success',
+    errorCode: null,
+  });
+
   return success(c, toDto(row));
 });
 
 // DELETE /api/v1/admin/categories/:id — hard delete
+//
+// BUG-504-RC2: pre-check products.count(category_id) > 0 BEFORE calling
+// db.category.delete to avoid Postgres P2003 (FK violation) leaking
+// out as a generic 500 internal_error. The FK is ON DELETE RESTRICT
+// against products.category_id by design — it must not be relaxed.
+// We translate "category in use" into a clean 409 IN_USE envelope so
+// the admin UI can render an actionable message and offer the
+// visibility-toggle soft-delete path.
 adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
   const db = getDb();
   const admin = getAdmin(c);
@@ -214,7 +275,34 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
 
   const existing = (await db.category.findUnique({ where: { id } })) as CategoryRow | null;
   if (!existing) {
+    logAdminCategoryCrud({
+      route: '/api/v1/admin/categories/:id',
+      method: 'DELETE',
+      identifier: id,
+      outcome: 'not_found',
+      errorCode: 'NOT_FOUND',
+    });
     return error(c, 404, 'NOT_FOUND', 'Category not found');
+  }
+
+  // BUG-504-RC2 pre-check — short-circuit the FK violation path.
+  const productsCount = await db.product.count({ where: { categoryId: id } });
+  if (productsCount > 0) {
+    logAdminCategoryCrud({
+      route: '/api/v1/admin/categories/:id',
+      method: 'DELETE',
+      identifier: id,
+      outcome: 'in_use_blocked',
+      errorCode: 'IN_USE',
+      details: { products_count: productsCount, slug: existing.slug },
+    });
+    return error(
+      c,
+      409,
+      'IN_USE',
+      `Cannot delete category "${existing.slug}": ${productsCount} product(s) still reference it. Reassign the products first or hide the category via the visibility toggles.`,
+      { products_count: productsCount, slug: existing.slug },
+    );
   }
 
   await db.category.delete({ where: { id } });
@@ -224,6 +312,15 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
     action: 'DELETE',
     resource: 'category',
     resourceId: id,
+    details: { slug: existing.slug },
+  });
+
+  logAdminCategoryCrud({
+    route: '/api/v1/admin/categories/:id',
+    method: 'DELETE',
+    identifier: id,
+    outcome: 'success',
+    errorCode: null,
     details: { slug: existing.slug },
   });
 

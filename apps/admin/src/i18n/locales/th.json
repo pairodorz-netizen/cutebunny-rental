@@ -572,6 +572,7 @@
     "categoryErrorSlugFormat": "Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข ขีด - หรือ _ เท่านั้น",
     "categoryErrorSlugDuplicate": "Slug นี้ถูกใช้ไปแล้ว",
     "categoryErrorNameRequired": "ต้องระบุชื่อทั้งภาษาไทยและภาษาอังกฤษ",
+    "categoryErrorInUse": "ลบไม่ได้: ยังมีสินค้า {{count}} รายการใช้หมวดหมู่นี้อยู่ กรุณาย้ายสินค้าไปหมวดอื่น หรือปิดการมองเห็นหมวดหมู่แทน",
     "newCategoryPlaceholder": "ชื่อหมวดหมู่ใหม่...",
     "addCategory": "เพิ่มหมวดหมู่",
     "storeAddressTitle": "ที่อยู่ร้าน / คลังสินค้า",

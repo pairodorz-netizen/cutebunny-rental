@@ -1,4 +1,8 @@
-import { buildApiNetworkError, parseAdminErrorResponse } from '@cutebunny/shared/diagnostics';
+import {
+  buildApiNetworkError,
+  parseAdminErrorResponse,
+  parseAdminSuccessResponse,
+} from '@cutebunny/shared/diagnostics';
 import type { TelemetryHandle } from './diag/telemetry-store';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -84,14 +88,20 @@ async function request<T>(path: string, options?: RequestInit, ctx?: RequestCont
     throw new Error('Unauthorized');
   }
 
-  // BUG-404-A02: content-type-aware reader. Errors are NEVER parsed as
-  // JSON blindly — parseAdminErrorResponse handles non-JSON bodies
-  // (e.g. plain-text "Internal Server Error") without crashing the
-  // admin UI on `JSON.parse`. Success bodies are still JSON.
+  // BUG-404-A02: content-type-aware error reader. Errors are NEVER
+  // parsed as JSON blindly — parseAdminErrorResponse handles non-JSON
+  // bodies without crashing the admin UI on `JSON.parse`.
   if (!res.ok) {
     throw await parseAdminErrorResponse(res);
   }
-  return (await res.json()) as T;
+  // BUG-504-RC1: 204 No Content (and any empty 2xx body) must NOT be
+  // fed into JSON.parse — it would throw `SyntaxError: Unexpected end
+  // of JSON input` and trip useMutation.onError, leaving the row in
+  // the React-Query cache while the server-side mutation actually
+  // succeeded. parseAdminSuccessResponse returns `undefined` for
+  // empty bodies; callers that didn't expect a payload (DELETE,
+  // PUT-with-no-body) simply ignore it.
+  return (await parseAdminSuccessResponse(res)) as T;
 }
 
 async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
@@ -113,7 +123,9 @@ async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
   if (!res.ok) {
     throw await parseAdminErrorResponse(res);
   }
-  return (await res.json()) as T;
+  // BUG-504-RC1: empty 2xx must not crash JSON.parse; mirror the
+  // request<T> helper above so the upload path is symmetric.
+  return (await parseAdminSuccessResponse(res)) as T;
 }
 
 export interface DashboardStats {
