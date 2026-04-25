@@ -35,7 +35,9 @@
  *       no stack, no DB leak, Content-Type: application/json.
  *  13.  A02 public `GET /api/v1/categories` shape untouched (regression
  *       guard — the existing snake_case keys + Cache-Control: public,
- *       max-age=300, s-maxage=300 are preserved).
+ *       max-age=30, s-maxage=30 are preserved). BUG-505-A01 dropped the
+ *       TTL from 300s → 30s; the body shape and header keys are
+ *       otherwise unchanged.
  *  14.  Empty name_th / name_en rejected with 400 VALIDATION_ERROR
  *       (i18n both required).
  *  15.  Slug must match `^[a-z0-9_-]+$` — uppercase / whitespace / dot
@@ -56,6 +58,7 @@ const mockDb = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $transaction: vi.fn(async (ops: unknown) => {
       if (typeof ops === 'function') return (ops as (tx: unknown) => unknown)(db);
       if (Array.isArray(ops)) return Promise.all(ops as Promise<unknown>[]);
@@ -73,6 +76,7 @@ const mockDb = vi.hoisted(() => {
       delete: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       upsert: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: 0 } }),
     };
   }
@@ -422,7 +426,7 @@ describe('BUG-504-A03 — admin categories CRUD', () => {
     mockDb.category.findMany.mockResolvedValueOnce(CANONICAL_SEED);
     const res = await app.request('/api/v1/categories');
     expect(res.status).toBe(200);
-    expect(res.headers.get('cache-control')).toBe('public, max-age=300, s-maxage=300');
+    expect(res.headers.get('cache-control')).toBe('public, max-age=30, s-maxage=30');
     const body = await res.json() as { data: Array<Record<string, unknown>> };
     expect(body.data).toHaveLength(7);
     for (const item of body.data) {

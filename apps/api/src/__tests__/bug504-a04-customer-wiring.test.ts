@@ -28,9 +28,11 @@
  *   c) Admin `products.tsx` dropdown uses `adminApi.categories.list()`,
  *      not `adminApi.settings.categories()` and not the hardcoded
  *      `['wedding', 'evening', ...]` fallback.
- *   d) A02 public `GET /api/v1/categories` still emits
- *      `Cache-Control: public, max-age=300, s-maxage=300`
- *      (regression guard — no A04 cache TTL drift).
+ *   d) A02 public `GET /api/v1/categories` emits
+ *      `Cache-Control: public, max-age=30, s-maxage=30`
+ *      (BUG-505-A01 dropped the TTL from 300s → 30s to shrink the
+ *      drift-banner false-positive window; A04 itself does not
+ *      change cache semantics).
  *   e) Static grep: no hardcoded category arrays remain anywhere in
  *      `apps/customer/src` source (products/home/etc.).
  *   f) Regression guards: A02 + A03 API shapes unchanged (caught by
@@ -268,12 +270,12 @@ describe('BUG-504-A04 — A02 regression guard', () => {
     mockDb.category.findMany.mockResolvedValue([]);
   });
 
-  it('gate d: GET /api/v1/categories keeps Cache-Control public, max-age=300, s-maxage=300', async () => {
+  it('gate d: GET /api/v1/categories keeps Cache-Control public, max-age=30, s-maxage=30', async () => {
     const res = await app.request('/api/v1/categories', { method: 'GET' });
     expect(res.status).toBe(200);
     expect(res.headers.get('Cache-Control') ?? '').toMatch(/public/);
-    expect(res.headers.get('Cache-Control') ?? '').toMatch(/max-age=300/);
-    expect(res.headers.get('Cache-Control') ?? '').toMatch(/s-maxage=300/);
+    expect(res.headers.get('Cache-Control') ?? '').toMatch(/max-age=30\b/);
+    expect(res.headers.get('Cache-Control') ?? '').toMatch(/s-maxage=30\b/);
   });
 });
 

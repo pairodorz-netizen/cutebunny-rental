@@ -285,8 +285,18 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Category not found');
   }
 
-  // BUG-504-RC2 pre-check — short-circuit the FK violation path.
-  const productsCount = await db.product.count({ where: { categoryId: id } });
+  // BUG-504-RC2 + BUG-505-A01 pre-check — short-circuit the FK
+  // violation path on ACTIVE rows only.
+  //
+  // Soft-deleted products keep their `category_id` so Restore can put
+  // them back on their original category. Counting those tombstones
+  // against the category was BUG-505-A01: owners hit `409 IN_USE`
+  // even after soft-deleting every active product. The fix narrows
+  // the count to `deletedAt: null` rows, which is the same predicate
+  // the rest of the admin products surface uses to mean "live row".
+  const productsCount = await db.product.count({
+    where: { categoryId: id, deletedAt: null },
+  });
   if (productsCount > 0) {
     logAdminCategoryCrud({
       route: '/api/v1/admin/categories/:id',
@@ -304,6 +314,27 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
       { products_count: productsCount, slug: existing.slug },
     );
   }
+
+  // BUG-505-A01 — clear `category_id` on soft-deleted tombstones
+  // BEFORE the category.delete call. The FK is `ON DELETE RESTRICT`,
+  // so without this update the tombstones would block the delete
+  // with a P2003 even though no live row references the category.
+  //
+  // Why $executeRaw instead of `db.product.updateMany`: the DB
+  // column `products.category_id` is nullable (BUG-504-A06 step
+  // 1/3 added it as `UUID NULL`) but the Prisma schema still types
+  // it as `String` (required) because every live product has a
+  // value. `updateMany({ data: { categoryId: null } })` would not
+  // typecheck. A raw UPDATE is the smallest possible change that
+  // respects the schema-untouched constraint of this atom and is
+  // bounded to soft-deleted tombstones for the specific category
+  // about to be deleted.
+  await db.$executeRaw`
+    UPDATE "products"
+       SET "category_id" = NULL
+     WHERE "category_id" = ${id}::uuid
+       AND "deleted_at" IS NOT NULL
+  `;
 
   await db.category.delete({ where: { id } });
 
