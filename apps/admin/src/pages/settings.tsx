@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
+import { AdminApiError } from '@cutebunny/shared/diagnostics';
 import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -557,6 +558,24 @@ function CategoriesTab() {
     queryClient.invalidateQueries({ queryKey: ['settings-categories'] });
   };
 
+  // BUG-504-RC2: translate the API 409 IN_USE envelope into a localized,
+  // actionable message. Falls back to `err.message` for every other error
+  // (validation, conflict, server) so existing flows keep their current
+  // copy. Reads `details.products_count` from AdminApiError.payload.
+  const formatCategoryError = (err: Error): string => {
+    if (err instanceof AdminApiError) {
+      const { code, details, message } = err.payload;
+      if (code === 'IN_USE') {
+        const detailsObj =
+          details && typeof details === 'object' ? (details as Record<string, unknown>) : null;
+        const rawCount = detailsObj?.products_count;
+        const count = typeof rawCount === 'number' ? rawCount : 0;
+        return t('settings.categoryErrorInUse', { count, defaultValue: message });
+      }
+    }
+    return err.message;
+  };
+
   const createMutation = useMutation({
     mutationFn: (body: DraftRow) => adminApi.categories.create(body),
     onSuccess: () => {
@@ -571,7 +590,7 @@ function CategoriesTab() {
       });
       setFormError(null);
     },
-    onError: (err: Error) => setFormError(err.message),
+    onError: (err: Error) => setFormError(formatCategoryError(err)),
   });
 
   const updateMutation = useMutation({
@@ -583,7 +602,7 @@ function CategoriesTab() {
       setEditDraft(null);
       setFormError(null);
     },
-    onError: (err: Error) => setFormError(err.message),
+    onError: (err: Error) => setFormError(formatCategoryError(err)),
   });
 
   const deleteMutation = useMutation({
@@ -593,7 +612,7 @@ function CategoriesTab() {
       setPendingDelete(null);
       setFormError(null);
     },
-    onError: (err: Error) => setFormError(err.message),
+    onError: (err: Error) => setFormError(formatCategoryError(err)),
   });
 
   const SLUG_RE = /^[a-z0-9_-]+$/;

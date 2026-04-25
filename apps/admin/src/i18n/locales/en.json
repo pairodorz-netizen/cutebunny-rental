@@ -572,6 +572,7 @@
     "categoryErrorSlugFormat": "Slug must contain only lowercase letters, numbers, dashes, or underscores.",
     "categoryErrorSlugDuplicate": "That slug already exists.",
     "categoryErrorNameRequired": "Both Thai and English names are required.",
+    "categoryErrorInUse": "Cannot delete: {{count}} product(s) still use this category. Reassign the products or hide the category via the visibility toggles.",
     "newCategoryPlaceholder": "New category name...",
     "addCategory": "Add Category",
     "storeAddressTitle": "Store / Warehouse Addresses",

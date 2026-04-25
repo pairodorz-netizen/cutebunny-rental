@@ -571,6 +571,7 @@
     "categoryErrorSlugFormat": "Slug 仅限小写字母、数字、短横线或下划线。",
     "categoryErrorSlugDuplicate": "该 Slug 已被占用。",
     "categoryErrorNameRequired": "必须填写泰文和英文名称。",
+    "categoryErrorInUse": "无法删除：仍有 {{count}} 个商品使用该分类。请先将商品移至其他分类，或通过可见性开关将该分类隐藏。",
     "newCategoryPlaceholder": "新分类名称...",
     "addCategory": "添加分类",
     "storeAddressTitle": "店铺/仓库地址",
