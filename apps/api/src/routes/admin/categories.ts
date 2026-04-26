@@ -48,7 +48,64 @@ import { getAdmin, requireRole } from '../../middleware/auth';
 
 const adminCategories = new Hono();
 
-adminCategories.onError((_err, c) => {
+// BUG-504-A07 — observability patch.
+//
+// Live incident 2026-04-26 19:53 GMT+9 (Cloudflare ray
+// 9f250bf8fe01e395) showed three consecutive 500s on
+// `DELETE /api/v1/admin/categories/:id` with the rendered envelope
+// "Unexpected server error" — but the ray JSON had `exception:{}` and
+// `logs:{}`, leaving us flying blind on the underlying throw.
+//
+// This catch-all previously returned the redacted envelope without
+// emitting any structured log; Workers Logs Observability had nothing
+// to show for the failure. We now emit a single `console.error` line
+// tagged `[admin-categories]` carrying the exception identity + a
+// truncated 5-frame stack alongside the request identifiers Cloudflare
+// already redacts in the URL (so they're safe to log: a 12-hex-char
+// hash for the categoryId path-param via `buildAdminCrudLogEntry`'s
+// hashing pattern, the admin user id, and the `cf-ray` request id).
+//
+// Pattern mirrors `apps/api/src/routes/admin/products.ts:161`
+// (BUG-404-A01) and `apps/api/src/routes/admin/orders.ts:25`
+// (BUG-405-A01). Wire envelope is byte-for-byte unchanged so the
+// redaction baseline documented at the top of this file still holds.
+adminCategories.onError((err, c) => {
+  // Best-effort identifier capture. None of these calls can throw on
+  // a Hono Context — they fall back to `null` cleanly when absent
+  // (e.g. unauthenticated request bypassing requireRole, or the
+  // route had no `:id` segment).
+  let userId: string | null = null;
+  try {
+    const admin = (c.get as unknown as (k: string) => unknown)('jwtPayload') as
+      | { sub?: string }
+      | undefined;
+    userId = admin?.sub ?? null;
+  } catch {
+    userId = null;
+  }
+  const categoryId = c.req.param('id') ?? null;
+  const requestId = c.req.header('cf-ray') ?? null;
+
+  // eslint-disable-next-line no-console
+  console.error(
+    '[admin-categories]',
+    JSON.stringify({
+      err_message: err instanceof Error ? err.message : String(err),
+      err_name: err instanceof Error ? err.name : null,
+      err_code:
+        typeof (err as unknown as { code?: unknown })?.code === 'string'
+          ? (err as unknown as { code: string }).code
+          : null,
+      err_stack:
+        err instanceof Error && typeof err.stack === 'string'
+          ? err.stack.split('\n').slice(0, 5).join(' | ')
+          : null,
+      categoryId,
+      userId,
+      requestId,
+    }),
+  );
+
   return c.json(
     { error: { code: 'internal_error', message: 'Unexpected server error' } },
     500,
