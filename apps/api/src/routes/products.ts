@@ -28,8 +28,17 @@ products.get('/', async (c) => {
   if (size) {
     where.size = { has: size };
   }
+  // BUG-504-A06 commit 3 — filter on the FK, not the legacy enum.
+  // The query param is still a category slug for back-compat; we
+  // resolve it through `categories` once and then filter `categoryId`.
+  // An unknown slug forces zero results via a UUID that cannot match
+  // any real row.
   if (category) {
-    where.category = category as Prisma.ProductWhereInput['category'];
+    const cat = await db.category.findUnique({
+      where: { slug: category },
+      select: { id: true },
+    });
+    where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
   }
 
   // If availability date filter is provided, exclude products with conflicting bookings
@@ -53,6 +62,9 @@ products.get('/', async (c) => {
       include: {
         images: { orderBy: { sortOrder: 'asc' }, take: 1 },
         brand: true,
+        // BUG-504-A06 commit 3 — wire `category` is now sourced from
+        // the FK relation, not the legacy enum column.
+        categoryRef: { select: { slug: true } },
       },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -65,7 +77,10 @@ products.get('/', async (c) => {
     id: p.id,
     sku: p.sku,
     name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
-    category: p.category,
+    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
+    // Verbatim string equivalence with the legacy enum (slug == enum
+    // value) keeps the customer SPA wire-compatible.
+    category: p.categoryRef.slug,
     brand: p.brand ? localizeField(p.brand.nameI18n as Record<string, string> | null, p.brand.name, locale) : null,
     thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
     size: p.size,
@@ -138,14 +153,17 @@ products.get('/:id', async (c) => {
     include: {
       images: { orderBy: { sortOrder: 'asc' } },
       brand: true,
+      // BUG-504-A06 commit 3 — pull the FK slug for wire + related lookup.
+      categoryRef: { select: { slug: true } },
     },
   });
 
   if (product) {
-    // Get related products (same category, different SKU)
+    // Get related products (same category, different SKU). BUG-504-A06
+    // commit 3 — key the lookup on the FK column, not the legacy enum.
     const relatedProducts = await db.product.findMany({
       where: {
-        category: product.category,
+        categoryId: product.categoryId,
         id: { not: product.id },
         available: true,
       },
@@ -158,7 +176,8 @@ products.get('/:id', async (c) => {
       sku: product.sku,
       name: localizeField(product.nameI18n as Record<string, string> | null, product.name, locale),
       description: localizeField(product.descriptionI18n as Record<string, string> | null, product.description ?? '', locale),
-      category: product.category,
+      // BUG-504-A06 commit 3 — wire sourced from FK slug.
+      category: product.categoryRef.slug,
       brand: product.brand
         ? localizeField(product.brand.nameI18n as Record<string, string> | null, product.brand.name, locale)
         : null,

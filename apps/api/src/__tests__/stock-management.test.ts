@@ -60,6 +60,9 @@ const MOCK_PRODUCT = {
   description: '',
   descriptionI18n: null,
   category: 'wedding',
+  // BUG-504-A06 commit 3 — admin list reads `categoryRef.slug`.
+  categoryId: '00000000-0000-0000-0000-0000000000c1',
+  categoryRef: { slug: 'wedding' },
   brandId: null,
   thumbnailUrl: null,
   size: ['M'],

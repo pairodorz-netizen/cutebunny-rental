@@ -90,7 +90,9 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
   return {
     sku: 'D001',
     name: 'Minimal Test Product',
-    category: 'wedding',
+    // BUG-504-A06 commit 3 — POST now requires category_id (UUID); the
+    // legacy `category` slug input was dropped from the zod schema.
+    category_id: '00000000-0000-0000-0000-0000000000c1',
     size: ['M'],
     color: ['red'],
     rental_price_1day: 100,

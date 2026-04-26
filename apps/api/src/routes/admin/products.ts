@@ -4,30 +4,27 @@ import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
 import { parseLocale, localizeField } from '../../lib/i18n';
 import { getAdmin } from '../../middleware/auth';
-import { Prisma, type ProductCategory } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 const adminProducts = new Hono();
 
-// BUG-504-A06 step 2/3 — dual-write resolver.
+// BUG-504-A06 commit 3 — FK-first resolver.
 //
-// During the FK cutover window both `products.category` (legacy enum)
-// and `products.category_id` (new FK to `categories`) must be written
-// on every mutation. The DB-level trigger `products_sync_category_trg`
-// keeps them in sync defensively, but the app layer also resolves and
-// writes both columns explicitly so audit logs and Prisma client cache
-// see the same row the DB sees.
+// The app now writes a single source of truth (`category_id`); the
+// DB-level trigger `products_sync_category_trg` keeps the legacy
+// `products.category` enum populated as a safety net until commit 4
+// FINAL drops it. This resolver maps either a slug or a UUID input
+// onto the canonical `{ categoryId, slug }` tuple via a `categories`
+// lookup, and returns a structured 4xx error envelope when nothing
+// was supplied, the lookup misses, or the supplied pair disagrees.
 //
-// Accepts any combination of legacy `category` (enum slug) and new
-// `category_id` (UUID) from the request body. Returns a matched
-// { category, categoryId } pair by joining through the `categories`
-// table, or a structured 4xx error envelope if nothing was supplied
-// or the two values disagree.
-//
-// This helper is deleted in commit 3 alongside the enum drop; at that
-// point only `category_id` exists and the app writes it directly.
-export type ResolvedCategoryPair = {
-  category: ProductCategory;
+// `slug` is returned alongside the id purely as auxiliary data so
+// callers can echo the wire-format `category: <slug>` field without a
+// second query. The id is the value the database write actually
+// persists.
+export type ResolvedCategoryId = {
   categoryId: string;
+  slug: string;
 };
 
 export type ResolvedCategoryError = {
@@ -40,11 +37,11 @@ export type ResolvedCategoryError = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function resolveCategoryPair(
+export async function resolveCategoryId(
   db: any,
   input: { category?: string; category_id?: string },
 ): Promise<
-  | { ok: true; data: ResolvedCategoryPair }
+  | { ok: true; data: ResolvedCategoryId }
   | { ok: false; error: ResolvedCategoryError }
 > {
   const { category, category_id: categoryId } = input;
@@ -54,8 +51,8 @@ export async function resolveCategoryPair(
       ok: false,
       error: {
         code: 'VALIDATION_ERROR',
-        field: 'category',
-        message: 'Either `category` (slug) or `category_id` (UUID) must be provided',
+        field: 'category_id',
+        message: '`category_id` (UUID) is required',
       },
     };
   }
@@ -87,7 +84,7 @@ export async function resolveCategoryPair(
     }
     return {
       ok: true,
-      data: { category: row.slug as ProductCategory, categoryId: row.id },
+      data: { categoryId: row.id, slug: row.slug },
     };
   }
 
@@ -108,7 +105,7 @@ export async function resolveCategoryPair(
     }
     return {
       ok: true,
-      data: { category: row.slug as ProductCategory, categoryId: row.id },
+      data: { categoryId: row.id, slug: row.slug },
     };
   }
 
@@ -129,7 +126,7 @@ export async function resolveCategoryPair(
   }
   return {
     ok: true,
-    data: { category: row.slug as ProductCategory, categoryId: row.id },
+    data: { categoryId: row.id, slug: row.slug },
   };
 }
 
@@ -214,8 +211,16 @@ adminProducts.get('/', async (c) => {
     ];
   }
 
+  // BUG-504-A06 commit 3 — filter by FK, not enum. Slug query param
+  // is preserved for back-compat with existing admin clients; we
+  // resolve through `categories` and pin `categoryId`. An unknown slug
+  // forces zero results via a UUID that cannot match any real row.
   if (category) {
-    where.category = category as Prisma.EnumProductCategoryFilter;
+    const cat = await db.category.findUnique({
+      where: { slug: category },
+      select: { id: true },
+    });
+    where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
   }
 
   const [products, total] = await Promise.all([
@@ -224,6 +229,8 @@ adminProducts.get('/', async (c) => {
       include: {
         brand: true,
         images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+        // BUG-504-A06 commit 3 — wire `category` sourced from FK slug.
+        categoryRef: { select: { slug: true } },
       },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -237,9 +244,10 @@ adminProducts.get('/', async (c) => {
     sku: p.sku,
     name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
     name_i18n: (p.nameI18n as Record<string, string>) ?? {},
-    category: p.category,
-    // BUG-504-A06 step 2/3 — expose the FK on the wire during the
-    // cutover window so downstream clients can start consuming it.
+    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
+    // Verbatim string equivalence with the legacy enum keeps the admin
+    // SPA wire-compatible.
+    category: p.categoryRef.slug,
     category_id: p.categoryId,
     brand: p.brand?.name ?? null,
     thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
@@ -349,7 +357,11 @@ adminProducts.get('/export', async (c) => {
   const db = getDb();
 
   const products = await db.product.findMany({
-    include: { images: { orderBy: { sortOrder: 'asc' } } },
+    include: {
+      images: { orderBy: { sortOrder: 'asc' } },
+      // BUG-504-A06 commit 3 — CSV `category` column sourced from FK slug.
+      categoryRef: { select: { slug: true } },
+    },
     orderBy: { createdAt: 'asc' },
   });
 
@@ -361,7 +373,7 @@ adminProducts.get('/export', async (c) => {
       nameI18n.en ?? p.name,
       nameI18n.th ?? '',
       nameI18n.zh ?? '',
-      p.category,
+      p.categoryRef.slug,
       p.size.join(';'),
       p.color.join(';'),
       String(p.rentalPrice1Day),
@@ -532,11 +544,10 @@ adminProducts.post('/import', async (c) => {
     const nameI18n = { en: row.name_en, th: row.name_th || row.name_en, zh: row.name_zh || row.name_en };
     const descI18n = { en: row.desc_en, th: row.desc_th || row.desc_en, zh: row.desc_zh || row.desc_en };
 
-    // BUG-504-A06 step 2/3 — dual-write on bulk import too. Resolve
-    // the FK once per row; VALID_CATEGORIES parser guarantees the slug
-    // exists, so this is never expected to fail in practice, but we
-    // still validate to keep error shape consistent with POST /.
-    const catResolved = await resolveCategoryPair(db, { category: row.category });
+    // BUG-504-A06 commit 3 — bulk import resolves the slug from CSV
+    // through the `categories` lookup once per row and writes the FK
+    // only. The trigger keeps the legacy enum column populated.
+    const catResolved = await resolveCategoryId(db, { category: row.category });
     if (!catResolved.ok) {
       return c.json({ error: catResolved.error }, 422);
     }
@@ -549,7 +560,6 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || undefined,
           descriptionI18n: descI18n,
-          category: row.category as ProductCategory,
           categoryRef: { connect: { id: rowCategoryId } },
           size: row.size,
           color: row.color,
@@ -564,9 +574,10 @@ adminProducts.post('/import', async (c) => {
       updatedCount++;
       results.push({ row: row.row, action: 'updated', id: row.existing_id, name: row.name_en });
     } else {
-      // Generate SKU from category + sequence
+      // Generate SKU from category + sequence. BUG-504-A06 commit 3 —
+      // count via the FK column.
       const catPrefix = row.category.substring(0, 2).toUpperCase();
-      const count = await db.product.count({ where: { category: row.category as ProductCategory } });
+      const count = await db.product.count({ where: { categoryId: rowCategoryId } });
       const sku = `CB-${catPrefix}-${String(count + 1).padStart(3, '0')}`;
 
       const product = await db.product.create({
@@ -576,7 +587,6 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || `${row.name_en} available for rental.`,
           descriptionI18n: descI18n,
-          category: row.category as ProductCategory,
           categoryId: rowCategoryId,
           size: row.size,
           color: row.color,
@@ -626,11 +636,11 @@ adminProducts.post('/', async (c) => {
     name_i18n: z.record(z.string()).optional(),
     description: z.string().optional(),
     description_i18n: z.record(z.string()).optional(),
-    // BUG-504-A06 step 2/3 — dual-write window: accept either the
-    // legacy enum slug, the new FK UUID, or both. `resolveCategoryPair`
-    // validates the pair below. Commit 3 removes `category` entirely.
-    category: z.string().min(1).optional(),
-    category_id: z.string().uuid().optional(),
+    // BUG-504-A06 commit 3 — POST accepts the FK UUID only. Admin UI
+    // already passes `category_id` since the BUG-504-A04 dropdown
+    // cutover. The trigger backfills the legacy enum column at the DB
+    // layer.
+    category_id: z.string().uuid(),
     brand_id: z.string().uuid().optional(),
     brand_name: z.string().optional(),
     size: z.array(z.string()).min(1),
@@ -658,17 +668,16 @@ adminProducts.post('/', async (c) => {
     return error(c, 400, 'VALIDATION_ERROR', 'Invalid product data', parsed.error.flatten());
   }
 
-  // BUG-504-A06 step 2/3 — resolve the category pair up front so both
-  // the write and the audit log see a consistent (slug, id) tuple.
-  const categoryResult = await resolveCategoryPair(db, {
-    category: parsed.data.category,
+  // BUG-504-A06 commit 3 — resolve the FK once so the audit log echoes
+  // the canonical slug without a second query.
+  const categoryResult = await resolveCategoryId(db, {
     category_id: parsed.data.category_id,
   });
   if (!categoryResult.ok) {
     const status = categoryResult.error.code === 'VALIDATION_ERROR' ? 400 : 422;
     return c.json({ error: categoryResult.error }, status);
   }
-  const { category: resolvedCategory, categoryId: resolvedCategoryId } =
+  const { categoryId: resolvedCategoryId, slug: resolvedSlug } =
     categoryResult.data;
 
   // Check SKU uniqueness (only among active products — soft-deleted ones
@@ -700,9 +709,9 @@ adminProducts.post('/', async (c) => {
       nameI18n: parsed.data.name_i18n ?? Prisma.JsonNull,
       description: parsed.data.description ?? '',
       descriptionI18n: parsed.data.description_i18n ?? Prisma.JsonNull,
-      // BUG-504-A06 step 2/3 — dual-write both columns. The DB trigger
-      // is a safety net; the app-layer write is the source of truth.
-      category: resolvedCategory as never,
+      // BUG-504-A06 commit 3 — single-source write on the FK column.
+      // The trigger `products_sync_category_trg` keeps the legacy enum
+      // populated until commit 4 FINAL drops it.
       categoryId: resolvedCategoryId,
       brandId: resolvedBrandId,
       size: parsed.data.size,
@@ -742,9 +751,9 @@ adminProducts.post('/', async (c) => {
           details: {
             sku: product.sku,
             name: product.name,
-            category: product.category,
-            // BUG-504-A06 — include the resolved FK so audit log
-            // records the A06-era value too.
+            // BUG-504-A06 commit 3 — audit log records the canonical
+            // slug echoed from the resolver, plus the FK id.
+            category: resolvedSlug,
             category_id: product.categoryId,
           },
         },
@@ -806,9 +815,8 @@ adminProducts.post('/', async (c) => {
     id: product.id,
     sku: product.sku,
     name: product.name,
-    category: product.category,
-    // BUG-504-A06 — include the FK so clients that only speak the
-    // A06 dialect can read the id without a round-trip.
+    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
+    category: resolvedSlug,
     category_id: product.categoryId,
     ...(stockResult ? { initial_stock: stockResult } : {}),
   });
@@ -830,9 +838,8 @@ adminProducts.patch('/:id', async (c) => {
     name_i18n: z.record(z.string()).optional(),
     description: z.string().optional(),
     description_i18n: z.record(z.string()).optional(),
-    // BUG-504-A06 step 2/3 — dual-write window on PATCH: either or
-    // both may be supplied; pair resolver validates consistency.
-    category: z.string().min(1).optional(),
+    // BUG-504-A06 commit 3 — PATCH accepts the FK UUID only. The
+    // trigger backfills the legacy enum column at the DB layer.
     category_id: z.string().uuid().optional(),
     brand_id: z.string().uuid().nullable().optional(),
     brand_name: z.string().optional(),
@@ -864,16 +871,11 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.name_i18n !== undefined) updateData.nameI18n = parsed.data.name_i18n;
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.description_i18n !== undefined) updateData.descriptionI18n = parsed.data.description_i18n;
-  // BUG-504-A06 step 2/3 — dual-write on PATCH. If either `category`
-  // (slug) or `category_id` (UUID) is supplied we resolve through the
-  // `categories` table and write both columns. Omitting both keeps the
-  // existing values untouched, preserving PATCH semantics.
-  if (
-    parsed.data.category !== undefined ||
-    parsed.data.category_id !== undefined
-  ) {
-    const categoryResult = await resolveCategoryPair(db, {
-      category: parsed.data.category,
+  // BUG-504-A06 commit 3 — single-source FK update on PATCH. Omitting
+  // `category_id` keeps the existing value, preserving PATCH semantics.
+  // The trigger keeps the legacy enum column in sync at the DB layer.
+  if (parsed.data.category_id !== undefined) {
+    const categoryResult = await resolveCategoryId(db, {
       category_id: parsed.data.category_id,
     });
     if (!categoryResult.ok) {
@@ -881,7 +883,6 @@ adminProducts.patch('/:id', async (c) => {
         categoryResult.error.code === 'VALIDATION_ERROR' ? 400 : 422;
       return c.json({ error: categoryResult.error }, status);
     }
-    updateData.category = categoryResult.data.category as never;
     updateData.categoryRef = {
       connect: { id: categoryResult.data.categoryId },
     };
@@ -977,6 +978,8 @@ adminProducts.get('/:id/detail', async (c) => {
     include: {
       brand: true,
       images: { orderBy: { sortOrder: 'asc' } },
+      // BUG-504-A06 commit 3 — wire `category` sourced from FK slug.
+      categoryRef: { select: { slug: true } },
       orderItems: {
         include: {
           order: {
@@ -1012,8 +1015,8 @@ adminProducts.get('/:id/detail', async (c) => {
     name: product.name,
     name_i18n: product.nameI18n,
     description: product.description,
-    category: product.category,
-    // BUG-504-A06 step 2/3 — FK exposed alongside the enum.
+    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
+    category: product.categoryRef.slug,
     category_id: product.categoryId,
     brand: product.brand?.name ?? null,
     brand_id: product.brandId,
@@ -1313,6 +1316,8 @@ adminProducts.get('/popularity', async (c) => {
       include: {
         brand: { select: { name: true } },
         images: { orderBy: { sortOrder: 'asc' }, take: 1 },
+        // BUG-504-A06 commit 3 — wire `category` sourced from FK slug.
+        categoryRef: { select: { slug: true } },
       },
       orderBy: { rentalCount: 'desc' },
       skip: (page - 1) * perPage,
@@ -1325,7 +1330,7 @@ adminProducts.get('/popularity', async (c) => {
     id: p.id,
     sku: p.sku,
     name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
-    category: p.category,
+    category: p.categoryRef.slug,
     brand: p.brand?.name ?? null,
     thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
     rental_count: p.rentalCount,
