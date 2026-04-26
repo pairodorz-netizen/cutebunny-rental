@@ -541,6 +541,33 @@
     "resource": "ทรัพยากร",
     "details": "รายละเอียด",
     "noAuditLogs": "ยังไม่มีบันทึกกิจกรรม",
+    "audit": {
+      "filters": {
+        "dateFrom": "ตั้งแต่",
+        "dateTo": "ถึง",
+        "section": "หมวด",
+        "actor": "ผู้ดูแลระบบ",
+        "actorAll": "ผู้ดูแลทุกคน",
+        "search": "ค้นหารหัส",
+        "searchPlaceholder": "เช่น late_return_fee"
+      },
+      "section": {
+        "finance": "การเงิน",
+        "calendar": "ปฏิทิน",
+        "shipping": "การจัดส่ง",
+        "customer_ux": "ประสบการณ์ลูกค้า",
+        "general": "ทั่วไป"
+      },
+      "column": {
+        "section": "หมวด",
+        "key": "การตั้งค่า"
+      },
+      "action": {
+        "CREATE": "สร้าง",
+        "UPDATE": "แก้ไข",
+        "DELETE": "ลบ"
+      }
+    },
     "page": "หน้า",
     "entries": "รายการ",
     "tab_notifications": "การแจ้งเตือน",

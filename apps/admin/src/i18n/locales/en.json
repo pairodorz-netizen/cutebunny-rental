@@ -541,6 +541,33 @@
     "resource": "Resource",
     "details": "Details",
     "noAuditLogs": "No audit log entries yet.",
+    "audit": {
+      "filters": {
+        "dateFrom": "From",
+        "dateTo": "To",
+        "section": "Section",
+        "actor": "Admin",
+        "actorAll": "All admins",
+        "search": "Search key",
+        "searchPlaceholder": "e.g. late_return_fee"
+      },
+      "section": {
+        "finance": "Finance",
+        "calendar": "Calendar",
+        "shipping": "Shipping",
+        "customer_ux": "Customer UX",
+        "general": "General"
+      },
+      "column": {
+        "section": "Section",
+        "key": "Setting"
+      },
+      "action": {
+        "CREATE": "Create",
+        "UPDATE": "Update",
+        "DELETE": "Delete"
+      }
+    },
     "page": "Page",
     "entries": "entries",
     "tab_notifications": "Notifications",

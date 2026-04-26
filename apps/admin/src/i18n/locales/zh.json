@@ -541,6 +541,33 @@
     "resource": "资源",
     "details": "详情",
     "noAuditLogs": "暂无操作日志。",
+    "audit": {
+      "filters": {
+        "dateFrom": "起始",
+        "dateTo": "截止",
+        "section": "分类",
+        "actor": "管理员",
+        "actorAll": "全部管理员",
+        "search": "搜索键",
+        "searchPlaceholder": "例如 late_return_fee"
+      },
+      "section": {
+        "finance": "财务",
+        "calendar": "日历",
+        "shipping": "运费",
+        "customer_ux": "客户体验",
+        "general": "通用"
+      },
+      "column": {
+        "section": "分类",
+        "key": "设置项"
+      },
+      "action": {
+        "CREATE": "创建",
+        "UPDATE": "更新",
+        "DELETE": "删除"
+      }
+    },
     "page": "页",
     "entries": "条记录",
     "tab_notifications": "通知",
