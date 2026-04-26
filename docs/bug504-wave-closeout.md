@@ -279,40 +279,72 @@ without a dedicated atom yet.
 
 ### 8.1 BUG-UX-TRANSIENT-5XX — "Unexpected server error" banner during deploy cutover
 
-**Status:** observed once, deferred. Open atom only on second occurrence.
+**Status:** **confirmed regression** as of 2026-04-26 (2/2 occurrences
+inside the 7-day window). Original "deploy-cutover noise" hypothesis
+**falsified** — second occurrence was 3× DELETE 500s in 7 seconds
+under steady-state traffic, not a deploy rollover. Promoted to a
+two-commit response track:
 
-**Symptom:** A single transient banner reading `Unexpected server error`
-on the admin Categories page during the ~30-second window between
-`wrangler deploy` flipping the active Worker and the Vercel admin edge
-cache rolling over. Did not recur on reload.
+- **A07-commit1 (observability) — SHIPPED.** PR [#95][pr-95]
+  (`eb330b8`, merged 2026-04-26 ~19:00 UTC) added a structured
+  `console.error` line tagged `[admin-categories]` to the global
+  `adminCategories.onError(...)` catch-all so future occurrences
+  surface `err_message / err_name / err_code / err_stack[top5] /
+  categoryId / userId / requestId` in Workers Logs. Wire envelope
+  byte-for-byte unchanged. Pattern mirrors PR #43 (BUG-404-A01) and
+  PR #46 (BUG-405-A01). Vitest spy gate added at
+  `apps/api/src/__tests__/bug504-a07-observability.test.ts`.
+- **A07-commit2 (targeted fix) — PENDING.** Held until the owner
+  reproduces the 500 against the deployed `eb330b8` and pastes the
+  new structured `[admin-categories]` log line. Candidates ranked
+  pre-capture: (1) `$executeRaw` UUID-cast / parameter-binding
+  throw at `apps/api/src/routes/admin/categories.ts:332-337` (~55%
+  pre-evidence), (2) Prisma `P2003` race between the
+  `db.product.count` pre-check and `db.category.delete` (~25%),
+  (3) Prisma client schema drift (~15%), (4) auth-middleware edge
+  case (~5%). Speculative bundling explicitly forbidden — fix lands
+  only with observed evidence.
 
-**Hypothesis (T3 advisory, 2026-04-26):** Cloudflare blue/green deploy
-cutover — a small fraction of requests during the active-version swap
-can land on a cold isolate that exceeds CPU budget OR races with
-module-load. Hono's global `onError()` returns the canonical
-`internal_error` envelope (`message: "Unexpected server error"`),
-which the admin frontend's `parseAdminErrorResponse` surfaces verbatim.
-Not drift-guard related (`s-maxage=30` from BUG-505-A01 targets stale
-data, not 5xx). Not a module-load throw (BUG-API-WORKER-CRASH-01 gates
-in `bug-api-worker-crash-01.test.ts` are green and would catch that).
+**Symptom:** Banner reading `Unexpected server error` on the admin
+Categories page after clicking the trash icon on a row. Initial
+hypothesis assumed deploy-cutover blue/green isolate races; the
+second occurrence's log shape (3× DELETE in 7s, all 500, no
+deploy event in window) ruled this out.
 
-**Trigger threshold:** **2 occurrences in 7 days** of normal traffic
-(post-2026-04-26). On second occurrence, open `BUG-UX-TRANSIENT-5XX-A01`
-implementing **Option A** from the advisory:
+**Hypothesis (T3 advisory, 2026-04-26 — superseded by A07):**
+Cloudflare blue/green deploy cutover — a small fraction of requests
+during the active-version swap landing on a cold isolate. Hono's
+global `onError()` returns the canonical `internal_error` envelope
+(`message: "Unexpected server error"`), which the admin frontend's
+`parseAdminErrorResponse` surfaces verbatim. **This hypothesis is
+retained for the historical record; the actual root cause for
+occurrence #2 is being narrowed by A07-commit1's observability
+patch and will be documented under A07-commit2 once the live
+capture lands.**
 
-> React-Query mutation retry on 5xx: enable `retry` (1-2 attempts with
-> exponential backoff) on `useMutation` defaults so 5xx transients
-> auto-retry once before surfacing the banner. Estimated ~0.3 h.
+The *frontend* mitigation from the original advisory still has
+standalone value and is split into its own backlog item:
+
+> React-Query mutation retry on 5xx: enable `retry` (1-2 attempts
+> with exponential backoff) on `useMutation` defaults so 5xx
+> transients auto-retry once before surfacing the banner. Estimated
+> ~0.3 h. Owner-gate this if A07-commit2 doesn't fully eliminate
+> the residual 5xx rate.
 
 **Occurrence log:**
 
-| #   | Date (UTC)              | Worker deploy   | Notes                                  |
-|-----|-------------------------|-----------------|----------------------------------------|
-| 1   | 2026-04-26 ~01:00 JST   | `320f1dde`      | PR #90 rollover; did not recur on reload |
+| #   | Date (JST)              | Worker deploy   | Cloudflare ray         | Notes                                                                |
+|-----|-------------------------|-----------------|------------------------|----------------------------------------------------------------------|
+| 1   | 2026-04-26 ~01:00       | `320f1dde`      | (not captured)         | PR #90 rollover; did not recur on reload. Original "transient" entry. |
+| 2   | 2026-04-26 19:53:51–58  | (PR #90 era)    | `9f250bf8fe01e395`     | 3× DELETE 500 in 7s on `/api/v1/admin/categories/:id`. Ray JSON had `exception:{}` / `logs:{}` — opaque. Promoted §8.1 to confirmed regression; triggered A07. |
 
-If the second occurrence happens, append the row + open the atom. If 7
-days pass with no recurrence, this section can be folded into a generic
-"deploy-cutover noise" footnote.
+**Closure conditions:** §8.1 stays open until A07-commit2 lands a
+targeted fix and 7 calendar days of normal traffic pass without
+another `[admin-categories]` 500 line in Workers Logs. If A07-commit2
+ships and the residual 5xx rate stays > 0, the React-Query mutation
+retry mitigation above is the next escalation rung.
+
+[pr-95]: https://github.com/pairodorz-netizen/cutebunny-rental/pull/95
 
 ### 8.2 BUG-URGENT-ORDER-STATUS / Issue #45 — Verified resolved by PR #46
 
