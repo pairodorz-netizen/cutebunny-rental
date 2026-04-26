@@ -381,3 +381,140 @@ structured `[admin-orders-status]` JSON envelope mirroring BUG-504's
 justify even Option A — the fix is already in place.
 
 [issue-45]: https://github.com/pairodorz-netizen/cutebunny-rental/issues/45
+
+### 8.3 BUG-AUDIT-IDX-01 — `audit_logs` composite index, parked with tripwire
+
+**Status:** parked. Owner-gated like A06 — will not auto-ratify even if
+threshold trips. Trigger word locked: **`IDX_CUTOVER`**.
+
+**Context:** BUG-AUDIT-UI-A01 (PR #93, merged 2026-04-26) shipped the
+read-only Audit Log UI on `/admin/settings?tab=audit`, superadmin-gated,
+with `from`/`to`/`section`/`actor`/`q`/`pageSize` filters. The default
+query is:
+
+```sql
+SELECT … FROM audit_logs
+WHERE resource = 'system_config'
+  AND created_at >= NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC
+LIMIT 50 OFFSET ?;
+```
+
+The default 7-day window keeps the working set bounded; sequential
+scan stays under the UI's 200ms perceptual threshold below ~10k rows.
+
+**Baseline (Supabase prod, 2026-04-26):**
+
+| Metric | Value |
+|---|---|
+| `total_rows` | **0** |
+| `config_rows` (`resource = 'system_config'`) | **0** |
+| `pg_relation_size('audit_logs')` | **8192 B** (1 empty page) |
+| `pg_indexes_size('audit_logs')` | n/a (PK only) |
+
+Well below the 10k threshold; no index needed today.
+
+**Tripwire — owner runs monthly (read-only, no locks):**
+
+```sql
+SELECT
+  COUNT(*) FILTER (WHERE resource = 'system_config') AS config_rows,
+  COUNT(*) AS total_rows,
+  pg_size_pretty(pg_relation_size('audit_logs')) AS table_size,
+  pg_size_pretty(pg_indexes_size('audit_logs')) AS indexes_size,
+  MIN(created_at) AS oldest_row,
+  MAX(created_at) AS newest_row
+FROM audit_logs;
+```
+
+**Decision tree on `total_rows`:**
+
+| `total_rows` | Action |
+|---|---|
+| `< 5,000` | **Park.** No measurable perf benefit; index adds write overhead with zero read win. Re-check next month. |
+| `5,000 – 10,000` | **Schedule** for next maintenance window as a 5-min cleanup atom. |
+| `> 10,000` | **Send `IDX_CUTOVER`** — Devin opens the PR with the diff below. |
+| `> 50,000` | **Hot-fix priority.** Sequential scans tail the UI noticeably. |
+
+**Schema diff** (`packages/shared/prisma/schema.prisma`, +1 line on the
+`AuditLog` model):
+
+```diff
+ model AuditLog {
+   …
++  @@index([resource, createdAt(sort: Desc)], name: "audit_logs_resource_created_at_idx")
+   @@map("audit_logs")
+ }
+```
+
+**Migration:** `20260427_100_audit_logs_resource_created_at_idx`
+(matches the `YYYYMMDD_NNN_<slug>` cadence; next free `_100_` slot
+after `20260424_090_fix_function_search_path`).
+
+**`migration.sql` body** — `CONCURRENTLY` to avoid a write lock on
+`audit_logs`:
+
+```sql
+CREATE INDEX CONCURRENTLY IF NOT EXISTS audit_logs_resource_created_at_idx
+  ON audit_logs (resource, created_at DESC);
+```
+
+`CONCURRENTLY` cannot run inside a transaction. Prisma's
+`migrate deploy` wraps each migration in a tx by default; use the same
+no-transaction convention BUG-RLS-01 (PR #59) used for its
+`ENABLE ROW LEVEL SECURITY` migrations on Supabase Postgres 15. If that
+pattern proves brittle on this migration, the fallback is to drop
+`CONCURRENTLY` and accept a sub-100ms write lock on `audit_logs` — the
+only blocked path is admin-settings audit inserts.
+
+**Read-path latency estimate (Supabase pooler, Postgres 15):**
+
+| Total rows | Pre-index | Post-index | Speedup |
+|---|---|---|---|
+| 1k | ~3ms | ~2ms | 1.5× |
+| 10k | ~25ms | ~3ms | 8× |
+| 100k | ~280ms | ~5ms | 55× |
+| 1M | ~3.2s | ~8ms | 400× |
+
+**Write-path overhead:** ~50–100µs per insert (one extra btree leaf
+write at <100k table rows). Page splits are cheap because
+`created_at DESC` ordering puts new rows at the leftmost position.
+Negligible vs the surrounding `Promise.allSettled` write batch
+(~5ms baseline). `safeAuditLog` already swallows errors, so even
+index-write contention can't escalate to a user-visible failure.
+
+**Reversibility:** fully reversible, no data loss.
+
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS audit_logs_resource_created_at_idx;
+```
+
+`CONCURRENTLY` is supported on Supabase Postgres 15+ for both `CREATE`
+and `DROP`. The index is purely a query-planner artifact.
+
+**UBS gate classification:** **T3 schema → owner-ratify** (matches A06
+precedent). Touches `schema.prisma` + adds a migration file. Outside
+the auto-decide envelope per UBS v8 §3.2 even though this index is
+mechanically simpler than A06's dual-write trigger flip. Single-PR
+scope, single squash-merge, no app-layer code changes (existing
+Prisma `where`/`orderBy` clauses already match the new index).
+
+**Trigger protocol:** owner sends literal `IDX_CUTOVER` in chat → Devin
+opens the PR with the diff above on a fresh branch off main → CI 10/10
+green → owner merges. ~5 min wall, ~$5.
+
+**Non-goals (do NOT bundle):**
+
+- Keyset pagination on the audit-log GET (deep-page OFFSET >10000 still
+  index-scans to skip rows; not addressable by this index).
+- Index on `details->>'key'` (JSONB path) — out of scope; `q`
+  free-text search is bounded by the default 7-day window.
+- Index on `(adminId, createdAt)` for `actor=` filter — defer; actor
+  filter is rare and currently fast on small tables.
+
+**Watch window:** indefinite. Owner runs the count query in this
+section monthly (or whenever the Audit Log UI feels sluggish). No
+auto-trigger; cutover requires literal `IDX_CUTOVER`.
+
+[issue-34]: https://github.com/pairodorz-netizen/cutebunny-rental/issues/34
+[pr-93]: https://github.com/pairodorz-netizen/cutebunny-rental/pull/93
