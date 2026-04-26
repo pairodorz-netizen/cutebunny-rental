@@ -532,7 +532,8 @@ describe('T03: Admin Happy Path E2E', () => {
           sku: 'EVE-100',
           name: 'Evening Gown',
           name_i18n: { en: 'Evening Gown', th: 'ชุดราตรี', zh: '晚礼服' },
-          category: 'evening',
+          // BUG-504-A06 commit 3 — POST requires category_id (UUID).
+          category_id: '00000000-0000-0000-0000-0000000000c2',
           size: ['S', 'M'],
           color: ['black'],
           rental_price_1day: 1000,
@@ -567,7 +568,8 @@ describe('T03: Admin Happy Path E2E', () => {
         body: JSON.stringify({
           sku: 'WED-001',
           name: 'Another Dress',
-          category: 'wedding',
+          // BUG-504-A06 commit 3 — POST requires category_id (UUID).
+          category_id: '00000000-0000-0000-0000-0000000000c1',
           size: ['M'],
           color: ['white'],
           rental_price_1day: 1000,

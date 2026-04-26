@@ -148,16 +148,19 @@ model Product {
   nameI18n        Json?           @map("name_i18n") @db.JsonB
   description     String?         @default("")
   descriptionI18n Json?           @map("description_i18n") @db.JsonB
-  category        ProductCategory
+  // BUG-504-A06 commit 3 — relaxed from required to optional at the
+  // Prisma type layer. The DB column is still NOT NULL, but the
+  // BEFORE INSERT/UPDATE trigger `products_sync_category_trg`
+  // backfills it from `category_id` on every write so the app no
+  // longer needs to supply it. Commit 4 FINAL drops the column,
+  // trigger, and `ProductCategory` enum together.
+  category        ProductCategory?
   // BUG-504-A06 — FK to the source-of-truth `categories` table.
-  // Commit 1 added the column as nullable (no data). Commit 2 (THIS
-  // state) backfilled via slug join and flipped to NOT NULL. A
-  // BEFORE INSERT/UPDATE trigger `products_sync_category_trg` keeps
-  // `category` (enum) and `category_id` (FK) in sync during the
-  // transition window; app-layer writes also dual-write explicitly
-  // for defense-in-depth. Commit 3 drops `category` + ProductCategory
-  // under FINAL_CUTOVER=1, at which point this becomes the sole
-  // source of truth.
+  // Commit 1 added the column as nullable (no data). Commit 2
+  // backfilled via slug join and flipped to NOT NULL. Commit 3 (THIS
+  // state) flips the app to single-source FK writes; the trigger
+  // keeps the legacy `category` enum populated as a safety net.
+  // Commit 4 FINAL drops the legacy column + trigger + enum.
   categoryId      String          @map("category_id") @db.Uuid
   size            String[]
   color           String[]

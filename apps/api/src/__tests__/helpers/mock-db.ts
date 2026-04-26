@@ -59,6 +59,15 @@ export const MOCK_PRODUCT = {
   description: 'Beautiful crystal wedding dress',
   descriptionI18n: { en: 'Beautiful crystal wedding dress', th: 'ชุดเจ้าสาวคริสตัลสวยงาม', zh: '美丽的水晶婚纱' },
   category: 'wedding',
+  // BUG-504-A06 commit 3 — FK columns + relation. The wire `category`
+  // field is now sourced from `categoryRef.slug` on the read path.
+  categoryId: '00000000-0000-0000-0000-0000000000c1',
+  categoryRef: {
+    id: '00000000-0000-0000-0000-0000000000c1',
+    slug: 'wedding',
+    name: 'Wedding',
+    nameI18n: { en: 'Wedding', th: 'ชุดเจ้าสาว', zh: '婚纱' },
+  },
   brandId: '00000000-0000-0000-0000-000000000002',
   thumbnailUrl: 'https://example.com/thumb.jpg',
   size: ['S', 'M', 'L'],
