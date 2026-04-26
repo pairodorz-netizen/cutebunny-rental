@@ -1,9 +1,10 @@
 # BUG-504 Category Sync — Wave Final Report
 
 **Report generated**: 2026-04-22 (post-A07 merge)
+**Last updated**: 2026-04-22 (post-A08 merge; wait-state block added in §9)
 **Wave owner**: Qew Cut Clip
 **Wave implementer**: Devin (Cognition)
-**Status**: A01 – A07 shipped to `main`; A06 commit 3 FINAL held on 24 h timer
+**Status**: A01 – A08 shipped to `main`; A06 commit 3 FINAL held on 24 h timer + owner ack
 
 ## 1. Background
 
@@ -29,6 +30,8 @@ the owner observed drift on `admin-eight-rouge.vercel.app` on 2026-04-22.
 | #53 | `feat(bug504-a06): step 2/3 backfill + dual-write trigger + app-layer dual-write`  | `37dac60`   | A06 commit 2 — GREEN backfill       |
 | #54 | `feat(bug504-a06.5): admin category drift guard + DriftBanner + audit event`       | `4848013`   | A06.5 — client-side drift guard     |
 | #55 | `test(bug504-a07): admin-side categories parity gates 7+8 (ADMIN_JWT_PROD)`        | `1876b16`   | A07 — admin CI parity scaffolding   |
+| #56 | `docs(bug504): wave final report + A06 commit 3 FINAL pre-flight checklist`        | `ba596d1`   | docs — this report + preflight      |
+| #57 | `feat(bug504-a08): forensic read params on admin audit-log GET`                    | `67fd075`   | A08 — forensic read surface         |
 
 A06 commit 3 FINAL (drop `products.category` column + drop `ProductCategory`
 enum + 410-Gone legacy endpoint) is **not yet shipped**. See §6.
@@ -134,13 +137,39 @@ could not be fulfilled without an admin bearer or direct DB access:
 | Check                                                                       | Blocker                                                                                             |
 |-----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
 | `GET /api/v1/admin/categories` byte-diff vs public                          | needs `ADMIN_JWT_PROD` (A07.5)                                                                      |
-| `SELECT * FROM audit_log WHERE action='category.drift_detected' AND created_at > '2026-04-22'` | needs Supabase MCP / service-role key / new read route (not currently available)                    |
+| `SELECT * FROM audit_log WHERE action='category.drift_detected' AND created_at > '2026-04-22'` | ~~needs Supabase MCP / service-role key / new read route~~ — **read route landed in A08 (#57)**; now needs only `ADMIN_JWT_PROD` (A07.5) |
 | Playwright gate 8 live run against `admin-eight-rouge.vercel.app`           | needs `ADMIN_JWT_PROD` as GitHub repo secret (A07.5)                                                |
 
-All three unblock the moment A07.5 ships.
+All three unblock the moment A07.5 ships. After A08 (#57, merge `67fd075`) the
+audit-log query is a single `curl -H "Authorization: Bearer $ADMIN_JWT_PROD"
+.../api/v1/admin/settings/audit-log?action=category.drift_detected&since=2026-04-22T13:00:00Z&limit=100`
+away.
 
 ## 8. Unrelated / standby items (not in this wave)
 
 - **BUG-405 STANDBY**: ORD-26048933 E2E re-test awaiting owner.
 - **BUG-405-A02 FROZEN**: blocked on BUG-405 unlock.
 - **BUG-501/502/503/505/506/507** + P1 feature backlog: queued.
+
+## 9. Current wait state (post-A08)
+
+As of 2026-04-22 (post-A08 merge), Devin is standing down on BUG-504 work
+until one of the two remaining owner-gated unlocks arrives:
+
+| Next unlock         | What it is                                                                                                          | Who                              |
+|---------------------|---------------------------------------------------------------------------------------------------------------------|----------------------------------|
+| **A07.5**           | Mint `ADMIN_JWT_PROD` + add as GitHub Actions repo secret → CI gates 7+8 flip skip→live; forensic curls become possible | Owner (Supabase service role)    |
+| **A06 commit 3 FINAL** | Wall-clock ≥ 2026-04-23 13:00 UTC **and** explicit `FINAL_CUTOVER` ack from owner → destructive schema cutover (see preflight) | Owner (ack)                      |
+
+Neither gate has a Devin-side workaround:
+
+- A07.5 needs prod `JWT_SECRET` which Devin does not have (`secrets list` =
+  empty; no service-role key; local dev `JWT_SECRET=dev-secret-change-in-production`
+  will not verify against the prod Worker).
+- A06 commit 3 is both time-gated and owner-ack-gated by design — the 24 h
+  hold exists so commit 2's dual-write runs in production long enough to
+  catch any backfill miss before the destructive step.
+
+All non-blocked work in the wave is merged. See
+`docs/bug504-a06-commit3-final-preflight.md` for the exact unlock protocol
+and execution plan.
