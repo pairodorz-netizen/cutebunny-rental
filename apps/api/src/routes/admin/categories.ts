@@ -342,17 +342,31 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Category not found');
   }
 
-  // BUG-504-RC2 + BUG-505-A01 pre-check — short-circuit the FK
-  // violation path on ACTIVE rows only.
+  // BUG-504-RC2 + BUG-505-A01 + BUG-504-A08-commit2 pre-check —
+  // short-circuit the FK violation path before `category.delete` runs.
   //
-  // Soft-deleted products keep their `category_id` so Restore can put
-  // them back on their original category. Counting those tombstones
-  // against the category was BUG-505-A01: owners hit `409 IN_USE`
-  // even after soft-deleting every active product. The fix narrows
-  // the count to `deletedAt: null` rows, which is the same predicate
-  // the rest of the admin products surface uses to mean "live row".
+  // BUG-505-A01 narrowed the count to `deletedAt: null` so soft-
+  // deleted tombstones (which keep their `category_id` for Restore)
+  // would not block a category that had no active products. The
+  // tombstone FK was supposed to be cleared by the `$executeRaw`
+  // UPDATE below before `category.delete`. In production we observed
+  // that the UPDATE never effectively reaches storage — owner-side
+  // SQL on prod 2026-04-26 confirmed 4 tombstones on the `casual`
+  // category retained `category_id` after multiple DELETE attempts
+  // (Cloudflare ray 9f250bf8fe01e395 + reproducer ~20:28 GMT+9 /
+  // cutebunny-api Workers Logs `[admin-categories]` line). The FK
+  // is `ON DELETE RESTRICT`, so the storage-layer check fires P2003
+  // on the unchanged tombstone rows.
+  //
+  // A08-commit2 widens the count to ALL products (active +
+  // tombstones) referencing the category. This regresses BUG-505-A01
+  // until A06 commit 3 FINAL drops the dual-write surface (legacy
+  // `category` enum column + sync trigger): with the FK column gone,
+  // tombstones can no longer block category delete via the FK.
+  // A08-commit1 (PR #97) remains as defense-in-depth for any P2003
+  // that reaches `category.delete` despite this widened pre-check.
   const productsCount = await db.product.count({
-    where: { categoryId: id, deletedAt: null },
+    where: { categoryId: id },
   });
   if (productsCount > 0) {
     logAdminCategoryCrud({

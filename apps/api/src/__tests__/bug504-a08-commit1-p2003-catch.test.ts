@@ -2,18 +2,18 @@
  * BUG-504-A08 commit 1 — layer-2 P2003 catch on
  * `DELETE /api/v1/admin/categories/:id`.
  *
- * Pinned by the live A07 capture: the existing layer-1 pre-check
- * (BUG-504-RC2 + BUG-505-A01) runs `db.product.count({ where:
- * { categoryId: id, deletedAt: null } })` and clears tombstones via
- * `$executeRaw UPDATE products SET category_id=NULL WHERE …`. In
- * prod we observed the count returning 0 yet `db.category.delete`
- * still throwing `PrismaClientKnownRequestError` with code `P2003`
- * on `products_category_id_fkey` (Cloudflare ray
- * 9f250bf8fe01e395 + reproducer 2026-04-26 ~20:28 GMT+9). Root-
- * cause investigation of the visibility gap is parked under
- * A08-commit2 (suspected RLS filtering products from the Prisma
- * client's view while Postgres's storage-layer FK enforcer still
- * sees them).
+ * Pinned by the live A07 capture: the layer-1 pre-check (BUG-504-
+ * RC2 + BUG-505-A01) ran `db.product.count({ where: { categoryId:
+ * id, deletedAt: null } })` and cleared tombstones via `$executeRaw
+ * UPDATE products SET category_id=NULL WHERE …`. In prod we observed
+ * the count returning 0 yet `db.category.delete` still throwing
+ * `PrismaClientKnownRequestError` with code `P2003` on
+ * `products_category_id_fkey` (Cloudflare ray 9f250bf8fe01e395 +
+ * reproducer 2026-04-26 ~20:28 GMT+9). A08-commit2 widens the pre-
+ * check to count tombstones too, but this layer-2 catch remains as
+ * defense-in-depth for any P2003 that still reaches storage (e.g.
+ * race between count and delete, or a future regression of the
+ * pre-check predicate).
  *
  * Gate (single):
  *   When `db.category.delete` throws an error whose `code` field
