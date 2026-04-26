@@ -76,8 +76,20 @@
     "items": "商品",
     "phone": "电话",
     "empty": "未找到订单",
+    "emptyInWindow": "此时间范围内暂无订单 · 请扩大范围或切换\"显示归档\"",
     "prev": "上一页",
     "next": "下一页",
+    "pageSizeSuffix": "每页",
+    "dateRangeLabel": "日期范围",
+    "includeStaleLabel": "显示全部(含归档)",
+    "datePreset": {
+      "today": "今天",
+      "week": "近 7 天",
+      "month": "近 30 天",
+      "quarter": "近 90 天",
+      "year": "今年",
+      "all": "全部时间"
+    },
     "allStatuses": "所有状态",
     "searchPlaceholder": "按订单号或电话搜索...",
     "backToList": "返回列表",
@@ -252,7 +264,14 @@
     "updated": "已更新",
     "delete": "删除",
     "deleteTitle": "删除产品",
-    "deleteConfirmMessage": "确定要删除此产品吗？产品将从列表中隐藏，但历史记录将保留。"
+    "deleteConfirmMessage": "确定要删除此产品吗？产品将从列表中隐藏，但历史记录将保留。",
+    "comboDeleteTitle": "删除组合套装",
+    "comboDeleteConfirm": "删除组合套装 {{name}} ({{sku}})？此操作无法撤销。",
+    "comboDeleteSuccess": "组合套装已成功删除",
+    "comboDeleteActiveRentals": "无法删除：该组合套装有 {{count}} 个活跃租赁",
+    "comboDeleteNotFound": "未找到组合套装 — 列表已刷新",
+    "comboDeleteAuthLost": "会话已过期 — 请重新登录",
+    "comboDeleteNetwork": "无法连接服务器，请重试。"
   },
   "stock": {
     "title": "库存管理",
@@ -522,6 +541,33 @@
     "resource": "资源",
     "details": "详情",
     "noAuditLogs": "暂无操作日志。",
+    "audit": {
+      "filters": {
+        "dateFrom": "起始",
+        "dateTo": "截止",
+        "section": "分类",
+        "actor": "管理员",
+        "actorAll": "全部管理员",
+        "search": "搜索键",
+        "searchPlaceholder": "例如 late_return_fee"
+      },
+      "section": {
+        "finance": "财务",
+        "calendar": "日历",
+        "shipping": "运费",
+        "customer_ux": "客户体验",
+        "general": "通用"
+      },
+      "column": {
+        "section": "分类",
+        "key": "设置项"
+      },
+      "action": {
+        "CREATE": "创建",
+        "UPDATE": "更新",
+        "DELETE": "删除"
+      }
+    },
     "page": "页",
     "entries": "条记录",
     "tab_notifications": "通知",
@@ -552,6 +598,7 @@
     "categoryErrorSlugFormat": "Slug 仅限小写字母、数字、短横线或下划线。",
     "categoryErrorSlugDuplicate": "该 Slug 已被占用。",
     "categoryErrorNameRequired": "必须填写泰文和英文名称。",
+    "categoryErrorInUse": "无法删除：仍有 {{count}} 个商品使用该分类。请先将商品移至其他分类，或通过可见性开关将该分类隐藏。",
     "newCategoryPlaceholder": "新分类名称...",
     "addCategory": "添加分类",
     "storeAddressTitle": "店铺/仓库地址",

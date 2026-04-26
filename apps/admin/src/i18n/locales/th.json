@@ -76,8 +76,20 @@
     "items": "รายการ",
     "phone": "เบอร์โทร",
     "empty": "ไม่พบคำสั่งซื้อ",
+    "emptyInWindow": "ไม่มีออเดอร์ในช่วงนี้ · ลองขยายช่วงเวลา หรือเปิด \"แสดง archived\"",
     "prev": "ก่อนหน้า",
     "next": "ถัดไป",
+    "pageSizeSuffix": "ต่อหน้า",
+    "dateRangeLabel": "ช่วงเวลา",
+    "includeStaleLabel": "แสดงทั้งหมด (รวม archived)",
+    "datePreset": {
+      "today": "วันนี้",
+      "week": "7 วัน",
+      "month": "30 วัน",
+      "quarter": "90 วัน",
+      "year": "ปีนี้",
+      "all": "ทั้งหมด"
+    },
     "allStatuses": "ทุกสถานะ",
     "searchPlaceholder": "ค้นหาตามเลขคำสั่งซื้อหรือเบอร์โทร...",
     "backToList": "กลับไปหน้ารายการ",
@@ -252,7 +264,14 @@
     "updated": "อัปเดตแล้ว",
     "delete": "ลบ",
     "deleteTitle": "ลบสินค้า",
-    "deleteConfirmMessage": "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกซ่อนจากรายการแต่ประวัติจะยังคงอยู่"
+    "deleteConfirmMessage": "คุณแน่ใจหรือไม่ว่าต้องการลบสินค้านี้? สินค้าจะถูกซ่อนจากรายการแต่ประวัติจะยังคงอยู่",
+    "comboDeleteTitle": "ลบ Combo Set",
+    "comboDeleteConfirm": "ลบ Combo Set {{name}} ({{sku}})? การกระทำนี้ย้อนไม่ได้.",
+    "comboDeleteSuccess": "ลบ Combo Set สำเร็จ",
+    "comboDeleteActiveRentals": "ลบไม่ได้: Combo Set นี้มีการเช่าอยู่ {{count}} รายการ",
+    "comboDeleteNotFound": "ไม่พบ Combo Set — รีเฟรชรายการแล้ว",
+    "comboDeleteAuthLost": "เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่",
+    "comboDeleteNetwork": "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง"
   },
   "stock": {
     "title": "จัดการสต็อก",
@@ -522,6 +541,33 @@
     "resource": "ทรัพยากร",
     "details": "รายละเอียด",
     "noAuditLogs": "ยังไม่มีบันทึกกิจกรรม",
+    "audit": {
+      "filters": {
+        "dateFrom": "ตั้งแต่",
+        "dateTo": "ถึง",
+        "section": "หมวด",
+        "actor": "ผู้ดูแลระบบ",
+        "actorAll": "ผู้ดูแลทุกคน",
+        "search": "ค้นหารหัส",
+        "searchPlaceholder": "เช่น late_return_fee"
+      },
+      "section": {
+        "finance": "การเงิน",
+        "calendar": "ปฏิทิน",
+        "shipping": "การจัดส่ง",
+        "customer_ux": "ประสบการณ์ลูกค้า",
+        "general": "ทั่วไป"
+      },
+      "column": {
+        "section": "หมวด",
+        "key": "การตั้งค่า"
+      },
+      "action": {
+        "CREATE": "สร้าง",
+        "UPDATE": "แก้ไข",
+        "DELETE": "ลบ"
+      }
+    },
     "page": "หน้า",
     "entries": "รายการ",
     "tab_notifications": "การแจ้งเตือน",
@@ -553,6 +599,7 @@
     "categoryErrorSlugFormat": "Slug ต้องเป็นตัวพิมพ์เล็ก ตัวเลข ขีด - หรือ _ เท่านั้น",
     "categoryErrorSlugDuplicate": "Slug นี้ถูกใช้ไปแล้ว",
     "categoryErrorNameRequired": "ต้องระบุชื่อทั้งภาษาไทยและภาษาอังกฤษ",
+    "categoryErrorInUse": "ลบไม่ได้: ยังมีสินค้า {{count}} รายการใช้หมวดหมู่นี้อยู่ กรุณาย้ายสินค้าไปหมวดอื่น หรือปิดการมองเห็นหมวดหมู่แทน",
     "newCategoryPlaceholder": "ชื่อหมวดหมู่ใหม่...",
     "addCategory": "เพิ่มหมวดหมู่",
     "storeAddressTitle": "ที่อยู่ร้าน / คลังสินค้า",

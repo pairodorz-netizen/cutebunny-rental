@@ -337,6 +337,11 @@ adminComboSets.patch('/:id', async (c) => {
 });
 
 // DELETE /api/v1/admin/combo-sets/:id — Delete combo set
+// Semantics:
+//   • 404 when combo set id does not exist
+//   • 409 ACTIVE_RENTALS when rentalCount > 0 (no state change, no audit)
+//   • 200 hard-delete when rentalCount === 0 (ComboSetItem cascades via
+//     Prisma onDelete: Cascade on the comboSet relation)
 adminComboSets.delete('/:id', async (c) => {
   const db = getDb();
   const admin = getAdmin(c);
@@ -345,6 +350,16 @@ adminComboSets.delete('/:id', async (c) => {
   const cs = await db.comboSet.findUnique({ where: { id } });
   if (!cs) {
     return error(c, 404, 'NOT_FOUND', 'Combo set not found');
+  }
+
+  if (cs.rentalCount > 0) {
+    return error(
+      c,
+      409,
+      'ACTIVE_RENTALS',
+      `Cannot delete combo set with ${cs.rentalCount} active rental${cs.rentalCount === 1 ? '' : 's'}`,
+      { rentalCount: cs.rentalCount },
+    );
   }
 
   await db.comboSet.delete({ where: { id } });
@@ -357,12 +372,12 @@ adminComboSets.delete('/:id', async (c) => {
         action: 'DELETE',
         resource: 'combo_set',
         resourceId: id,
-        details: { sku: cs.sku, name: cs.name },
+        details: { sku: cs.sku, name: cs.name, mode: 'hard' },
       },
     });
   } catch { /* audit failure should not block */ }
 
-  return success(c, { id, deleted: true });
+  return success(c, { id, deleted: true, mode: 'hard' });
 });
 
 export default adminComboSets;

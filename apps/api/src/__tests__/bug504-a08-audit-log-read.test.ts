@@ -14,12 +14,11 @@
  * Gates (ratified by Qew in the A08 kick message):
  *   (a) Missing Authorization  → 401 UNAUTHORIZED
  *   (b) Invalid/expired token  → 401 UNAUTHORIZED
- *       (owner said "wrong-role → 403"; the existing GET /audit-log
- *        is intentionally open to any admin role so the Audit tab
- *        keeps working for staff admins, so gate (b) exercises the
- *        bearer-negative path instead — flagged for owner review in
- *        the PR body. If owner wants a role gate, that's a one-line
- *        follow-up.)
+ *       (BUG-AUDIT-UI-A01 follow-up: the owner-requested role gate
+ *        landed in BUG-AUDIT-UI-A01; this gate file now mints a
+ *        `superadmin` token for the valid-bearer paths so it stays
+ *        green. The wrong-role → 403 contract has its own dedicated
+ *        regression pin in `bug-audit-ui-a01.test.ts` gate 5.)
  *   (c) Valid admin bearer +
  *         ?action=category.drift_detected
  *         &since=2026-04-22T00:00:00Z
@@ -84,7 +83,11 @@ const ADMIN_UUID = '00000000-0000-0000-0000-000000000099';
 
 async function adminToken(): Promise<string> {
   const { createToken } = await import('../middleware/auth');
-  return createToken(ADMIN_UUID, 'admin@cutebunny.rental', 'staff');
+  // BUG-AUDIT-UI-A01: GET /audit-log is now superadmin-only. Mint
+  // a superadmin token here so A08's forensic-read contract still
+  // exercises the happy path. The role-gate regression itself is
+  // pinned by `bug-audit-ui-a01.test.ts` gate 5.
+  return createToken(ADMIN_UUID, 'admin@cutebunny.rental', 'superadmin');
 }
 
 const DRIFT_LOG_ROW = {

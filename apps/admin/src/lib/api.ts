@@ -1,4 +1,8 @@
-import { buildApiNetworkError, parseAdminErrorResponse } from '@cutebunny/shared/diagnostics';
+import {
+  buildApiNetworkError,
+  parseAdminErrorResponse,
+  parseAdminSuccessResponse,
+} from '@cutebunny/shared/diagnostics';
 import type { TelemetryHandle } from './diag/telemetry-store';
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -84,14 +88,20 @@ async function request<T>(path: string, options?: RequestInit, ctx?: RequestCont
     throw new Error('Unauthorized');
   }
 
-  // BUG-404-A02: content-type-aware reader. Errors are NEVER parsed as
-  // JSON blindly — parseAdminErrorResponse handles non-JSON bodies
-  // (e.g. plain-text "Internal Server Error") without crashing the
-  // admin UI on `JSON.parse`. Success bodies are still JSON.
+  // BUG-404-A02: content-type-aware error reader. Errors are NEVER
+  // parsed as JSON blindly — parseAdminErrorResponse handles non-JSON
+  // bodies without crashing the admin UI on `JSON.parse`.
   if (!res.ok) {
     throw await parseAdminErrorResponse(res);
   }
-  return (await res.json()) as T;
+  // BUG-504-RC1: 204 No Content (and any empty 2xx body) must NOT be
+  // fed into JSON.parse — it would throw `SyntaxError: Unexpected end
+  // of JSON input` and trip useMutation.onError, leaving the row in
+  // the React-Query cache while the server-side mutation actually
+  // succeeded. parseAdminSuccessResponse returns `undefined` for
+  // empty bodies; callers that didn't expect a payload (DELETE,
+  // PUT-with-no-body) simply ignore it.
+  return (await parseAdminSuccessResponse(res)) as T;
 }
 
 async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
@@ -113,7 +123,9 @@ async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
   if (!res.ok) {
     throw await parseAdminErrorResponse(res);
   }
-  return (await res.json()) as T;
+  // BUG-504-RC1: empty 2xx must not crash JSON.parse; mirror the
+  // request<T> helper above so the upload path is symmetric.
+  return (await parseAdminSuccessResponse(res)) as T;
 }
 
 export interface DashboardStats {
@@ -375,12 +387,22 @@ export interface AdminCustomerDetail extends AdminCustomer {
   }>;
 }
 
-export interface CalendarProduct {
-  id: string;
+/**
+ * BUG-CAL-01 — one row per inventory unit. `display_name` carries the
+ * `#N` suffix already applied server-side when `stock_on_hand > 1`;
+ * the raw `name` is retained separately for clients that need it.
+ */
+export interface CalendarUnitRow {
+  product_id: string;
+  unit_id: string | null;
+  unit_index: number;
   sku: string;
   name: string;
+  display_name: string;
+  brand: string | null;
   category: string;
   thumbnail: string | null;
+  stock_on_hand: number;
   slots: Array<{ date: string; status: string; order_id: string | null }>;
 }
 
@@ -629,7 +651,29 @@ export const adminApi = {
   orders: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
-      return request<{ data: AdminOrder[]; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/orders?${qs}`);
+      return request<{
+        data: AdminOrder[];
+        meta: {
+          page: number;
+          per_page: number;
+          page_size?: number;
+          total: number;
+          total_pages: number;
+          has_more?: boolean;
+          include_stale?: boolean;
+        };
+      }>(`/api/v1/admin/orders?${qs}`);
+    },
+    // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — tab-badge counts from a
+    // single backend groupBy pass. Replaces N-per-status list queries
+    // that were leaking zeros into the UI under React-Query cache
+    // races. Shares the list route's WHERE helper on the backend so
+    // parity is pinned at the function level.
+    counts: (params: Record<string, string>) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{
+        data: { total: number; by_status: Record<string, number> };
+      }>(`/api/v1/admin/orders/counts${qs ? `?${qs}` : ''}`);
     },
     detail: (id: string) =>
       request<{ data: AdminOrderDetail }>(`/api/v1/admin/orders/${id}`),
@@ -772,8 +816,22 @@ export const adminApi = {
   calendar: {
     list: (params: Record<string, string>) => {
       const qs = new URLSearchParams(params).toString();
-      return request<{ data: CalendarProduct[] }>(`/api/v1/admin/calendar?${qs}`);
+      return request<{ data: CalendarUnitRow[] }>(`/api/v1/admin/calendar?${qs}`);
     },
+    // BUG-CAL-05 — click-to-edit cell. 409 body carries `error.code = CONFIRM_REQUIRED`
+    // and `error.message` explains the confirm prompt; the caller should flip
+    // `confirmed: true` and retry.
+    patchCell: (body: {
+      product_id: string;
+      date: string;
+      unit_index: number | null;
+      new_state: string;
+      confirmed?: boolean;
+    }) =>
+      request<{ data: { id?: string; from: string; to: string; noop: boolean } }>(
+        `/api/v1/admin/calendar/cell`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      ),
   },
   customers: {
     list: (params: Record<string, string>) => {
@@ -913,9 +971,34 @@ export const adminApi = {
       }),
     deleteUser: (id: string) =>
       request<{ data: { deleted: boolean } }>(`/api/v1/admin/settings/users/${id}`, { method: 'DELETE' }),
-    auditLog: (params: Record<string, string>) => {
-      const qs = new URLSearchParams(params).toString();
-      return request<{ data: Array<{ id: string; admin_email: string; admin_name: string; action: string; resource: string; resource_id: string | null; details: Record<string, unknown> | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/audit-log?${qs}`);
+    auditLog: (params: Record<string, string | string[]>) => {
+      // BUG-AUDIT-UI-A01: support repeated query params (e.g. multi-
+      // value `section=`) by pushing each value individually.
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (Array.isArray(v)) v.forEach((item) => qs.append(k, item));
+        else if (v) qs.append(k, v);
+      }
+      return request<{
+        data: Array<{
+          id: string;
+          admin_email: string;
+          admin_name: string;
+          action: string;
+          resource: string;
+          resource_id: string | null;
+          details: Record<string, unknown> | null;
+          // BUG-AUDIT-UI-A01: per-row UI conveniences. `key`/`section`
+          // are null for non-config audit rows; `old_value`/`new_value`
+          // are server-side truncated to ≤500 chars.
+          key: string | null;
+          section: string | null;
+          old_value: unknown;
+          new_value: unknown;
+          created_at: string;
+        }>;
+        meta: { page: number; per_page: number; pageSize: number; total: number; total_pages: number };
+      }>(`/api/v1/admin/settings/audit-log?${qs.toString()}`);
     },
     // BUG-504-A06.5: client-posted audit events. Narrow whitelist on
     // the server side — today only `category.drift_detected`.

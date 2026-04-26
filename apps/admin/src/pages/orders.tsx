@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +6,16 @@ import { adminApi } from '@/lib/api';
 import type { AdminOrder, AdminProduct } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DEFAULT_ARCHIVE_WINDOW_DAYS,
+  resolveOrdersDatePreset,
+  type OrdersDatePreset,
+} from '@cutebunny/shared/orders-archive-window';
+import {
+  ADMIN_ORDERS_LIST_QUERY_KEY,
+  ADMIN_ORDERS_COUNTS_QUERY_KEY,
+  deriveStatusCounts,
+} from '@cutebunny/shared/admin-orders-query-keys';
 import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
 const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
@@ -76,6 +86,28 @@ function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
   return debounced;
 }
+
+// BUG-ORDERS-ARCHIVE-01 — YYYY-MM-DD helpers for the date-range picker.
+// Kept local (small, UI-only) so the pure-logic module in @cutebunny/shared
+// stays focused on the archive-window math.
+function toDateInput(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return toDateInput(d);
+}
+
+// BUG-ORDERS-ARCHIVE-01-HOTFIX — preset resolution + includeStale
+// coupling moved into @cutebunny/shared/orders-archive-window so the
+// "All Time clears bounds AND sets includeStale=true" contract is the
+// single testable source of truth. See
+// apps/api/src/__tests__/bug-orders-archive-01-hotfix.test.ts.
 
 function Thumbnail({ src, size = 32 }: { src: string | null; size?: number }) {
   if (!src) {
@@ -283,6 +315,25 @@ export function OrdersPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
 
+  // BUG-ORDERS-ARCHIVE-01 — default to last 30 days for finished/cancelled
+  // orders; active statuses always visible regardless of this window.
+  const defaultFrom = useMemo(() => daysAgo(DEFAULT_ARCHIVE_WINDOW_DAYS), []);
+  const defaultTo = useMemo(() => toDateInput(new Date()), []);
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo, setDateTo] = useState(defaultTo);
+  const [includeStale, setIncludeStale] = useState(false);
+  const [pageSize, setPageSize] = useState(50);
+  const [activePreset, setActivePreset] = useState<OrdersDatePreset>('30');
+
+  const applyPreset = useCallback((preset: OrdersDatePreset) => {
+    const { from, to, includeStale: presetIncludeStale } = resolveOrdersDatePreset(preset);
+    setDateFrom(from);
+    setDateTo(to);
+    setActivePreset(preset);
+    if (presetIncludeStale) setIncludeStale(true);
+    setPage(1);
+  }, []);
+
   // Search fields
   const [searchOrderNumber, setSearchOrderNumber] = useState('');
   const [searchSku, setSearchSku] = useState('');
@@ -364,7 +415,13 @@ export function OrdersPage() {
   const [showCreateItemPicker, setShowCreateItemPicker] = useState(false);
 
   // Build query params
-  const params: Record<string, string> = { page: String(page), per_page: '20' };
+  const params: Record<string, string> = {
+    page: String(page),
+    page_size: String(pageSize),
+    include_stale: includeStale ? 'true' : 'false',
+  };
+  if (dateFrom) params.from = dateFrom;
+  if (dateTo) params.to = dateTo;
   if (statusFilter) params.status = statusFilter;
   if (debouncedOrderNumber) params.search_order_number = debouncedOrderNumber;
   if (debouncedSku) params.search_sku = debouncedSku;
@@ -373,8 +430,19 @@ export function OrdersPage() {
   if (debouncedCustomerPhone) params.search_customer_phone = debouncedCustomerPhone;
   if (debouncedTracking) params.search_tracking = debouncedTracking;
 
+  // BUG-ORDERS-ARCHIVE-01 — tab badges share the same window as the main
+  // list so e.g. the Finished tab shows "2" when only 2 finished orders
+  // live in the last 30 days, not the all-time total.
+  const countParams: Record<string, string> = {
+    include_stale: includeStale ? 'true' : 'false',
+    page: '1',
+    page_size: '1',
+  };
+  if (dateFrom) countParams.from = dateFrom;
+  if (dateTo) countParams.to = dateTo;
+
   const { data: listData, isLoading: listLoading } = useQuery({
-    queryKey: ['admin-orders', params],
+    queryKey: [ADMIN_ORDERS_LIST_QUERY_KEY, params],
     queryFn: () => adminApi.orders.list(params),
   });
 
@@ -393,21 +461,71 @@ export function OrdersPage() {
     enabled: !!afterSalesOrderId && showAfterSalesModal && afterSalesType === 'late_fee',
   });
 
-  // Status counts query (for tab badges)
-  const statusCountQueries = ORDER_STATUSES.map((s) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery({
-      queryKey: ['admin-orders-count', s],
-      queryFn: () => adminApi.orders.list({ status: s, page: '1', per_page: '1' }),
-      staleTime: 30000,
-    });
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — single backend call
+  // (`GET /api/v1/admin/orders/counts`) that returns every tab's
+  // count in one groupBy pass. Replaces N-per-status list queries
+  // that were leaking zeros into the UI when parallel list calls
+  // raced the data query. Shares the list route's WHERE helper on
+  // the backend, so tab badges always match filtered rows.
+  //
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX-3: dropped staleTime
+  // from 30s to 0 so the counts query always refetches on remount /
+  // focus, preventing a stale `by_status: {}` bucket from pinning
+  // badges at 0 after a successful mutation flow.
+  const { data: countsData } = useQuery({
+    queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY, countParams],
+    queryFn: () => adminApi.orders.counts(countParams),
+    staleTime: 0,
   });
 
-  const statusCounts: Record<string, number> = {};
-  ORDER_STATUSES.forEach((s, i) => {
-    statusCounts[s] = statusCountQueries[i].data?.meta?.total ?? 0;
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY-HOTFIX(-5) — client-side
+  // groupBy authority. After hotfix-4 merged and the minified helper
+  // was verified live in the bundle, the owner's production smoke
+  // STILL showed 0 on every tab with 2 finished rows visibly
+  // rendered. The only consistent explanation is that
+  // `visibleRowCountsByStatus` was reaching the helper empty from the
+  // component at runtime — most likely a wire-shape drift between
+  // `listData.data` (typed as array) and the actual JSON shape in the
+  // owner's browser. Fix: stop doing the groupBy in the component
+  // and pass the raw `orders` array to the helper as `ordersSource`;
+  // the helper does its own groupBy and treats the result as the
+  // sole source of truth when `/counts` reports all-zero buckets.
+  //
+  // Also exposes a `window.__ordersDebug` hook so the owner (and any
+  // future operator) can paste a one-liner in the URL bar to inspect
+  // the runtime state directly, without needing DevTools.
+  const ordersForCounts: ReadonlyArray<AdminOrder> =
+    Array.isArray(listData?.data) ? listData.data : [];
+  const { statusCounts, totalCount } = deriveStatusCounts({
+    statuses: ORDER_STATUSES,
+    statusFilter,
+    countsByStatus: countsData?.data?.by_status,
+    listTotal: listData?.meta?.total,
+    visibleRowCount: ordersForCounts.length,
+    ordersSource: ordersForCounts,
   });
-  const totalCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  if (typeof window !== 'undefined') {
+    (window as unknown as { __ordersDebug?: unknown }).__ordersDebug = {
+      at: new Date().toISOString(),
+      statusFilter,
+      ordersForCountsLength: ordersForCounts.length,
+      listDataShape: (() => {
+        if (listData === undefined) return 'undefined';
+        if (listData === null) return 'null';
+        const raw = (listData as unknown as { data?: unknown }).data;
+        if (Array.isArray(raw)) return 'data:array';
+        if (raw !== null && typeof raw === 'object') {
+          return `data:object(keys=${Object.keys(raw as Record<string, unknown>).join('|')})`;
+        }
+        return `data:${typeof raw}`;
+      })(),
+      listMetaTotal: listData?.meta?.total,
+      countsStatus: countsData === undefined ? 'undefined' : 'present',
+      countsByStatus: countsData?.data?.by_status,
+      statusCounts,
+      totalCount,
+    };
+  }
 
   const carrierMutation = useMutation({
     mutationFn: ({ orderId, body }: { orderId: string; body: { carrier_code: string; tracking_number?: string } }) =>
@@ -423,7 +541,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       if (newStatus === 'shipped' && selectedCarrier && statusModalOrderId) {
         carrierMutation.mutate({
           orderId: statusModalOrderId,
@@ -445,7 +563,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setShowSlipModal(false);
       setSlipModalOrderId(null);
     },
@@ -471,7 +589,7 @@ export function OrdersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setEditOrderId(null);
     },
   });
@@ -490,7 +608,7 @@ export function OrdersPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       const item = result.data.item;
       setEditItems((prev) => [...prev, { id: item.id, subtotal: item.subtotal, late_fee: 0, damage_fee: 0 }]);
       setRevenueImpacts((prev) => [...prev, { label: item.product_name, amount: result.data.additional_charge, type: 'additional' }]);
@@ -508,7 +626,7 @@ export function OrdersPage() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setEditItems((prev) => prev.filter((i) => i.id !== result.data.item_id));
       setRevenueImpacts((prev) => [...prev, { label: result.data.product_name, amount: result.data.refund_amount, type: 'refund' }]);
     },
@@ -526,7 +644,7 @@ export function OrdersPage() {
     mutationFn: (body: Parameters<typeof adminApi.orders.create>[0]) => adminApi.orders.create(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+      queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
       setShowCreateOrder(false);
       setCreateCustomerName(''); setCreateCustomerPhone(''); setCreateCustomerEmail('');
       setCreateStartDate(''); setCreateEndDate(''); setCreateDeposit('0'); setCreateDeliveryFee('0');
@@ -612,6 +730,52 @@ export function OrdersPage() {
         </div>
       </div>
 
+      {/* ═══ DATE RANGE + ARCHIVED TOGGLE (BUG-ORDERS-ARCHIVE-01) ═══ */}
+      <div className="border-t px-4 py-2 flex items-center gap-2 flex-wrap" data-testid="orders-date-range">
+        <span className="text-xs text-muted-foreground shrink-0">{t('orders.dateRangeLabel')}</span>
+        {(['today', '7', '30', '90', 'year', 'all'] as const).map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => applyPreset(preset)}
+            data-testid={`orders-date-preset-${preset}`}
+            className={`h-7 px-2 text-xs rounded border transition-colors ${
+              activePreset === preset
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background text-muted-foreground border-input hover:bg-muted/50'
+            }`}
+          >
+            {t(`orders.datePreset.${preset === '7' ? 'week' : preset === '30' ? 'month' : preset === '90' ? 'quarter' : preset}`)}
+            {activePreset === preset && includeStale && preset !== 'all' ? ' (incl. archived)' : ''}
+          </button>
+        ))}
+        <input
+          type="date"
+          value={dateFrom}
+          data-testid="orders-date-from"
+          onChange={(e) => { setDateFrom(e.target.value); setActivePreset('all'); setPage(1); }}
+          className="h-7 px-2 text-xs border border-input rounded bg-background"
+        />
+        <span className="text-xs text-muted-foreground">—</span>
+        <input
+          type="date"
+          value={dateTo}
+          data-testid="orders-date-to"
+          onChange={(e) => { setDateTo(e.target.value); setActivePreset('all'); setPage(1); }}
+          className="h-7 px-2 text-xs border border-input rounded bg-background"
+        />
+        <label className="flex items-center gap-1 text-xs text-muted-foreground ml-2 cursor-pointer">
+          <input
+            type="checkbox"
+            data-testid="orders-include-stale-toggle"
+            checked={includeStale}
+            onChange={(e) => { setIncludeStale(e.target.checked); setPage(1); }}
+            className="h-3 w-3"
+          />
+          {t('orders.includeStaleLabel')}
+        </label>
+      </div>
+
       {/* ═══ STATUS TABS ═══ */}
       <div className="border-t">
         <div className="flex overflow-x-auto">
@@ -653,7 +817,12 @@ export function OrdersPage() {
         {listLoading ? (
           <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
         ) : orders.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">{t('orders.empty')}</div>
+          <div
+            className="p-8 text-center text-muted-foreground"
+            data-testid="orders-empty-state"
+          >
+            {includeStale || !dateFrom ? t('orders.empty') : t('orders.emptyInWindow')}
+          </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             {/* Header */}
@@ -766,7 +935,7 @@ export function OrdersPage() {
                         onVerified={() => {
                           queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
                           queryClient.invalidateQueries({ queryKey: ['admin-order-detail'] });
-                          queryClient.invalidateQueries({ queryKey: ['admin-orders-count'] });
+                          queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
                         }}
                       />
                       {/* Quick action buttons in expanded view */}
@@ -793,16 +962,40 @@ export function OrdersPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {meta && meta.total_pages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1}>
+        {/* Pagination — BUG-ORDERS-ARCHIVE-01 */}
+        {meta && (meta.total ?? 0) > 0 && (
+          <div className="flex items-center justify-center gap-3 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="orders-pagination-prev"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page <= 1}
+            >
               {t('orders.prev')}
             </Button>
-            <span className="text-sm text-muted-foreground">{page} / {meta.total_pages}</span>
-            <Button variant="outline" size="sm" onClick={() => setPage(Math.min(meta.total_pages, page + 1))} disabled={page >= meta.total_pages}>
+            <span className="text-sm text-muted-foreground">
+              {page} / {Math.max(1, meta.total_pages ?? 1)} · {meta.total ?? 0}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="orders-pagination-next"
+              onClick={() => setPage(page + 1)}
+              disabled={!meta.has_more && page >= (meta.total_pages ?? 1)}
+            >
               {t('orders.next')}
             </Button>
+            <select
+              value={pageSize}
+              data-testid="orders-pagesize-select"
+              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(1); }}
+              className="h-8 px-2 text-xs border border-input rounded bg-background"
+            >
+              {[25, 50, 100].map((n) => (
+                <option key={n} value={n}>{n} / {t('orders.pageSizeSuffix')}</option>
+              ))}
+            </select>
           </div>
         )}
       </div>

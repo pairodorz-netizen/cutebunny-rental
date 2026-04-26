@@ -6,6 +6,8 @@ import { isValidTransition, getAllowedTransitions, getTransitionError } from '..
 import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
 import { createLifecycleBlocks } from '../../lib/availability';
+import { computePagination } from '@cutebunny/shared/orders-archive-window';
+import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -28,72 +30,39 @@ adminOrders.onError((_err, c) => {
 });
 
 // A12: GET /api/v1/admin/orders — Order list with filters
+//
+// BUG-ORDERS-ARCHIVE-01 — default 30-day window for historical statuses.
+// New query params (`from` / `to` / `include_stale` / `page_size`)
+// complement the legacy ones (`date_from` / `date_to` / `per_page`) so
+// callers don't have to migrate in lockstep.
 adminOrders.get('/', async (c) => {
   const db = getDb();
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10));
-  const perPage = Math.min(50, Math.max(1, parseInt(c.req.query('per_page') ?? '20', 10)));
-  const statusFilter = c.req.query('status') as OrderStatus | undefined;
-  const dateFrom = c.req.query('date_from');
-  const dateTo = c.req.query('date_to');
-  const search = c.req.query('search');
-  const searchSku = c.req.query('search_sku');
-  const searchProductName = c.req.query('search_product_name');
-  const searchTrackingNumber = c.req.query('search_tracking');
-  const searchOrderNumber = c.req.query('search_order_number');
-  const searchCustomerName = c.req.query('search_customer_name');
-  const searchCustomerPhone = c.req.query('search_customer_phone');
+  const pageSizeParam = c.req.query('page_size') ?? c.req.query('per_page') ?? '50';
+  const pageSize = Math.min(100, Math.max(1, parseInt(pageSizeParam, 10)));
+  const includeStaleParam = c.req.query('include_stale');
+  const includeStale = includeStaleParam === 'true' || includeStaleParam === '1';
 
-  const where: Prisma.OrderWhereInput = {};
-
-  if (statusFilter) {
-    where.status = statusFilter;
-  }
-
-  if (dateFrom) {
-    where.createdAt = { ...((where.createdAt as Prisma.DateTimeFilter) ?? {}), gte: new Date(dateFrom) };
-  }
-  if (dateTo) {
-    where.createdAt = { ...((where.createdAt as Prisma.DateTimeFilter) ?? {}), lte: new Date(dateTo + 'T23:59:59.999Z') };
-  }
-
-  if (search) {
-    where.OR = [
-      { orderNumber: { contains: search, mode: 'insensitive' } },
-      { customer: { phone: { contains: search } } },
-      { customer: { email: { contains: search, mode: 'insensitive' } } },
-      { customer: { firstName: { contains: search, mode: 'insensitive' } } },
-      { customer: { lastName: { contains: search, mode: 'insensitive' } } },
-    ];
-  }
-
-  // Individual field filters
-  const andConditions: Prisma.OrderWhereInput[] = [];
-  if (searchOrderNumber) {
-    andConditions.push({ orderNumber: { contains: searchOrderNumber, mode: 'insensitive' } });
-  }
-  if (searchCustomerName) {
-    andConditions.push({
-      OR: [
-        { customer: { firstName: { contains: searchCustomerName, mode: 'insensitive' } } },
-        { customer: { lastName: { contains: searchCustomerName, mode: 'insensitive' } } },
-      ],
-    });
-  }
-  if (searchCustomerPhone) {
-    andConditions.push({ customer: { phone: { contains: searchCustomerPhone } } });
-  }
-  if (searchSku) {
-    andConditions.push({ items: { some: { product: { sku: { contains: searchSku, mode: 'insensitive' } } } } });
-  }
-  if (searchProductName) {
-    andConditions.push({ items: { some: { productName: { contains: searchProductName, mode: 'insensitive' } } } });
-  }
-  if (searchTrackingNumber) {
-    andConditions.push({ shippingSnapshot: { path: ['tracking_number'], string_contains: searchTrackingNumber } });
-  }
-  if (andConditions.length > 0) {
-    where.AND = andConditions;
-  }
+  // BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — single source of truth for
+  // the WHERE clause. Shared with the /counts endpoint below so tab
+  // badges always match filtered rows. include_stale=true bypasses
+  // BOTH createdAt bounds and the archive cutoff (owner's contract
+  // preserved from BUG-ORDERS-ARCHIVE-01-HOTFIX).
+  const where = buildOrdersWhere({
+    status: c.req.query('status'),
+    from: c.req.query('from'),
+    to: c.req.query('to'),
+    date_from: c.req.query('date_from'),
+    date_to: c.req.query('date_to'),
+    include_stale: includeStaleParam,
+    search: c.req.query('search'),
+    search_sku: c.req.query('search_sku'),
+    search_product_name: c.req.query('search_product_name'),
+    search_tracking: c.req.query('search_tracking'),
+    search_order_number: c.req.query('search_order_number'),
+    search_customer_name: c.req.query('search_customer_name'),
+    search_customer_phone: c.req.query('search_customer_phone'),
+  });
 
   const [orders, total] = await Promise.all([
     db.order.findMany({
@@ -121,8 +90,8 @@ adminOrders.get('/', async (c) => {
           orderBy: { createdAt: 'desc' },
         },
       },
-      skip: (page - 1) * perPage,
-      take: perPage,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       orderBy: { createdAt: 'desc' },
     }),
     db.order.count({ where }),
@@ -160,12 +129,62 @@ adminOrders.get('/', async (c) => {
     created_at: o.createdAt.toISOString(),
   }));
 
+  const pagination = computePagination({ total, page, pageSize });
   return success(c, data, {
     page,
-    per_page: perPage,
+    per_page: pageSize,
+    page_size: pageSize,
     total,
-    total_pages: Math.ceil(total / perPage),
+    total_pages: pagination.totalPages,
+    has_more: pagination.hasMore,
+    include_stale: includeStale,
   });
+});
+
+// GET /api/v1/admin/orders/counts — Tab-badge counts.
+//
+// BUG-ORDERS-ARCHIVE-01-COUNT-PARITY — returns `{ total, by_status }`
+// in a single `groupBy` pass using the EXACT same WHERE clause the
+// list route applies (minus the caller's `status` filter, so every
+// bucket's count is always available to the tab bar). This replaces
+// the old frontend pattern of firing N list queries with `page_size=1`
+// per status, which was fragile under React-Query cache interactions
+// and caused tab badges to read 0 whenever a parallel list call
+// missed its cache or raced with the data query.
+adminOrders.get('/counts', async (c) => {
+  const db = getDb();
+  const includeStaleParam = c.req.query('include_stale');
+
+  const where = buildOrdersCountsWhere({
+    from: c.req.query('from'),
+    to: c.req.query('to'),
+    date_from: c.req.query('date_from'),
+    date_to: c.req.query('date_to'),
+    include_stale: includeStaleParam,
+    search: c.req.query('search'),
+    search_sku: c.req.query('search_sku'),
+    search_product_name: c.req.query('search_product_name'),
+    search_tracking: c.req.query('search_tracking'),
+    search_order_number: c.req.query('search_order_number'),
+    search_customer_name: c.req.query('search_customer_name'),
+    search_customer_phone: c.req.query('search_customer_phone'),
+  });
+
+  const [groups, total] = await Promise.all([
+    db.order.groupBy({
+      by: ['status'],
+      where,
+      _count: { _all: true },
+    }),
+    db.order.count({ where }),
+  ]);
+
+  const byStatus: Record<string, number> = {};
+  for (const g of groups) {
+    byStatus[g.status] = g._count._all;
+  }
+
+  return success(c, { total, by_status: byStatus });
 });
 
 // GET /api/v1/admin/orders/:id — Order detail
