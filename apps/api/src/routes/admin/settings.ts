@@ -122,7 +122,10 @@ adminSettings.post('/config', requireRole('superadmin'), async (c) => {
 // generic free-form "+ Add Config" flow stays confined to POST /config
 // (superadmin-only).
 
-const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }> = {
+// BUG-AUDIT-UI-A01: exported so the audit-log read handler (and any
+// future consumer that needs to map a SystemConfig key to its UX
+// section) can derive `section` without duplicating the allow-list.
+export const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }> = {
   late_return_fee: { label: 'Late Return Fee (THB/day)', group: 'finance' },
   shipping_duration_days: { label: 'Shipping Duration (days)', group: 'calendar' },
   wash_duration_days: { label: 'Wash Duration (days)', group: 'calendar' },
@@ -148,6 +151,29 @@ function resolveAllowedKey(key: string): { label: string; group: string } | null
     return { label: `Shipping Days — ${code}`, group: 'shipping' };
   }
   return null;
+}
+
+// BUG-AUDIT-UI-A01: thin wrapper around `resolveAllowedKey` exposing
+// just the group. Null-tolerant so callers can pipe `details.key`
+// (which may be `undefined` on non-config audit rows) without a
+// pre-check. Used by the audit-log read handler to derive `section`
+// per row and to translate `?section=<group>` filters into the matching
+// key allow-list for the Prisma JSON-path where-clause.
+export function resolveGroup(key: string | null | undefined): string | null {
+  if (typeof key !== 'string' || key.length === 0) return null;
+  return resolveAllowedKey(key)?.group ?? null;
+}
+
+// BUG-AUDIT-UI-A01: invert the FIXED_ALLOWED_KEYS map so a `section`
+// filter (e.g. `finance`) translates to its known keys. Excludes the
+// `shipping_days_*` regex family because the audit log is keyed on the
+// concrete province code, not the regex; those rows still surface
+// under section=`shipping` via the row-level `resolveGroup` derivation,
+// just not via the explicit `in` filter.
+function keysForSection(section: string): string[] {
+  return Object.entries(FIXED_ALLOWED_KEYS)
+    .filter(([, v]) => v.group === section)
+    .map(([k]) => k);
 }
 
 function validateConfigValue(key: string, value: string): string | null {
@@ -429,34 +455,99 @@ adminSettings.delete('/users/:id', requireRole('superadmin'), async (c) => {
 // the A08 forensic aliases (actor_id, payload, detected_at) alongside
 // them so both the /settings?tab=audit UI and a forensic consumer can
 // read the same payload without a transform layer.
-adminSettings.get('/audit-log', async (c) => {
+adminSettings.get('/audit-log', requireRole('superadmin'), async (c) => {
   const db = getDb();
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1'));
-  const rawLimit = c.req.query('limit') ?? c.req.query('per_page') ?? '50';
+  const rawLimit =
+    c.req.query('pageSize') ??
+    c.req.query('per_page') ??
+    c.req.query('limit') ??
+    '50';
   const perPage = Math.min(100, Math.max(1, parseInt(rawLimit)));
   const resource = c.req.query('resource');
   const action = c.req.query('action');
   const sinceRaw = c.req.query('since');
+  const fromRaw = c.req.query('from');
+  const toRaw = c.req.query('to');
+  const actor = c.req.query('actor');
+  const sectionsRaw = c.req.queries('section') ?? [];
+  const qRaw = c.req.query('q');
 
-  let sinceDate: Date | undefined;
-  if (sinceRaw) {
-    const parsed = new Date(sinceRaw);
-    if (Number.isNaN(parsed.getTime())) {
-      return error(
-        c,
-        400,
-        'VALIDATION_ERROR',
-        '`since` must be a valid ISO 8601 timestamp',
-        { since: sinceRaw },
-      );
-    }
-    sinceDate = parsed;
+  // BUG-AUDIT-UI-A01: validate every ISO 8601 input with the same
+  // pattern A08 used for `since`. Each malformed value short-circuits
+  // before hitting the DB so we don't pay a round-trip on garbage.
+  function parseIsoOr400(name: string, raw: string | undefined) {
+    if (!raw) return undefined;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return { __err: name, raw };
+    return parsed;
   }
+  const sinceParsed = parseIsoOr400('since', sinceRaw);
+  if (sinceParsed && '__err' in sinceParsed) {
+    return error(c, 400, 'VALIDATION_ERROR', '`since` must be a valid ISO 8601 timestamp', { since: sinceRaw });
+  }
+  const fromParsed = parseIsoOr400('from', fromRaw);
+  if (fromParsed && '__err' in fromParsed) {
+    return error(c, 400, 'VALIDATION_ERROR', '`from` must be a valid ISO 8601 timestamp', { from: fromRaw });
+  }
+  const toParsed = parseIsoOr400('to', toRaw);
+  if (toParsed && '__err' in toParsed) {
+    return error(c, 400, 'VALIDATION_ERROR', '`to` must be a valid ISO 8601 timestamp', { to: toRaw });
+  }
+  const sinceDate = sinceParsed instanceof Date ? sinceParsed : undefined;
+  const fromDate = fromParsed instanceof Date ? fromParsed : undefined;
+  const toDate = toParsed instanceof Date ? toParsed : undefined;
+
+  // BUG-AUDIT-UI-A01: default 7-day window when no temporal filter is
+  // supplied. Explicit `since`, `from`, or `to` always wins.
+  const lowerBound = fromDate ?? sinceDate ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   const where: Record<string, unknown> = {};
   if (resource) where.resource = resource;
   if (action) where.action = action;
-  if (sinceDate) where.createdAt = { gte: sinceDate };
+  const createdAt: { gte?: Date; lte?: Date } = { gte: lowerBound };
+  if (toDate) createdAt.lte = toDate;
+  where.createdAt = createdAt;
+  if (actor) where.adminId = actor;
+
+  // BUG-AUDIT-UI-A01: section filter — translate group → key OR-list
+  // via `keysForSection`. Multiple `?section=` params union together.
+  // Skipped silently when the group resolves to no concrete keys (e.g.
+  // a typo) so the request still returns a useful empty page rather
+  // than a 4xx the UI can't act on.
+  const andClauses: Array<Record<string, unknown>> = [];
+  if (sectionsRaw.length > 0) {
+    const allKeys = sectionsRaw.flatMap((s) => keysForSection(s));
+    if (allKeys.length > 0) {
+      andClauses.push({
+        OR: allKeys.map((k) => ({
+          details: { path: ['key'], equals: k },
+        })),
+      });
+    } else {
+      // unknown section(s) — return empty page deterministically
+      andClauses.push({ id: '__no_match__' });
+    }
+  }
+
+  // BUG-AUDIT-UI-A01: free-text search on `details.key`. Capped at
+  // 100 chars belt-and-suspenders. Prisma JsonFilter is parameterized,
+  // so no injection risk; case-sensitivity matches the Postgres ->>'
+  // operator default. Section dropdown is the typical discovery path.
+  if (qRaw) {
+    const q = qRaw.slice(0, 100);
+    andClauses.push({
+      details: { path: ['key'], string_contains: q },
+    });
+  }
+  if (andClauses.length > 0) where.AND = andClauses;
+
+  // Defensively truncate string `old_value` / `new_value` so a
+  // pathological payload can't bloat the response.
+  function truncate(v: unknown): unknown {
+    if (typeof v === 'string' && v.length > 500) return v.slice(0, 500) + '…';
+    return v;
+  }
 
   // Wrap in try-catch to handle schema drift (e.g. missing ip_address column)
   try {
@@ -471,24 +562,35 @@ adminSettings.get('/audit-log', async (c) => {
       db.auditLog.count({ where }),
     ]);
 
-    return success(c, logs.map((log) => ({
-      id: log.id,
-      admin_email: log.admin?.email ?? 'system',
-      admin_name: log.admin?.name ?? 'System',
-      // BUG-504-A08 forensic aliases — coexist with the UI fields
-      // above so neither consumer needs a transform layer.
-      actor_id: log.admin?.id ?? log.adminId ?? null,
-      action: log.action,
-      resource: log.resource,
-      resource_id: log.resourceId,
-      details: log.details,
-      payload: log.details,
-      ip_address: (log as Record<string, unknown>).ipAddress ?? null,
-      created_at: log.createdAt.toISOString(),
-      detected_at: log.createdAt.toISOString(),
-    })), {
+    return success(c, logs.map((log) => {
+      const details = (log.details ?? null) as Record<string, unknown> | null;
+      const key = typeof details?.key === 'string' ? details.key : null;
+      return {
+        id: log.id,
+        admin_email: log.admin?.email ?? 'system',
+        admin_name: log.admin?.name ?? 'System',
+        // BUG-504-A08 forensic aliases — coexist with the UI fields
+        // above so neither consumer needs a transform layer.
+        actor_id: log.admin?.id ?? log.adminId ?? null,
+        action: log.action,
+        resource: log.resource,
+        resource_id: log.resourceId,
+        details,
+        payload: details,
+        // BUG-AUDIT-UI-A01: per-row UI conveniences. `section` is
+        // null on non-config rows; UI renders "—".
+        key,
+        section: resolveGroup(key),
+        old_value: truncate(details?.old_value),
+        new_value: truncate(details?.new_value),
+        ip_address: (log as Record<string, unknown>).ipAddress ?? null,
+        created_at: log.createdAt.toISOString(),
+        detected_at: log.createdAt.toISOString(),
+      };
+    }), {
       page,
       per_page: perPage,
+      pageSize: perPage,
       limit: perPage,
       total,
       count: total,
@@ -499,6 +601,7 @@ adminSettings.get('/audit-log', async (c) => {
     return success(c, [], {
       page,
       per_page: perPage,
+      pageSize: perPage,
       limit: perPage,
       total: 0,
       count: 0,

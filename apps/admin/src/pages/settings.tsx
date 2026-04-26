@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { AdminApiError } from '@cutebunny/shared/diagnostics';
 import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
+import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -43,7 +44,25 @@ interface AuditLogItem {
   resource: string;
   resource_id: string | null;
   details: Record<string, unknown> | null;
+  // BUG-AUDIT-UI-A01: server-derived per-row UI conveniences.
+  key: string | null;
+  section: string | null;
+  old_value: unknown;
+  new_value: unknown;
   created_at: string;
+}
+
+// BUG-AUDIT-UI-A01: known SystemConfig groups (mirrors the server-side
+// FIXED_ALLOWED_KEYS group set). The shipping group also catches the
+// `shipping_days_*` regex family on the server; both surface here.
+const AUDIT_SECTIONS = ['finance', 'calendar', 'shipping', 'customer_ux'] as const;
+type AuditSection = (typeof AUDIT_SECTIONS)[number];
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function sevenDaysAgoIso(): string {
+  return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 export function SettingsPage() {
@@ -82,13 +101,40 @@ export function SettingsPage() {
   const [notifSubject, setNotifSubject] = useState('');
   const [notifBody, setNotifBody] = useState('');
 
-  // Audit state
-  const [auditPage, setAuditPage] = useState(1);
+  // Audit state — BUG-AUDIT-UI-A01 filter row + URL sync.
+  const [auditPage, setAuditPage] = useState<number>(() => {
+    const raw = searchParams.get('page');
+    const n = raw ? parseInt(raw, 10) : 1;
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  });
+  const [auditFrom, setAuditFrom] = useState<string>(
+    searchParams.get('from') ?? sevenDaysAgoIso(),
+  );
+  const [auditTo, setAuditTo] = useState<string>(
+    searchParams.get('to') ?? todayIso(),
+  );
+  const [auditSections, setAuditSections] = useState<AuditSection[]>(() => {
+    const all = searchParams.getAll('section');
+    return all.filter((s): s is AuditSection =>
+      (AUDIT_SECTIONS as readonly string[]).includes(s),
+    );
+  });
+  const [auditActor, setAuditActor] = useState<string>(searchParams.get('actor') ?? '');
+  const [auditQ, setAuditQ] = useState<string>(searchParams.get('q') ?? '');
+  // 300ms debounce on the free-text search to avoid hammering the
+  // server on every keystroke; mirrors BUG-CAL-03 pattern from PR #69.
+  const [auditQDebounced, setAuditQDebounced] = useState(auditQ);
+  useEffect(() => {
+    const id = setTimeout(() => setAuditQDebounced(auditQ), 300);
+    return () => clearTimeout(id);
+  }, [auditQ]);
 
   const usersQuery = useQuery({
     queryKey: ['settings-users'],
     queryFn: () => adminApi.settings.users(),
-    enabled: activeTab === 'users',
+    // BUG-AUDIT-UI-A01: also fetch the admin user list when the audit
+    // tab is active so the actor dropdown can resolve adminId→name.
+    enabled: activeTab === 'users' || activeTab === 'audit',
   });
 
   const notifQuery = useQuery({
@@ -109,11 +155,49 @@ export function SettingsPage() {
     },
   });
 
+  // BUG-AUDIT-UI-A01: build query params from filter state. `from`/`to`
+  // are sent as ISO 8601 with the day clamped to UTC midnight →
+  // 23:59:59.999 so a `to=2026-04-26` request includes every entry
+  // from that day. Empty filters are omitted so they don't override
+  // server defaults.
+  const auditParams = useMemo(() => {
+    const p: Record<string, string | string[]> = {
+      page: String(auditPage),
+      pageSize: '50',
+      resource: 'system_config',
+    };
+    if (auditFrom) p.from = `${auditFrom}T00:00:00.000Z`;
+    if (auditTo) p.to = `${auditTo}T23:59:59.999Z`;
+    if (auditSections.length > 0) p.section = auditSections;
+    if (auditActor) p.actor = auditActor;
+    if (auditQDebounced) p.q = auditQDebounced;
+    return p;
+  }, [auditPage, auditFrom, auditTo, auditSections, auditActor, auditQDebounced]);
+
   const auditQuery = useQuery({
-    queryKey: ['settings-audit', auditPage],
-    queryFn: () => adminApi.settings.auditLog({ page: String(auditPage), per_page: '30' }),
+    queryKey: ['settings-audit', auditParams],
+    queryFn: () => adminApi.settings.auditLog(auditParams),
     enabled: activeTab === 'audit',
   });
+
+  // URL sync: when any audit filter changes, reflect into ?tab=audit&…
+  // so the view is bookmarkable and the back button restores filters.
+  // Reset to page 1 whenever a filter (other than the page itself)
+  // changes — stale page numbers on a narrowed result set are a
+  // common UX hazard.
+  useEffect(() => {
+    if (activeTab !== 'audit') return;
+    const next = new URLSearchParams();
+    next.set('tab', 'audit');
+    if (auditFrom) next.set('from', auditFrom);
+    if (auditTo) next.set('to', auditTo);
+    auditSections.forEach((s) => next.append('section', s));
+    if (auditActor) next.set('actor', auditActor);
+    if (auditQDebounced) next.set('q', auditQDebounced);
+    if (auditPage > 1) next.set('page', String(auditPage));
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, auditFrom, auditTo, auditSections, auditActor, auditQDebounced, auditPage]);
 
   const [createUserError, setCreateUserError] = useState('');
 
@@ -143,7 +227,9 @@ export function SettingsPage() {
 
   const users = (usersQuery.data?.data ?? []) as AdminUserItem[];
   const notifData = notifQuery.data as { data: NotificationItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
-  const auditData = auditQuery.data as { data: AuditLogItem[]; meta: { page: number; per_page: number; total: number; total_pages: number } } | undefined;
+  const auditData = auditQuery.data as { data: AuditLogItem[]; meta: { page: number; per_page: number; pageSize: number; total: number; total_pages: number } } | undefined;
+  const adminRole = useAuthStore((s) => s.user?.role ?? null);
+  const isSuperadmin = adminRole === 'superadmin';
 
   return (
     <div>
@@ -151,7 +237,12 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-muted rounded-lg p-1 mb-6 w-fit flex-wrap">
-        {(['config', 'categories', 'store', 'shipping', 'users', 'notifications', 'audit'] as Tab[]).map((tab) => (
+        {(['config', 'categories', 'store', 'shipping', 'users', 'notifications', 'audit'] as Tab[])
+          // BUG-AUDIT-UI-A01: cosmetic role hide — server is the real
+          // gate (403). Keeps the tab from showing for staff who would
+          // only ever see a 403 if they clicked it.
+          .filter((tab) => tab !== 'audit' || isSuperadmin)
+          .map((tab) => (
           <button
             key={tab}
             onClick={() => switchTab(tab)}
@@ -423,6 +514,84 @@ export function SettingsPage() {
       {/* Audit Log Tab */}
       {activeTab === 'audit' && (
         <div>
+          {/* BUG-AUDIT-UI-A01: filter row */}
+          <div className="rounded-lg border p-3 mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                {t('settings.audit.filters.dateFrom')}
+              </label>
+              <Input
+                type="date"
+                value={auditFrom}
+                onChange={(e) => { setAuditFrom(e.target.value); setAuditPage(1); }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                {t('settings.audit.filters.dateTo')}
+              </label>
+              <Input
+                type="date"
+                value={auditTo}
+                onChange={(e) => { setAuditTo(e.target.value); setAuditPage(1); }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                {t('settings.audit.filters.section')}
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {AUDIT_SECTIONS.map((s) => {
+                  const active = auditSections.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        setAuditSections((prev) =>
+                          prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
+                        );
+                        setAuditPage(1);
+                      }}
+                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                        active
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {t(`settings.audit.section.${s}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                {t('settings.audit.filters.actor')}
+              </label>
+              <select
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                value={auditActor}
+                onChange={(e) => { setAuditActor(e.target.value); setAuditPage(1); }}
+              >
+                <option value="">{t('settings.audit.filters.actorAll')}</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                {t('settings.audit.filters.search')}
+              </label>
+              <Input
+                value={auditQ}
+                placeholder={t('settings.audit.filters.searchPlaceholder')}
+                onChange={(e) => { setAuditQ(e.target.value); setAuditPage(1); }}
+              />
+            </div>
+          </div>
+
           {auditQuery.isLoading ? (
             <div className="rounded-lg border p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : auditData ? (
@@ -435,7 +604,8 @@ export function SettingsPage() {
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.timestamp')}</th>
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.admin')}</th>
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.action')}</th>
-                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.resource')}</th>
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.audit.column.section')}</th>
+                        <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.audit.column.key')}</th>
                         <th className="text-left p-3 text-xs font-medium text-muted-foreground">{t('settings.details')}</th>
                       </tr>
                     </thead>
@@ -456,18 +626,20 @@ export function SettingsPage() {
                               {log.action}
                             </span>
                           </td>
-                          <td className="p-3 text-sm">
-                            {log.resource.replace(/_/g, ' ')}
-                            {log.resource_id && <span className="text-xs text-muted-foreground ml-1 font-mono">#{log.resource_id.slice(0, 8)}</span>}
+                          <td className="p-3 text-xs text-muted-foreground">
+                            {log.section ? t(`settings.audit.section.${log.section}`) : '—'}
                           </td>
-                          <td className="p-3 text-xs text-muted-foreground max-w-[200px] truncate">
+                          <td className="p-3 text-xs font-mono text-muted-foreground">
+                            {log.key ?? '—'}
+                          </td>
+                          <td className="p-3 text-xs text-muted-foreground max-w-[260px] truncate">
                             {log.details ? JSON.stringify(log.details) : '-'}
                           </td>
                         </tr>
                       ))}
                       {auditData.data.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-muted-foreground text-sm">{t('settings.noAuditLogs')}</td>
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground text-sm">{t('settings.noAuditLogs')}</td>
                         </tr>
                       )}
                     </tbody>

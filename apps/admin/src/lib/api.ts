@@ -971,9 +971,34 @@ export const adminApi = {
       }),
     deleteUser: (id: string) =>
       request<{ data: { deleted: boolean } }>(`/api/v1/admin/settings/users/${id}`, { method: 'DELETE' }),
-    auditLog: (params: Record<string, string>) => {
-      const qs = new URLSearchParams(params).toString();
-      return request<{ data: Array<{ id: string; admin_email: string; admin_name: string; action: string; resource: string; resource_id: string | null; details: Record<string, unknown> | null; created_at: string }>; meta: { page: number; per_page: number; total: number; total_pages: number } }>(`/api/v1/admin/settings/audit-log?${qs}`);
+    auditLog: (params: Record<string, string | string[]>) => {
+      // BUG-AUDIT-UI-A01: support repeated query params (e.g. multi-
+      // value `section=`) by pushing each value individually.
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        if (Array.isArray(v)) v.forEach((item) => qs.append(k, item));
+        else if (v) qs.append(k, v);
+      }
+      return request<{
+        data: Array<{
+          id: string;
+          admin_email: string;
+          admin_name: string;
+          action: string;
+          resource: string;
+          resource_id: string | null;
+          details: Record<string, unknown> | null;
+          // BUG-AUDIT-UI-A01: per-row UI conveniences. `key`/`section`
+          // are null for non-config audit rows; `old_value`/`new_value`
+          // are server-side truncated to ≤500 chars.
+          key: string | null;
+          section: string | null;
+          old_value: unknown;
+          new_value: unknown;
+          created_at: string;
+        }>;
+        meta: { page: number; per_page: number; pageSize: number; total: number; total_pages: number };
+      }>(`/api/v1/admin/settings/audit-log?${qs.toString()}`);
     },
     // BUG-504-A06.5: client-posted audit events. Narrow whitelist on
     // the server side — today only `category.drift_detected`.
