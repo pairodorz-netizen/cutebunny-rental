@@ -1,41 +1,33 @@
 /**
- * BUG-505-A01 — Soft-deleted product tombstones must NOT block category DELETE.
+ * BUG-505-A01 / BUG-504-A08-commit2 — pre-check + Cache-Control gates.
  *
- * BUG-504-RC2 (PR #89) added a pre-flight `db.product.count` before
- * the FK-RESTRICTed `db.category.delete` call. The pre-check did not
- * filter `deletedAt: null`, so soft-deleted products (which keep
- * their `category_id` so Restore can put them back on the original
- * category) were still tombstone-counted against the category. Owner
- * symptom: `409 Cannot delete: 4 product(s) still use this category`
- * after the owner soft-deleted all four.
+ * History:
+ *   • BUG-504-RC2 (PR #89) added a pre-flight `db.product.count`
+ *     before the FK-RESTRICTed `db.category.delete` call.
+ *   • BUG-505-A01 (PR #90) narrowed the count to `deletedAt: null`
+ *     so soft-deleted tombstones (which keep their `category_id`
+ *     for Restore) would not block a category that had no ACTIVE
+ *     products. A `$executeRaw UPDATE products SET category_id =
+ *     NULL WHERE category_id = $1 AND deleted_at IS NOT NULL` was
+ *     supposed to clear the tombstone FK before `category.delete`.
+ *   • BUG-504-A08-commit2 (this update): production evidence
+ *     2026-04-26 (owner-run SQL, Cloudflare ray 9f250bf8fe01e395)
+ *     showed 4 tombstones retained `category_id` across multiple
+ *     DELETE attempts — the `$executeRaw` UPDATE never effectively
+ *     reached storage. A08-commit2 widens the pre-check to count
+ *     ALL products (active + tombstones), so any non-zero count
+ *     triggers 409 IN_USE before `category.delete` is reached. This
+ *     regresses BUG-505-A01's user-facing goal until A06 commit 3
+ *     FINAL drops the dual-write surface and the FK column.
  *
- * Fix contract pinned by this file:
- *   • Pre-check filters by `categoryId AND deletedAt IS NULL`.
- *     `db.product.count` MUST be invoked with that exact `where`.
- *   • Category with N>0 ACTIVE products → 409 IN_USE (regression of
- *     BUG-504-RC2 contract).
- *   • Category with 0 active products but N>0 soft-deleted tombstones
- *     → 204 (the FK is intact, but RESTRICT is not violated because
- *     `category.delete` is never reached on a path that would orphan
- *     active rows; the soft-deleted rows are tombstones whose
- *     category_id was nulled is NOT required — see hunk 1 plan;
- *     instead we require that the route call db.category.delete and
- *     succeed).
- *
- *   NOTE: production semantics for the soft-deleted-tombstone case
- *   require either (a) a follow-up that nulls categoryId on
- *   tombstones at DELETE time, or (b) the FK to permit ON DELETE
- *   CASCADE/SET NULL for tombstones. This atom (BUG-505-A01) takes
- *   approach (a) IN HANDLER via a raw `UPDATE products SET
- *   category_id = NULL WHERE category_id = $1 AND deleted_at IS
- *   NOT NULL` immediately before `db.category.delete`. The raw SQL
- *   is necessary because the Prisma schema declares `categoryId` as
- *   `String` (required) even though the underlying DB column is
- *   nullable per BUG-504-A06 step 1/3 — `db.product.updateMany({
- *   data: { categoryId: null } })` would not typecheck. Schema is
- *   left untouched per the orchestrator's "no schema migration"
- *   constraint.
- *
+ * Fix contract pinned by this file (A08-commit2):
+ *   • Pre-check filters by `categoryId` only (NO `deletedAt` filter).
+ *     `db.product.count` MUST be invoked with `{ where: { categoryId } }`.
+ *   • Category with N>0 ACTIVE products → 409 IN_USE.
+ *   • Category with N>0 soft-deleted-only tombstones → 409 IN_USE
+ *     (regression of BUG-505-A01 — see gate 3 inversion below).
+ *   • A08-commit1 (PR #97) layer-2 P2003 catch remains as
+ *     defense-in-depth for any P2003 that still reaches storage.
  *   • Public `/api/v1/categories` Cache-Control: `s-maxage=30` so the
  *     drift-banner false-positive window collapses from 5 min → 30 s.
  */
@@ -128,8 +120,8 @@ describe('BUG-505-A01 — soft-deleted tombstones do not block category DELETE',
     mockDb.auditLog.create.mockResolvedValue({ id: 'audit-1' });
   });
 
-  // ── Gate 1 — pre-check filters deletedAt: null ────────────────────────
-  it('gate 1: pre-check counts ONLY products with deletedAt = null', async () => {
+  // ── Gate 1 — pre-check counts ALL products (A08-commit2) ─────────────
+  it('gate 1: pre-check counts ALL products (no deletedAt filter)', async () => {
     const token = await superadminToken();
     mockDb.category.findUnique.mockResolvedValueOnce({ ...SEED_ROW });
 
@@ -139,8 +131,11 @@ describe('BUG-505-A01 — soft-deleted tombstones do not block category DELETE',
     });
 
     expect(mockDb.product.count).toHaveBeenCalledTimes(1);
+    // A08-commit2: widened to active + tombstones. The previous
+    // BUG-505-A01 contract (`deletedAt: null`) is regressed until
+    // A06 commit 3 FINAL drops the FK column.
     expect(mockDb.product.count).toHaveBeenCalledWith({
-      where: { categoryId: SEED_ROW.id, deletedAt: null },
+      where: { categoryId: SEED_ROW.id },
     });
   });
 
@@ -164,37 +159,37 @@ describe('BUG-505-A01 — soft-deleted tombstones do not block category DELETE',
     expect(mockDb.category.delete).not.toHaveBeenCalled();
   });
 
-  // ── Gate 3 — soft-deleted-only category deletes successfully ─────────
-  it('gate 3: DELETE succeeds (204) when only soft-deleted tombstones reference the category', async () => {
+  // ── Gate 3 — soft-deleted tombstones now BLOCK delete (A08-commit2) ──
+  // INVERTED from the BUG-505-A01 contract. Production evidence
+  // 2026-04-26 (owner-run SQL) showed the `$executeRaw` tombstone-
+  // clear UPDATE never effectively reaches storage, so the FK still
+  // fired P2003 on `category.delete`. A08-commit2 widens the pre-
+  // check to count tombstones too, so any tombstone-only category
+  // now 409s before storage is ever touched. Restoring the BUG-505-
+  // A01 user-facing goal is queued for the day A06 commit 3 FINAL
+  // drops the FK column entirely.
+  it('gate 3: 409 IN_USE when only soft-deleted tombstones reference the category', async () => {
     const token = await superadminToken();
     mockDb.category.findUnique.mockResolvedValueOnce({ ...SEED_ROW });
-    // Active count = 0 (tombstones excluded by `deletedAt: null` filter).
-    mockDb.product.count.mockResolvedValueOnce(0);
-    // Tombstones still hold the FK; the handler must null them via
-    // a raw UPDATE before delete to avoid the ON DELETE RESTRICT
-    // violation (Prisma schema declares categoryId required even
-    // though the column is nullable).
-    mockDb.$executeRaw.mockResolvedValueOnce(4);
+    // 4 tombstones (matches the 2026-04-26 prod evidence on `casual`).
+    mockDb.product.count.mockResolvedValueOnce(4);
 
     const res = await app.request(`/api/v1/admin/categories/${SEED_ROW.id}`, {
       method: 'DELETE',
       headers: jsonHeaders(token),
     });
 
-    expect(res.status).toBe(204);
-    expect(await res.text()).toBe('');
-    expect(mockDb.category.delete).toHaveBeenCalledWith({ where: { id: SEED_ROW.id } });
-    // Tombstone category_id was cleared in the same flow. The raw
-    // tagged-template arrives as (strings, ...values); we assert
-    // the SQL fragments contain UPDATE + category_id = NULL +
-    // deleted_at IS NOT NULL and the bound value is the category id.
-    expect(mockDb.$executeRaw).toHaveBeenCalledTimes(1);
-    const callArgs = mockDb.$executeRaw.mock.calls[0];
-    const sqlFragments = (callArgs[0] as string[]).join(' ');
-    expect(sqlFragments).toMatch(/UPDATE\s+"products"/i);
-    expect(sqlFragments).toMatch(/SET\s+"category_id"\s*=\s*NULL/i);
-    expect(sqlFragments).toMatch(/"deleted_at"\s+IS\s+NOT\s+NULL/i);
-    expect(callArgs.slice(1)).toContain(SEED_ROW.id);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      error: { code: string; details?: { products_count?: number } };
+    };
+    expect(body.error.code).toBe('IN_USE');
+    expect(body.error.details?.products_count).toBe(4);
+    expect(mockDb.category.delete).not.toHaveBeenCalled();
+    // Tombstone-clear `$executeRaw` UPDATE is unreachable when
+    // pre-check 409s. Asserting it never fires guards against
+    // future re-introduction of the BUG-505-A01-era code path.
+    expect(mockDb.$executeRaw).not.toHaveBeenCalled();
   });
 
   // ── Gate 4 — pre-check is the SOLE source of truth for the 409 ───────
