@@ -393,7 +393,48 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
        AND "deleted_at" IS NOT NULL
   `;
 
-  await db.category.delete({ where: { id } });
+  // BUG-504-A08-commit1 — defense-in-depth: translate Prisma P2003
+  // (foreign-key constraint violated) into the same 409 IN_USE
+  // envelope the layer-1 pre-check above emits. The layer-1 check
+  // counts active (`deletedAt: null`) products, and the $executeRaw
+  // above clears tombstones; together they should leave the FK
+  // unconstrained. In production we observed the pre-check returning
+  // 0 yet `db.category.delete` still throwing P2003 on
+  // `products_category_id_fkey` (Cloudflare ray 9f250bf8fe01e395
+  // + reproducer 2026-04-26 ~20:28 GMT+9 / cutebunny-api Workers
+  // Logs `[admin-categories]` line). Root-cause investigation of
+  // the visibility gap is parked under A08-commit2 (suspected RLS
+  // filtering products from the Prisma SELECT/UPDATE while
+  // Postgres's storage-layer FK enforcer still sees them). This
+  // catch keeps admin UX consistent — clients see the same 409
+  // IN_USE / `formatCategoryError` toast they'd see if the layer-1
+  // pre-check had fired correctly.
+  try {
+    await db.category.delete({ where: { id } });
+  } catch (err) {
+    const errCode =
+      typeof (err as { code?: unknown })?.code === 'string'
+        ? (err as { code: string }).code
+        : null;
+    if (errCode === 'P2003') {
+      logAdminCategoryCrud({
+        route: '/api/v1/admin/categories/:id',
+        method: 'DELETE',
+        identifier: id,
+        outcome: 'in_use_blocked',
+        errorCode: 'IN_USE',
+        details: { slug: existing.slug, layer: 'p2003-catch' },
+      });
+      return error(
+        c,
+        409,
+        'IN_USE',
+        `Cannot delete category "${existing.slug}": products still reference it. Reassign the products first or hide the category via the visibility toggles.`,
+        { slug: existing.slug },
+      );
+    }
+    throw err;
+  }
 
   await safeAuditLog(db, {
     adminId: admin.sub,
