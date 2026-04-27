@@ -5,12 +5,13 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
-import { Button } from '@/components/ui/button';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
 import { DeliveryMethodSelector, ReturnMethodDisplay } from '@/components/delivery-method-selector';
 import type { DeliveryMethodType } from '@/components/delivery-method-selector';
-import { api } from '@/lib/api';
+import { api, type ProductListItem } from '@/lib/api';
 import { useCartStore } from '@/stores/cart-store';
+import { ProductCard } from '@/components/product-card';
+import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 
 const RENTAL_TIERS = [
   { days: 1, key: '1day' as const },
@@ -18,13 +19,6 @@ const RENTAL_TIERS = [
   { days: 5, key: '5day' as const },
 ];
 
-/**
- * Calculate rental price based on number of days.
- * - 1 day: use 1-day price
- * - 2-3 days: use 3-day price
- * - 4-5 days: use 5-day price
- * - >5 days: price_5day + extra_day_rate * (days - 5)
- */
 function calculateRentalPrice(
   days: number,
   prices: { '1day': number; '3day': number; '5day': number },
@@ -34,11 +28,9 @@ function calculateRentalPrice(
   if (days === 1) return prices['1day'];
   if (days === 2 || days === 3) return prices['3day'];
   if (days === 4 || days === 5) return prices['5day'];
-  // days > 5: 5-day price + extra rate per additional day
   if (extraDayRate > 0) {
     return prices['5day'] + extraDayRate * (days - 5);
   }
-  // Fallback if no extra day rate: linear from 5-day price
   const perDay = Math.round(prices['5day'] / 5);
   return prices['5day'] + perDay * (days - 5);
 }
@@ -58,8 +50,6 @@ export default function ProductDetailPage() {
   const [added, setAdded] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
-
-  // Messenger delivery state
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
@@ -87,7 +77,22 @@ export default function ProductDetailPage() {
 
   const product = data?.data;
 
-  // The actual rental days — from calendar range or preset buttons
+  // Fetch similar/recommended products
+  const similarQuery = useQuery({
+    queryKey: ['products', 'similar', product?.category, locale],
+    queryFn: () => api.products.list({
+      locale,
+      page: '1',
+      per_page: '4',
+      category: product?.category ?? '',
+    }),
+    enabled: !!product?.category,
+    staleTime: 5 * 60 * 1000,
+  });
+  const similarProducts: ProductListItem[] = (similarQuery.data?.data ?? []).filter(
+    (p) => p.id !== productId
+  ).slice(0, 4);
+
   const actualDays = customDays ?? selectedRentalDays;
 
   const rentalPrice = useMemo(() => {
@@ -103,7 +108,6 @@ export default function ProductDetailPage() {
 
   function handleRangeSelect(startDate: string, endDate: string, days: number) {
     setSelectedStartDate(startDate);
-    // If start === end (single date / 3rd-click reset), clear end date display
     setSelectedEndDate(startDate === endDate ? null : endDate);
     setCustomDays(days);
     setSelectedRentalDays(days === 1 || days === 3 || days === 5 ? days : selectedRentalDays);
@@ -112,7 +116,6 @@ export default function ProductDetailPage() {
   function handlePresetClick(days: number) {
     setSelectedRentalDays(days);
     setCustomDays(null);
-    // Clear range selection since preset overrides
     setSelectedEndDate(null);
   }
 
@@ -135,15 +138,19 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 w-32 bg-muted rounded" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="aspect-[3/4] bg-muted rounded-lg" />
-            <div className="space-y-4">
-              <div className="h-8 w-64 bg-muted rounded" />
-              <div className="h-4 w-48 bg-muted rounded" />
-              <div className="h-20 bg-muted rounded" />
+      <div className="bg-cb-surface min-h-screen">
+        <div className="container py-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 w-32 bg-muted rounded" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <div className="aspect-[3/4] bg-muted rounded-2xl" style={{ height: 680 }} />
+              </div>
+              <div className="space-y-4">
+                <div className="h-8 w-64 bg-muted rounded" />
+                <div className="h-4 w-48 bg-muted rounded" />
+                <div className="h-20 bg-muted rounded-2xl" />
+              </div>
             </div>
           </div>
         </div>
@@ -153,8 +160,8 @@ export default function ProductDetailPage() {
 
   if (isError || !product) {
     return (
-      <div className="container py-8 text-center text-muted-foreground">
-        {t('notFound')}
+      <div className="bg-cb-surface min-h-screen flex items-center justify-center">
+        <div className="text-center text-cb-secondary">{t('notFound')}</div>
       </div>
     );
   }
@@ -162,108 +169,120 @@ export default function ProductDetailPage() {
   const hasExtraDayRate = (product.extra_day_rate ?? 0) > 0;
 
   return (
-    <div className="container py-8">
-      <Link
-        href="/products"
-        className="text-sm text-muted-foreground hover:text-primary mb-6 inline-block"
-      >
-        &larr; {t('backToProducts')}
-      </Link>
+    <div className="bg-cb-surface min-h-screen">
+      <div className="container py-8">
+        {/* Back link */}
+        <Link
+          href="/products"
+          className="inline-flex items-center gap-1.5 text-sm text-cb-secondary hover:text-cb-active mb-6 transition-colors"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          {t('backToProducts')}
+        </Link>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Image Gallery */}
-        <div className="space-y-4">
-          <div className="aspect-[3/4] rounded-lg bg-muted overflow-hidden">
-            {product.images.length > 0 ? (
-              <img
-                src={product.images[selectedImage]?.url}
-                alt={product.images[selectedImage]?.alt_text ?? product.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                {product.name}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+          {/* Image Gallery — Left: thumbnail rail + main photo */}
+          <div className="flex gap-4">
+            {/* Thumbnail rail */}
+            {product.images.length > 1 && (
+              <div className="hidden md:flex flex-col gap-2 w-20 shrink-0">
+                {product.images.map((img, idx) => (
+                  <button
+                    key={img.id}
+                    onClick={() => setSelectedImage(idx)}
+                    className={`w-20 h-24 rounded-xl overflow-hidden border-2 transition-all ${
+                      idx === selectedImage
+                        ? 'border-cb-active ring-2 ring-cb-active/20'
+                        : 'border-transparent hover:border-border'
+                    }`}
+                  >
+                    <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover" />
+                  </button>
+                ))}
               </div>
             )}
-          </div>
-          {product.images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
-              {product.images.map((img, idx) => (
-                <button
-                  key={img.id}
-                  onClick={() => setSelectedImage(idx)}
-                  className={`w-16 h-20 rounded border overflow-hidden shrink-0 ${
-                    idx === selectedImage ? 'ring-2 ring-primary' : ''
-                  }`}
-                >
-                  <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover" />
-                </button>
-              ))}
+            {/* Main photo */}
+            <div className="flex-1 rounded-2xl bg-white overflow-hidden shadow-soft" style={{ height: 680 }}>
+              {product.images.length > 0 ? (
+                <img
+                  src={product.images[selectedImage]?.url}
+                  alt={product.images[selectedImage]?.alt_text ?? product.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-cb-secondary">
+                  {product.name}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Product Info */}
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">{product.name}</h1>
-            {product.brand && (
-              <p className="text-muted-foreground mt-1">{typeof product.brand === 'string' ? product.brand : product.brand}</p>
-            )}
           </div>
 
-          {product.description && (
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Product name + rating */}
             <div>
-              <h3 className="font-semibold mb-2">{t('description')}</h3>
-              <p className="text-muted-foreground text-sm">{product.description}</p>
+              {product.brand && (
+                <p className="text-xs font-medium text-cb-secondary uppercase tracking-wider mb-1">
+                  {typeof product.brand === 'string' ? product.brand : product.brand}
+                </p>
+              )}
+              <h1 className="text-2xl md:text-3xl font-display font-semibold text-cb-heading">
+                {product.name}
+              </h1>
+              <div className="flex items-center gap-1 mt-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                ))}
+                <span className="text-xs text-cb-secondary ml-1">5.0</span>
+              </div>
             </div>
-          )}
 
-          {/* Rental Price Tiers */}
-          <div>
-            <h3 className="font-semibold mb-2">{t('rentalPricing')}</h3>
-            <div className="grid grid-cols-3 gap-2">
-              {RENTAL_TIERS.map((tier) => (
-                <button
-                  key={tier.days}
-                  onClick={() => handlePresetClick(tier.days)}
-                  className={`rounded-lg border p-3 text-center transition-colors ${
-                    selectedRentalDays === tier.days && customDays === null
-                      ? 'border-primary bg-primary/5'
-                      : 'hover:border-primary/50'
-                  }`}
-                >
-                  <div className="text-xs text-muted-foreground">
-                    {tier.days} {t('days')}
-                  </div>
-                  <div className="text-lg font-bold mt-1">
-                    {(product.rental_prices?.[tier.key] ?? 0).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{product.currency}</div>
-                </button>
-              ))}
+            {/* Rental Price Table */}
+            <div>
+              <h3 className="text-sm font-semibold text-cb-heading mb-3">{t('rentalPricing')}</h3>
+              <div className="grid grid-cols-3 gap-3">
+                {RENTAL_TIERS.map((tier) => {
+                  const isActive = selectedRentalDays === tier.days && customDays === null;
+                  return (
+                    <button
+                      key={tier.days}
+                      onClick={() => handlePresetClick(tier.days)}
+                      className={`rounded-2xl border-2 p-4 text-center transition-all ${
+                        isActive
+                          ? 'border-cb-active bg-cb-active/5'
+                          : 'border-border bg-white hover:border-cb-active/40'
+                      }`}
+                    >
+                      <div className="text-xs text-cb-secondary">
+                        {tier.days} {t('days')}
+                      </div>
+                      <div className="text-xl font-bold text-cb-heading mt-1">
+                        ฿{(product.rental_prices?.[tier.key] ?? 0).toLocaleString()}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {hasExtraDayRate && (
+                <p className="text-xs text-cb-secondary mt-2">
+                  {t('extraDayNote', { rate: (product.extra_day_rate ?? 0).toLocaleString() })}
+                </p>
+              )}
             </div>
-            {hasExtraDayRate && (
-              <p className="text-xs text-muted-foreground mt-2">
-                {t('extraDayNote', { rate: (product.extra_day_rate ?? 0).toLocaleString() })}
-              </p>
-            )}
-          </div>
 
-          {/* Size & Color filters — clicking refetches calendar */}
-          <div className="flex gap-8">
+            {/* Size Selector */}
             {(product.size?.length ?? 0) > 0 && (
               <div>
-                <h3 className="font-semibold mb-2">{t('selectSize')}</h3>
+                <h3 className="text-sm font-semibold text-cb-heading mb-3">{t('selectSize')}</h3>
                 <div className="flex gap-2">
                   {product.size.map((s) => (
                     <button
                       key={s}
                       onClick={() => setSelectedSize(selectedSize === s ? null : s)}
-                      className={`border rounded-md px-3 py-1 text-sm transition-colors ${
+                      className={`rounded-full px-5 py-2 text-sm font-medium transition-all ${
                         selectedSize === s
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'hover:border-primary/50'
+                          ? 'bg-cb-active text-white'
+                          : 'bg-white border border-border text-cb-heading hover:border-cb-active/40'
                       }`}
                     >
                       {s}
@@ -272,18 +291,20 @@ export default function ProductDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Color */}
             {(product.color?.length ?? 0) > 0 && (
               <div>
-                <h3 className="font-semibold mb-2">{t('color')}</h3>
+                <h3 className="text-sm font-semibold text-cb-heading mb-3">{t('color')}</h3>
                 <div className="flex gap-2">
                   {product.color.map((c) => (
                     <button
                       key={c}
                       onClick={() => setSelectedColor(selectedColor === c ? null : c)}
-                      className={`border rounded-md px-3 py-1 text-sm capitalize transition-colors ${
+                      className={`rounded-full px-4 py-1.5 text-sm capitalize transition-all ${
                         selectedColor === c
-                          ? 'border-primary bg-primary/10 text-primary font-medium'
-                          : 'hover:border-primary/50'
+                          ? 'bg-cb-active text-white'
+                          : 'bg-white border border-border text-cb-heading hover:border-cb-active/40'
                       }`}
                     >
                       {c}
@@ -292,94 +313,127 @@ export default function ProductDetailPage() {
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Deposit */}
-          {(product.deposit ?? 0) > 0 && (
-            <div className="text-sm text-muted-foreground">
-              {t('depositNote')}: <span className="font-semibold text-foreground">{(product.deposit ?? 0).toLocaleString()} {product.currency}</span>
-            </div>
-          )}
-
-          {/* Retail reference price */}
-          {product.ref_price > 0 && (
-            <div className="text-xs text-muted-foreground">
-              {t('retailPrice')}: <span className="line-through">{product.ref_price.toLocaleString()} {product.currency}</span>
-            </div>
-          )}
-
-          {/* Delivery Method Selector — before calendar */}
-          <DeliveryMethodSelector
-            value={deliveryMethod}
-            onChange={(m) => {
-              setDeliveryMethod(m);
-              setCartDeliveryMethod(m);
-            }}
-            messengerEnabled={messengerEnabled}
-          />
-
-          {/* Return method display */}
-          {deliveryMethod === 'messenger' && (
-            <ReturnMethodDisplay
-              rentalDays={actualDays}
+            {/* Delivery Options */}
+            <DeliveryMethodSelector
+              value={deliveryMethod}
+              onChange={(m) => {
+                setDeliveryMethod(m);
+                setCartDeliveryMethod(m);
+              }}
+              messengerEnabled={messengerEnabled}
             />
-          )}
 
-          {/* Calendar — date range selection */}
-          <AvailabilityCalendar
-            productId={productId}
-            onSelectRange={handleRangeSelect}
-            selectedSize={selectedSize}
-            selectedColor={selectedColor}
-          />
+            {deliveryMethod === 'messenger' && (
+              <ReturnMethodDisplay rentalDays={actualDays} />
+            )}
 
-          {/* Add to Cart — shows calculated total */}
-          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/50">
-            <div>
-              <span className="text-sm text-muted-foreground">{t('totalRental')}</span>
-              <p className="text-2xl font-bold">{rentalPrice.toLocaleString()} THB</p>
-              <span className="text-xs text-muted-foreground">
-                {actualDays} {t('days')}
-                {selectedStartDate ? ` • ${selectedStartDate}` : ''}
-                {selectedEndDate ? ` → ${selectedEndDate}` : ''}
-              </span>
-              {customDays && customDays > 5 && hasExtraDayRate && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  ({(product.rental_prices?.['5day'] ?? 0).toLocaleString()} + {(product.extra_day_rate ?? 0) * (customDays - 5)} extra)
-                </p>
+            {/* Calendar */}
+            <AvailabilityCalendar
+              productId={productId}
+              onSelectRange={handleRangeSelect}
+              selectedSize={selectedSize}
+              selectedColor={selectedColor}
+            />
+
+            {/* Summary Bar */}
+            <div className="rounded-2xl bg-white p-5 shadow-soft space-y-3">
+              {/* Deposit */}
+              {(product.deposit ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-cb-secondary">{t('depositNote')}</span>
+                  <span className="font-semibold text-cb-heading">
+                    ฿{(product.deposit ?? 0).toLocaleString()}
+                  </span>
+                </div>
               )}
-            </div>
-            <Button size="lg" onClick={handleAddToCart} disabled={!selectedStartDate}>
-              {added ? t('added') : t('addToCart')}
-            </Button>
-          </div>
-
-          {/* Related SKUs */}
-          {product.related_skus.length > 0 && (
-            <div>
-              <h3 className="font-semibold mb-3">{t('relatedProducts')}</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {product.related_skus.map((rp) => (
-                  <Link
-                    key={rp.id}
-                    href={`/products/${rp.id}`}
-                    className="flex items-center gap-3 rounded-lg border p-3 hover:shadow-sm transition-shadow"
-                  >
-                    <div className="w-12 h-16 bg-muted rounded shrink-0 overflow-hidden">
-                      {rp.thumbnail && (
-                        <img src={rp.thumbnail} alt={rp.name} className="w-full h-full object-cover" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium line-clamp-1">{rp.name}</p>
-                      <p className="text-xs text-muted-foreground">{rp.price_1day.toLocaleString()} THB/day</p>
-                    </div>
-                  </Link>
-                ))}
+              {/* Rental total */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm text-cb-secondary">{t('totalRental')}</span>
+                  <p className="text-2xl font-bold text-cb-heading">
+                    ฿{rentalPrice.toLocaleString()}
+                  </p>
+                  <span className="text-xs text-cb-secondary">
+                    {actualDays} {t('days')}
+                    {selectedStartDate ? ` • ${selectedStartDate}` : ''}
+                    {selectedEndDate ? ` → ${selectedEndDate}` : ''}
+                  </span>
+                </div>
+                <button
+                  onClick={handleAddToCart}
+                  disabled={!selectedStartDate}
+                  className={`flex items-center gap-2 px-6 py-3.5 rounded-full font-medium text-sm transition-all ${
+                    !selectedStartDate
+                      ? 'bg-muted text-cb-secondary cursor-not-allowed'
+                      : added
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-cb-active text-white hover:brightness-110 shadow-soft'
+                  }`}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  {added ? t('added') : t('rentNow')}
+                </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* Similar Dresses */}
+        {similarProducts.length > 0 && (
+          <section className="mt-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-display font-semibold text-cb-heading">
+                {t('similarDresses')}
+              </h2>
+              <Link
+                href="/products"
+                className="flex items-center gap-1 text-sm font-medium text-cb-active hover:underline"
+              >
+                {t('viewAll')}
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {similarProducts.map((sp) => (
+                <ProductCard key={sp.id} product={sp} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Related SKUs from API */}
+        {product.related_skus.length > 0 && similarProducts.length === 0 && (
+          <section className="mt-16">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-display font-semibold text-cb-heading">
+                {t('relatedProducts')}
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {product.related_skus.slice(0, 4).map((rp) => (
+                <Link
+                  key={rp.id}
+                  href={`/products/${rp.id}`}
+                  className="group rounded-2xl bg-white overflow-hidden hover:shadow-lift transition-all"
+                >
+                  <div className="aspect-[3/4] bg-muted overflow-hidden">
+                    {rp.thumbnail && (
+                      <img src={rp.thumbnail} alt={rp.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-medium text-cb-heading line-clamp-1">{rp.name}</p>
+                    <p className="text-sm font-semibold text-cb-heading mt-1">
+                      ฿{rp.price_1day.toLocaleString()}
+                      <span className="text-xs font-normal text-cb-secondary ml-1">/วัน</span>
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

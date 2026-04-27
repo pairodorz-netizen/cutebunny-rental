@@ -10,6 +10,7 @@
   "nav": {
     "home": "首页",
     "products": "商品",
+    "profile": "个人信息",
     "about": "关于",
     "contact": "联系",
     "cart": "购物车",
@@ -19,7 +20,8 @@
     "hero": {
       "title": "租赁精美礼服",
       "subtitle": "各种场合的高端礼服租赁服务",
-      "cta": "浏览系列"
+      "cta": "开始租赁",
+      "ctaFeatured": "查看精选"
     },
     "featured": {
       "title": "热门礼服",
@@ -27,10 +29,28 @@
     },
     "categories": {
       "title": "按类别选购"
+    },
+    "stats": {
+      "totalDresses": "件礼服在店",
+      "fastDelivery": "24小时快速配送"
+    },
+    "popular": {
+      "title": "本周热门"
+    },
+    "newArrivals": {
+      "title": "新品上架"
+    },
+    "profile": {
+      "title": "个人信息",
+      "subtitle": "管理您的个人资料和送货地址",
+      "historyTitle": "租赁记录",
+      "historySubtitle": "查看所有租赁记录和订单状态",
+      "editProfile": "编辑资料"
     }
   },
   "products": {
-    "title": "我们的系列",
+    "title": "全部礼服",
+    "resultCount": "件",
     "loading": "正在加载商品...",
     "error": "加载商品失败，请重试。",
     "empty": "未找到符合条件的商品。",
@@ -42,7 +62,34 @@
       "size": "尺码",
       "color": "颜色",
       "priceRange": "价格范围",
-      "availability": "可用性"
+      "availability": "可用日期",
+      "filters": "筛选",
+      "searchPlaceholder": "搜索礼服...",
+      "clearAll": "清除全部",
+      "colors": {
+        "white": "白色",
+        "black": "黑色",
+        "red": "红色",
+        "pink": "粉色",
+        "orange": "橙色",
+        "yellow": "黄色",
+        "green": "绿色",
+        "blue": "蓝色",
+        "navy": "藏青色",
+        "purple": "紫色",
+        "cream": "奶油色",
+        "beige": "米色",
+        "brown": "棕色",
+        "gray": "灰色",
+        "gold": "金色",
+        "silver": "银色"
+      },
+      "priceRanges": {
+        "under200": "低于 ฿200",
+        "201to400": "฿201-฿400",
+        "401to600": "฿401-฿600",
+        "above601": "฿601+"
+      }
     },
     "card": {
       "rentFrom": "租赁起价",
@@ -60,6 +107,7 @@
       "startDate": "开始日期",
       "endDate": "结束日期",
       "addToCart": "加入购物车",
+      "rentNow": "立即租赁",
       "added": "已添加！",
       "totalRental": "租赁总价",
       "days": "天",
@@ -71,9 +119,32 @@
       "retailPrice": "零售价",
       "timesRented": "次租赁",
       "relatedProducts": "您可能还喜欢",
+      "similarDresses": "类似礼服",
+      "viewAll": "查看全部",
       "includedItems": "套装包含",
       "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）"
+    },
+    "sort": {
+      "featured": "推荐",
+      "priceLow": "价格：低到高",
+      "priceHigh": "价格：高到低",
+      "newest": "最新"
     }
+  },
+  "profile": {
+    "title": "个人信息",
+    "editProfile": "编辑资料",
+    "guestUser": "访客",
+    "noEmail": "未添加邮箱",
+    "name": "姓名",
+    "email": "邮箱",
+    "phone": "电话",
+    "address": "地址",
+    "save": "保存",
+    "cancel": "取消",
+    "rentalHistory": "租赁记录",
+    "noHistory": "暂无租赁记录",
+    "noHistoryHint": "开始租赁美丽的礼服吧！"
   },
   "calendar": {
     "loading": "正在加载日历...",

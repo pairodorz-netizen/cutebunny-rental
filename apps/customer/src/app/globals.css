@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,47 +7,38 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --foreground: 217 30% 30%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 217 30% 30%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 346 77% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    --popover-foreground: 217 30% 30%;
+    --primary: 330 60% 75%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 260 40% 92%;
+    --secondary-foreground: 217 30% 30%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 217 20% 55%;
+    --accent: 180 40% 90%;
+    --accent-foreground: 217 30% 30%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 346 77% 50%;
-    --radius: 0.5rem;
-  }
+    --border: 220 20% 92%;
+    --input: 220 20% 92%;
+    --ring: 210 60% 60%;
+    --radius: 1.25rem;
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 346 77% 50%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 346 77% 50%;
+    /* CuteBunny pastel palette */
+    --cb-pink: 330 60% 75%;
+    --cb-purple: 260 40% 75%;
+    --cb-blue: 210 60% 72%;
+    --cb-mint: 160 40% 80%;
+    --cb-heading: 217 44% 36%;
+    --cb-text-secondary: 213 35% 65%;
+    --cb-active: 210 100% 60%;
+    --cb-active-foreground: 0 0% 100%;
+    --cb-surface: 240 20% 98%;
+    --cb-gradient-start: 330 60% 95%;
+    --cb-gradient-end: 260 40% 95%;
   }
 }
 
@@ -55,5 +48,39 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    color: hsl(var(--cb-heading));
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+  .font-sans-thai {
+    font-family: 'Noto Sans Thai', 'Plus Jakarta Sans', sans-serif;
+  }
+  .text-heading {
+    color: hsl(var(--cb-heading));
+  }
+  .text-secondary-blue {
+    color: hsl(var(--cb-text-secondary));
+  }
+  .bg-pastel-gradient {
+    background: linear-gradient(135deg, hsl(var(--cb-gradient-start)), hsl(var(--cb-gradient-end)));
+  }
+  .bg-surface {
+    background-color: hsl(var(--cb-surface));
+  }
+
+  /* Hide scrollbar for carousel */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }

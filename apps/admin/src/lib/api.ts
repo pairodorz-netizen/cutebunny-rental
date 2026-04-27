@@ -1040,6 +1040,8 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    storefrontUrl: () =>
+      request<{ data: { storefront_url: string } }>('/api/v1/settings/storefront'),
   },
   // BUG-504-A03: DB-backed taxonomy CRUD (superadmin writes). Separate
   // from `settings.categories` (legacy SystemConfig JSON blob still used

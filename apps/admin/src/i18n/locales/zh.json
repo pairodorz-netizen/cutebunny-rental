@@ -589,6 +589,7 @@
     "tab_categories": "分类",
     "tab_store": "店铺地址",
     "tab_shipping": "配送",
+    "tab_general": "通用",
     "categoriesTitle": "产品分类",
     "categoriesDesc": "管理后台和前台共用的产品分类（slug 为小写 a-z0-9_-）。",
     "categoriesEmpty": "暂无分类。",
@@ -694,6 +695,10 @@
     "shopOrigin": "店铺坐标",
     "latitude": "纬度",
     "longitude": "经度",
-    "messengerSaved": "快递配置已保存"
+    "messengerSaved": "快递配置已保存",
+    "storefrontLinkTitle": "店铺链接",
+    "storefrontLinkDesc": "将此链接分享给您的客户来浏览和租赁礼服",
+    "copyLink": "复制链接",
+    "copied": "已复制!"
   }
 }
