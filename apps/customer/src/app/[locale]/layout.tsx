@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { Providers } from '@/components/providers';
 import { Header } from '@/components/header';
-import { Footer } from '@/components/footer';
 import '../globals.css';
 
 export const metadata: Metadata = {
@@ -30,12 +29,16 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale}>
-      <body className="min-h-screen flex flex-col antialiased">
+      <body className="min-h-screen flex flex-col antialiased font-sans">
         <NextIntlClientProvider messages={messages}>
           <Providers>
             <Header />
             <main className="flex-1">{children}</main>
-            <Footer />
+            <footer className="border-t border-border/50 py-6 mt-auto bg-cb-surface">
+              <div className="container text-center text-sm text-cb-secondary">
+                &copy; {new Date().getFullYear()} CuteBunny Rental
+              </div>
+            </footer>
           </Providers>
         </NextIntlClientProvider>
       </body>

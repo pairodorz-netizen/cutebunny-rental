@@ -3,14 +3,9 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
-import { Button } from '@/components/ui/button';
-import { api, type Category } from '@/lib/api';
-
-// BUG-504-A04: the landing-page "Shop by Category" grid is now backed by
-// the A02 public endpoint. Previous hardcoded 4-slug array + capitalize
-// hack removed. We show the top-N `visible_frontend` rows ordered by
-// `sort_order ASC` and render locale-aware labels.
-const CATEGORY_GRID_LIMIT = 4;
+import { api, type Category, type ProductListItem } from '@/lib/api';
+import { ProductCard } from '@/components/product-card';
+import { ChevronRight, Truck, User, Clock } from 'lucide-react';
 
 export default function HomePage() {
   const t = useTranslations();
@@ -22,9 +17,28 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const gridCategories: Category[] = (categoriesQuery.data?.data ?? [])
-    .filter((row) => row.visible_frontend)
-    .slice(0, CATEGORY_GRID_LIMIT);
+  const popularQuery = useQuery({
+    queryKey: ['products', 'popular', locale],
+    queryFn: () => api.products.list({ locale, page: '1', per_page: '8', sort: 'popular' }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const newArrivalsQuery = useQuery({
+    queryKey: ['products', 'new', locale],
+    queryFn: () => api.products.list({ locale, page: '1', per_page: '8', sort: 'newest' }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const allProductsQuery = useQuery({
+    queryKey: ['products', 'count', locale],
+    queryFn: () => api.products.list({ locale, page: '1', per_page: '1' }),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const categories: Category[] = (categoriesQuery.data?.data ?? []).filter((r) => r.visible_frontend);
+  const popularProducts: ProductListItem[] = popularQuery.data?.data ?? [];
+  const newProducts: ProductListItem[] = newArrivalsQuery.data?.data ?? [];
+  const totalCount = allProductsQuery.data?.meta?.total ?? 0;
 
   function categoryLabel(row: Category): string {
     return locale === 'th' ? row.name_th : row.name_en;
@@ -32,77 +46,213 @@ export default function HomePage() {
 
   return (
     <div>
-      <section className="relative py-24 md:py-32 bg-gradient-to-b from-primary/5 to-background">
-        <div className="container text-center">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
-            {t('home.hero.title')}
-          </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            {t('home.hero.subtitle')}
-          </p>
-          <Button asChild size="lg">
-            <Link href="/products">{t('home.hero.cta')}</Link>
-          </Button>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-pastel-gradient">
+        <div className="container py-16 md:py-24">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div className="text-center md:text-left">
+              <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold text-cb-heading leading-tight mb-4">
+                {t('home.hero.title')}
+              </h1>
+              <p className="text-lg md:text-xl text-cb-secondary mb-8 max-w-lg">
+                {t('home.hero.subtitle')}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
+                <Link
+                  href="/products"
+                  className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-cb-active text-white font-medium text-sm hover:brightness-110 transition-all shadow-soft"
+                >
+                  {t('home.hero.cta')}
+                </Link>
+                <Link
+                  href="/products?sort=popular"
+                  className="inline-flex items-center justify-center px-8 py-3.5 rounded-full bg-white text-cb-heading font-medium text-sm border border-border hover:shadow-soft transition-all"
+                >
+                  {t('home.hero.ctaFeatured')}
+                </Link>
+              </div>
+            </div>
+            <div className="hidden md:flex justify-center">
+              <div className="relative w-80 h-96">
+                <div className="absolute top-0 right-0 w-64 h-80 rounded-2xl bg-cb-pink/20 transform rotate-3" />
+                <div className="absolute top-4 right-8 w-64 h-80 rounded-2xl bg-cb-purple/20 transform -rotate-2" />
+                <div className="absolute top-8 right-4 w-64 h-80 rounded-2xl bg-white shadow-card overflow-hidden">
+                  {popularProducts[0]?.thumbnail ? (
+                    <img
+                      src={popularProducts[0].thumbnail}
+                      alt="Featured dress"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-cb-secondary">
+                      <span className="text-6xl">👗</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="py-16">
-        <div className="container">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold">{t('home.featured.title')}</h2>
-            <Link href="/products" className="text-primary hover:underline text-sm font-medium">
-              {t('home.featured.viewAll')}
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="rounded-lg border bg-card p-4 h-64 flex items-center justify-center text-muted-foreground"
-              >
-                {t('home.featured.title')} #{i}
+      {/* Stats Bar */}
+      <section className="bg-white border-y border-border/50">
+        <div className="container py-5">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-cb-pink/10 flex items-center justify-center">
+                <span className="text-cb-pink text-lg">👗</span>
               </div>
+              <div>
+                <span className="text-2xl font-bold text-cb-heading">{totalCount}</span>
+                <span className="text-sm text-cb-secondary ml-2">{t('home.stats.totalDresses')}</span>
+              </div>
+            </div>
+            <div className="hidden sm:block w-px h-8 bg-border" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-cb-blue/10 flex items-center justify-center">
+                <Truck className="h-5 w-5 text-cb-blue" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-cb-heading">{t('home.stats.fastDelivery')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Category Strip */}
+      <section className="py-12 bg-white">
+        <div className="container">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-display font-semibold text-cb-heading">
+              {t('home.categories.title')}
+            </h2>
+          </div>
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+            {categoriesQuery.isLoading &&
+              Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="shrink-0 w-28 h-36 rounded-2xl bg-muted animate-pulse"
+                />
+              ))}
+            {categories.map((row) => (
+              <Link
+                key={row.slug}
+                href={`/products?category=${row.slug}`}
+                className="shrink-0 w-28 group"
+              >
+                <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-cb-pink/10 to-cb-purple/10 flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow">
+                  <span className="text-3xl">👗</span>
+                </div>
+                <p className="text-xs font-medium text-cb-heading text-center line-clamp-2">
+                  {categoryLabel(row)}
+                </p>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="py-16 bg-secondary/30">
+      {/* Popular This Week Carousel */}
+      <section className="py-12 bg-cb-surface">
         <div className="container">
-          <h2 className="text-3xl font-bold text-center mb-8">{t('home.categories.title')}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {categoriesQuery.isLoading &&
-              Array.from({ length: CATEGORY_GRID_LIMIT }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-lg border bg-card p-6 h-[72px] animate-pulse"
-                  aria-busy="true"
-                />
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-display font-semibold text-cb-heading">
+              {t('home.popular.title')}
+            </h2>
+            <Link
+              href="/products?sort=popular"
+              className="flex items-center gap-1 text-sm font-medium text-cb-active hover:underline"
+            >
+              {t('home.featured.viewAll')}
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          {popularQuery.isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="aspect-[3/4] rounded-2xl bg-muted animate-pulse" />
               ))}
-            {categoriesQuery.isError && (
-              <div className="col-span-2 md:col-span-4 text-center space-y-2">
-                <p className="text-sm text-destructive">{t('products.error')}</p>
-                <button
-                  type="button"
-                  onClick={() => categoriesQuery.refetch()}
-                  className="px-3 py-1 rounded border text-sm hover:bg-muted"
-                >
-                  {t('products.retry')}
-                </button>
+            </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+              {popularProducts.slice(0, 8).map((product, idx) => (
+                <div key={product.id} className="shrink-0 w-64">
+                  <ProductCard product={product} badge={idx < 2 ? 'bestseller' : undefined} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Just Arrived Carousel */}
+      <section className="py-12 bg-white">
+        <div className="container">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-display font-semibold text-cb-heading">
+              {t('home.newArrivals.title')}
+            </h2>
+            <Link
+              href="/products?sort=newest"
+              className="flex items-center gap-1 text-sm font-medium text-cb-active hover:underline"
+            >
+              {t('home.featured.viewAll')}
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          {newArrivalsQuery.isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="aspect-[3/4] rounded-2xl bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+              {newProducts.slice(0, 8).map((product) => (
+                <div key={product.id} className="shrink-0 w-64">
+                  <ProductCard product={product} badge="new" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Profile Section */}
+      <section className="py-12 bg-pastel-gradient">
+        <div className="container">
+          <div className="rounded-2xl bg-white shadow-card p-8">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="flex-1 flex items-center gap-6">
+                <div className="w-16 h-16 rounded-full bg-cb-purple/10 flex items-center justify-center shrink-0">
+                  <User className="h-8 w-8 text-cb-purple" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-cb-heading">{t('home.profile.title')}</h3>
+                  <p className="text-sm text-cb-secondary mt-1">{t('home.profile.subtitle')}</p>
+                </div>
               </div>
-            )}
-            {!categoriesQuery.isLoading && !categoriesQuery.isError &&
-              gridCategories.map((row) => (
+              <div className="flex-1 flex items-center gap-6">
+                <div className="w-16 h-16 rounded-full bg-cb-mint/20 flex items-center justify-center shrink-0">
+                  <Clock className="h-8 w-8 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-cb-heading">{t('home.profile.historyTitle')}</h3>
+                  <p className="text-sm text-cb-secondary mt-1">{t('home.profile.historySubtitle')}</p>
+                </div>
+              </div>
+              <div className="flex items-center">
                 <Link
-                  key={row.slug}
-                  href={`/products?category=${row.slug}`}
-                  className="rounded-lg border bg-card p-6 text-center hover:shadow-md transition-shadow"
+                  href="/profile"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-cb-active text-white font-medium text-sm hover:brightness-110 transition-all"
                 >
-                  <span className="text-sm font-medium">
-                    {categoryLabel(row)}
-                  </span>
+                  {t('home.profile.editProfile')}
                 </Link>
-              ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
