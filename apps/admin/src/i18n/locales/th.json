@@ -148,6 +148,12 @@
     "quantity": "จำนวน",
     "auditLog": "บันทึกการเปลี่ยนแปลง",
     "noAuditLogs": "ยังไม่มีบันทึกการเปลี่ยนแปลง",
+    "deliveryInfo": "ข้อมูลการจัดส่ง",
+    "deliveryMethodLabel": "วิธีจัดส่ง",
+    "returnMethodLabel": "วิธีส่งคืน",
+    "messengerFeeSend": "ค่าแมสเซนเจอร์ (ส่ง)",
+    "messengerFeeReturn": "ค่าแมสเซนเจอร์ (คืน)",
+    "messengerDistance": "ระยะทาง",
     "addItem": "เพิ่มสินค้า",
     "removeItem": "ลบสินค้า",
     "selectProduct": "เลือกสินค้า",
@@ -678,6 +684,16 @@
       "errMinZero": "ค่าต้องไม่น้อยกว่า 0",
       "errMinOne": "ค่าต้องไม่น้อยกว่า 1",
       "errMustBeInteger": "ค่าต้องเป็นจำนวนเต็ม"
-    }
+    },
+    "messengerTitle": "แมสเซนเจอร์",
+    "messengerDesc": "ตั้งค่าราคาจัดส่งมอเตอร์ไซค์และตำแหน่งร้าน",
+    "messengerBaseFee": "ค่าบริการขั้นต่ำ (บาท)",
+    "messengerPerKmFee": "ค่าบริการต่อกม. (บาท)",
+    "messengerBaseDistance": "ระยะทางขั้นต่ำ (กม.)",
+    "messengerMaxDistance": "ระยะทางสูงสุด (กม.)",
+    "shopOrigin": "พิกัดร้าน",
+    "latitude": "ละติจูด",
+    "longitude": "ลองจิจูด",
+    "messengerSaved": "บันทึกการตั้งค่าแมสเซนเจอร์แล้ว"
   }
 }

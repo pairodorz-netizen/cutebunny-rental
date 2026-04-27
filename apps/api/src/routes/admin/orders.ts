@@ -121,6 +121,8 @@ adminOrders.get('/', async (c) => {
     tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
     total_amount: o.totalAmount,
     credit_applied: o.creditApplied ?? 0,
+    delivery_method: o.deliveryMethod,
+    return_method: o.returnMethod,
     payment_status: o.paymentSlips[0]?.verificationStatus ?? 'no_slip',
     rental_period: {
       start: o.rentalStartDate.toISOString().split('T')[0],
@@ -242,6 +244,12 @@ adminOrders.get('/:id', async (c) => {
     deposit_total: order.deposit,
     delivery_fee: order.deliveryFee,
     credit_applied: order.creditApplied,
+    delivery_method: order.deliveryMethod,
+    return_method: order.returnMethod,
+    messenger_fee_send: order.messengerFeeSend,
+    messenger_fee_return: order.messengerFeeReturn,
+    messenger_distance_km: order.messengerDistanceKm,
+    messenger_payment_mode: order.messengerPaymentMode,
     customer: {
       id: order.customer.id,
       name: `${order.customer.firstName} ${order.customer.lastName}`,

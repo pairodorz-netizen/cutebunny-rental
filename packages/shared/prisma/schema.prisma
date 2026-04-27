@@ -65,6 +65,11 @@ enum SlotStatus {
   washing     // FEAT-402: post-return cleaning window
 }
 
+enum DeliveryMethod {
+  standard
+  messenger
+}
+
 enum OrderStatus {
   unpaid
   paid_locked
@@ -325,6 +330,12 @@ model Order {
   creditApplied     Int         @default(0) @map("credit_applied")
   totalAmount       Int         @default(0) @map("total_amount")
   shippingSnapshot  Json?       @map("shipping_snapshot") @db.JsonB
+  deliveryMethod       DeliveryMethod @default(standard) @map("delivery_method")
+  returnMethod         DeliveryMethod @default(standard) @map("return_method")
+  messengerFeeSend     Int            @default(0) @map("messenger_fee_send")
+  messengerFeeReturn   Int            @default(0) @map("messenger_fee_return")
+  messengerDistanceKm  Float?         @map("messenger_distance_km")
+  messengerPaymentMode String?        @map("messenger_payment_mode")
   notes             String?     @default("")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")

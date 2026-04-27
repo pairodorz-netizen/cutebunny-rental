@@ -2,11 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
+import { DeliveryMethodSelector, ReturnMethodDisplay } from '@/components/delivery-method-selector';
+import type { DeliveryMethodType } from '@/components/delivery-method-selector';
 import { api } from '@/lib/api';
 import { useCartStore } from '@/stores/cart-store';
 
@@ -56,6 +58,32 @@ export default function ProductDetailPage() {
   const [added, setAdded] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+
+  // Messenger delivery state
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
+  const [messengerEnabled, setMessengerEnabled] = useState(false);
+  const [messengerBaseFee, setMessengerBaseFee] = useState(100);
+  const [messengerEstimate, setMessengerEstimate] = useState<{
+    available: boolean; fee: number; distance_km: number; estimated_minutes: number; reason?: string;
+  } | null>(null);
+  const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
+  const setCartMessengerFees = useCartStore((s) => s.setMessengerFees);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.settings.messenger();
+        if (!cancelled) {
+          setMessengerEnabled(result.data.enabled);
+          setMessengerBaseFee(result.data.base_fee);
+        }
+      } catch {
+        // default to disabled
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product', productId, locale],
@@ -284,6 +312,30 @@ export default function ProductDetailPage() {
             <div className="text-xs text-muted-foreground">
               {t('retailPrice')}: <span className="line-through">{product.ref_price.toLocaleString()} {product.currency}</span>
             </div>
+          )}
+
+          {/* Delivery Method Selector — before calendar */}
+          <DeliveryMethodSelector
+            value={deliveryMethod}
+            onChange={(m) => {
+              setDeliveryMethod(m);
+              setCartDeliveryMethod(m);
+              if (m === 'standard') {
+                setMessengerEstimate(null);
+                setCartMessengerFees(0, 0, null);
+              }
+            }}
+            messengerEnabled={messengerEnabled}
+            messengerBaseFee={messengerBaseFee}
+            messengerEstimate={messengerEstimate}
+          />
+
+          {/* Return method display */}
+          {deliveryMethod === 'messenger' && (
+            <ReturnMethodDisplay
+              rentalDays={actualDays}
+              messengerFeeReturn={actualDays === 1 ? (messengerEstimate?.fee ?? 0) : 0}
+            />
           )}
 
           {/* Calendar — date range selection */}

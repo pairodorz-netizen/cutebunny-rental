@@ -148,6 +148,12 @@
     "quantity": "Qty",
     "auditLog": "Audit Log",
     "noAuditLogs": "No changes recorded yet",
+    "deliveryInfo": "Delivery Info",
+    "deliveryMethodLabel": "Delivery",
+    "returnMethodLabel": "Return",
+    "messengerFeeSend": "Messenger Fee (Send)",
+    "messengerFeeReturn": "Messenger Fee (Return)",
+    "messengerDistance": "Distance",
     "addItem": "Add Item",
     "removeItem": "Remove Item",
     "selectProduct": "Select product",
@@ -678,6 +684,16 @@
       "errMinZero": "Value must be 0 or greater.",
       "errMinOne": "Value must be 1 or greater.",
       "errMustBeInteger": "Value must be a whole number."
-    }
+    },
+    "messengerTitle": "Messenger Delivery",
+    "messengerDesc": "Configure motorcycle same-day delivery pricing and origin.",
+    "messengerBaseFee": "Base Fee (THB)",
+    "messengerPerKmFee": "Per-km Fee (THB)",
+    "messengerBaseDistance": "Base Distance (km)",
+    "messengerMaxDistance": "Max Distance (km)",
+    "shopOrigin": "Shop Origin Coordinates",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "messengerSaved": "Messenger config saved."
   }
 }
