@@ -10,6 +10,7 @@
   "nav": {
     "home": "Home",
     "products": "Products",
+    "profile": "Profile",
     "about": "About",
     "contact": "Contact",
     "cart": "Cart",
@@ -19,7 +20,8 @@
     "hero": {
       "title": "Rent Beautiful Dresses",
       "subtitle": "Premium dress rental for every occasion",
-      "cta": "Browse Collection"
+      "cta": "Start Renting",
+      "ctaFeatured": "View Featured"
     },
     "featured": {
       "title": "Featured Dresses",
@@ -27,10 +29,28 @@
     },
     "categories": {
       "title": "Shop by Category"
+    },
+    "stats": {
+      "totalDresses": "dresses in store",
+      "fastDelivery": "Express delivery 24h"
+    },
+    "popular": {
+      "title": "Popular this week"
+    },
+    "newArrivals": {
+      "title": "Just arrived"
+    },
+    "profile": {
+      "title": "Your Profile",
+      "subtitle": "Manage your profile and shipping addresses",
+      "historyTitle": "Rental History",
+      "historySubtitle": "View all your rentals and order statuses",
+      "editProfile": "Edit Profile"
     }
   },
   "products": {
-    "title": "Our Collection",
+    "title": "All Dresses",
+    "resultCount": "items",
     "loading": "Loading products...",
     "error": "Failed to load products. Please try again.",
     "empty": "No products found matching your criteria.",
@@ -42,7 +62,8 @@
       "size": "Size",
       "color": "Color",
       "priceRange": "Price Range",
-      "availability": "Availability",
+      "availability": "Available Date",
+      "filters": "Filters",
       "searchPlaceholder": "Search dresses...",
       "clearAll": "Clear all",
       "colors": {
@@ -86,6 +107,7 @@
       "startDate": "Start Date",
       "endDate": "End Date",
       "addToCart": "Add to Cart",
+      "rentNow": "Rent Now",
       "added": "Added!",
       "totalRental": "Total Rental",
       "days": "days",
@@ -97,9 +119,32 @@
       "retailPrice": "Retail price",
       "timesRented": "times rented",
       "relatedProducts": "You May Also Like",
+      "similarDresses": "Similar Dresses",
+      "viewAll": "View All",
       "includedItems": "Included Items",
       "extraDayNote": "Extra day: {rate} THB/day after 5 days"
     }
+  },
+  "sort": {
+    "featured": "Featured",
+    "priceLow": "Price: Low to High",
+    "priceHigh": "Price: High to Low",
+    "newest": "Newest"
+  },
+  "profile": {
+    "title": "My Profile",
+    "editProfile": "Edit Profile",
+    "guestUser": "Guest User",
+    "noEmail": "No email added",
+    "name": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "save": "Save",
+    "cancel": "Cancel",
+    "rentalHistory": "Rental History",
+    "noHistory": "No rental history yet",
+    "noHistoryHint": "Start renting beautiful dresses today!"
   },
   "calendar": {
     "loading": "Loading calendar...",
