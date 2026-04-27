@@ -19,6 +19,10 @@ products.get('/', async (c) => {
   const category = c.req.query('category');
   const availableStart = c.req.query('available_start');
   const availableEnd = c.req.query('available_end');
+  const search = c.req.query('search');
+  const brand = c.req.query('brand');
+  const priceMin = c.req.query('price_min');
+  const priceMax = c.req.query('price_max');
 
   const where: Prisma.ProductWhereInput = { available: true };
 
@@ -52,6 +56,31 @@ products.get('/', async (c) => {
           slotStatus: { in: ['booked', 'cleaning', 'blocked_repair', 'late_return', 'shipping', 'washing'] },
         },
       };
+    }
+  }
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { brand: { name: { contains: search, mode: 'insensitive' } } },
+    ];
+  }
+
+  if (brand) {
+    where.brand = { ...((where.brand as Prisma.BrandWhereInput) ?? {}), name: brand };
+  }
+
+  if (priceMin) {
+    const min = parseInt(priceMin, 10);
+    if (!isNaN(min)) {
+      where.rentalPrice1Day = { ...((where.rentalPrice1Day as Prisma.IntFilter) ?? {}), gte: min };
+    }
+  }
+
+  if (priceMax) {
+    const max = parseInt(priceMax, 10);
+    if (!isNaN(max)) {
+      where.rentalPrice1Day = { ...((where.rentalPrice1Day as Prisma.IntFilter) ?? {}), lte: max };
     }
   }
 

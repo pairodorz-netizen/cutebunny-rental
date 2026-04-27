@@ -42,7 +42,33 @@
       "size": "尺码",
       "color": "颜色",
       "priceRange": "价格范围",
-      "availability": "可用性"
+      "availability": "可用性",
+      "searchPlaceholder": "搜索礼服...",
+      "clearAll": "清除全部",
+      "colors": {
+        "white": "白色",
+        "black": "黑色",
+        "red": "红色",
+        "pink": "粉色",
+        "orange": "橙色",
+        "yellow": "黄色",
+        "green": "绿色",
+        "blue": "蓝色",
+        "navy": "藏青色",
+        "purple": "紫色",
+        "cream": "奶油色",
+        "beige": "米色",
+        "brown": "棕色",
+        "gray": "灰色",
+        "gold": "金色",
+        "silver": "银色"
+      },
+      "priceRanges": {
+        "under200": "低于 ฿200",
+        "201to400": "฿201-฿400",
+        "401to600": "฿401-฿600",
+        "above601": "฿601+"
+      }
     },
     "card": {
       "rentFrom": "租赁起价",
