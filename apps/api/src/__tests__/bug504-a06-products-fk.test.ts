@@ -438,7 +438,7 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
     });
   });
 
-  describe('gate 4 — admin POST /products writes ONLY categoryId (single-source FK)', () => {
+  describe('gate 4 — admin POST /products writes both categoryId AND legacy category enum (hotfix-2 dual-write)', () => {
     it('admin/products.ts declares the resolveCategoryId helper (renamed from resolveCategoryPair)', () => {
       const source = readAdminProducts();
       expect(source).toMatch(
@@ -468,19 +468,24 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       expect(createIdx).toBeGreaterThan(resolverIdx);
     });
 
-    it('POST / create payload writes ONLY categoryId (no `category` enum write)', () => {
+    it('POST / create payload writes BOTH categoryId AND legacy category enum (hotfix-2 dual-write)', () => {
       const source = readAdminProducts();
       const postHandlerMatch = source.match(
         /adminProducts\.post\(\s*['"]\/['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(postHandlerMatch).not.toBeNull();
       const body = postHandlerMatch![0];
-      // Must not write `category: resolvedCategory` (legacy dual-write).
-      expect(body).not.toMatch(/category:\s*resolvedCategory/);
+      // BUG-504-A06 commit 3 hotfix-2: prod showed the BEFORE-trigger
+      // derive path leaving `category` NULL, which violated the
+      // existing NOT NULL constraint on the legacy enum column. The
+      // app now sets BOTH columns explicitly from `resolveCategoryId`
+      // output; the trigger reduces to a no-op pass-through. Commit 4
+      // FINAL drops the legacy column + trigger together.
       expect(body).toMatch(/categoryId:\s*resolvedCategoryId/);
+      expect(body).toMatch(/category:\s*resolvedSlug\s+as\s+any/);
     });
 
-    it('PATCH /:id writes ONLY categoryRef.connect (no `updateData.category =`)', () => {
+    it('PATCH /:id writes BOTH updateData.category AND updateData.categoryRef (hotfix-2 dual-write)', () => {
       const source = readAdminProducts();
       const patchHandlerMatch = source.match(
         /adminProducts\.patch\(\s*['"]\/:id['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
@@ -488,8 +493,8 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       expect(patchHandlerMatch, 'PATCH /:id handler not found').not.toBeNull();
       const body = patchHandlerMatch![0];
       expect(body).toMatch(/resolveCategoryId\(/);
-      // The legacy enum update path must be gone.
-      expect(body).not.toMatch(/updateData\.category\s*=/);
+      // BUG-504-A06 commit 3 hotfix-2: PATCH dual-writes alongside POST.
+      expect(body).toMatch(/updateData\.category\s*=\s*categoryResult\.data\.slug\s+as\s+any/);
       expect(body).toMatch(/updateData\.categoryRef\s*=/);
     });
 
