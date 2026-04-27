@@ -378,10 +378,11 @@ export function ProductDetailPage() {
                 <p className="font-bold">{product.rental_prices['5day'].toLocaleString()}</p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-4 gap-3 text-sm">
               <div><span className="text-muted-foreground">{t('products.buyingCost')}:</span> <span className="font-medium">{product.cost_price.toLocaleString()}</span></div>
               <div><span className="text-muted-foreground">{t('products.variableCost')}:</span> <span className="font-medium">{product.variable_cost.toLocaleString()}</span></div>
               <div><span className="text-muted-foreground">{t('products.retailPrice')}:</span> <span className="font-medium">{product.retail_price.toLocaleString()}</span></div>
+              <div><span className="text-muted-foreground">{t('products.deposit')}:</span> <span className="font-medium">{product.deposit.toLocaleString()}</span></div>
             </div>
             <div className="text-sm">
               <span className="text-muted-foreground">{t('products.rentals')}:</span> <span className="font-bold">{product.rental_count}</span>

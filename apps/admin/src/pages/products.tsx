@@ -737,6 +737,7 @@ function ProductForm({
   const [variableCost, setVariableCost] = useState(product ? String(product.variable_cost) : '100');
   const [extraDayRate, setExtraDayRate] = useState(product ? String(product.extra_day_rate ?? 0) : '0');
   const [retailPrice, setRetailPrice] = useState(product ? String(product.retail_price) : '');
+  const [deposit, setDeposit] = useState(product ? String(product.deposit) : '0');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
   const [uploadedImages, setUploadedImages] = useState<Array<{ url: string; name: string }>>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
@@ -943,6 +944,7 @@ function ProductForm({
       variable_cost: Number(variableCost) || 100,
       extra_day_rate: Number(extraDayRate) || 0,
       retail_price: Number(retailPrice) || 0,
+      deposit: Number(deposit) || 0,
     };
     if (allUrls.length > 0) body.image_urls = allUrls;
 
@@ -1060,7 +1062,7 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="text-sm font-medium">{t('products.buyingCost')}</label>
             <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
@@ -1072,6 +1074,10 @@ function ProductForm({
           <div>
             <label className="text-sm font-medium">{t('products.retailPrice')}</label>
             <Input type="number" value={retailPrice} onChange={(e) => setRetailPrice(e.target.value)} placeholder="0" />
+          </div>
+          <div>
+            <label className="text-sm font-medium">{t('products.deposit')}</label>
+            <Input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
           </div>
         </div>
 
