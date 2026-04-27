@@ -159,6 +159,15 @@ export default function ProductsPage() {
               ))}
             </div>
           )}
+          {categoriesQuery.isError && (
+            <button
+              type="button"
+              onClick={() => categoriesQuery.refetch()}
+              className="w-full text-sm text-center py-2 rounded-xl border border-destructive text-destructive hover:bg-destructive/5 transition-colors"
+            >
+              {t('retry')}
+            </button>
+          )}
           {!categoriesQuery.isLoading && !categoriesQuery.isError && (
             <div data-testid="category-filter-list">
               {visibleCategories.map((row) => {
