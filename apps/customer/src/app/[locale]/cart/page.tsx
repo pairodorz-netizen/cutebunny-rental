@@ -22,7 +22,7 @@ const THAI_PROVINCES = [
 export default function CartPage() {
   const t = useTranslations('cart');
   const router = useRouter();
-  const { items, removeItem, clearCart, getTotal, deliveryMethod, messengerFeeSend, messengerFeeReturn, customerCoords } = useCartStore();
+  const { items, removeItem, clearCart, getTotal, deliveryMethod, customerCoords } = useCartStore();
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +141,6 @@ export default function CartPage() {
     }
   }
 
-  const codTotal = deliveryMethod === 'messenger' ? messengerFeeSend + messengerFeeReturn : 0;
   const effectiveShippingFee = deliveryMethod === 'messenger' ? 0 : shippingFee;
   const maxCreditUsable = Math.min(creditBalance, totals.total + effectiveShippingFee);
   const finalTotal = totals.total + effectiveShippingFee - (useCredit ? creditToUse : 0);
@@ -355,13 +354,10 @@ export default function CartPage() {
                     <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
                   )}
                 </div>
-                {codTotal > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="flex items-center gap-1">
-                      <Bike className="h-3 w-3" />
-                      {t('messengerCod')}
-                    </span>
-                    <span className="text-orange-600 font-medium">{codTotal.toLocaleString()} THB</span>
+                {deliveryMethod === 'messenger' && (
+                  <div className="flex items-start gap-2 text-xs bg-blue-50 text-blue-700 rounded-md px-3 py-2 mt-1">
+                    <Bike className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{t('messengerPayNote')}</span>
                   </div>
                 )}
 

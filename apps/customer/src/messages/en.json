@@ -128,7 +128,7 @@
     "requireTermsAndDocs": "Please accept terms and upload documents",
     "requireTerms": "Please accept the terms",
     "requireDocs": "Please upload at least one document",
-    "messengerCod": "Messenger COD (pay on delivery)"
+    "messengerPayNote": "Messenger delivery fee is paid directly to the provider (Grab/Lalamove) — not included in order total"
   },
   "delivery": {
     "selectMethod": "Delivery Method",
@@ -141,8 +141,10 @@
     "messengerUnavailable": "Not available for your location",
     "messengerDisabled": "Currently unavailable",
     "returnMethod": "Return Method",
-    "returnMessengerRequired": "1-day rental: return via messenger (required)",
-    "returnStandard": "Standard courier return"
+    "returnMessengerRequired": "Return via messenger",
+    "returnMessengerPayNote": "Customer pays for return delivery",
+    "returnStandard": "Standard courier return",
+    "messengerPayNote": "Pay delivery fee directly to provider (Grab/Lalamove)"
   },
   "orderStatus": {
     "title": "Order Status",

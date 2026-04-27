@@ -128,7 +128,7 @@
     "requireTermsAndDocs": "กรุณายอมรับเงื่อนไขและแนบเอกสาร",
     "requireTerms": "กรุณายอมรับเงื่อนไข",
     "requireDocs": "กรุณาแนบเอกสารอย่างน้อย 1 รายการ",
-    "messengerCod": "ค่าแมสเซนเจอร์ (เก็บเงินปลายทาง)"
+    "messengerPayNote": "ค่าจัดส่งแมสเซนเจอร์ชำระกับผู้ให้บริการ (Grab/Lalamove) โดยตรง — ไม่รวมในยอดสั่งซื้อ"
   },
   "delivery": {
     "selectMethod": "วิธีจัดส่ง",
@@ -141,8 +141,10 @@
     "messengerUnavailable": "ไม่สามารถจัดส่งในพื้นที่ของคุณได้",
     "messengerDisabled": "ไม่พร้อมให้บริการในขณะนี้",
     "returnMethod": "วิธีส่งคืน",
-    "returnMessengerRequired": "เช่า 1 วัน: ส่งคืนทางแมสเซนเจอร์ (บังคับ)",
-    "returnStandard": "ส่งคืนทางขนส่งปกติ"
+    "returnMessengerRequired": "ส่งคืนทางแมสเซ็นเจอร์",
+    "returnMessengerPayNote": "ลูกค้าเป็นคนออกค่าส่งขากลับ",
+    "returnStandard": "ส่งคืนทางขนส่งปกติ",
+    "messengerPayNote": "ชำระค่าจัดส่งกับผู้ให้บริการ (Grab/Lalamove) โดยตรง"
   },
   "orderStatus": {
     "title": "สถานะคำสั่งซื้อ",
