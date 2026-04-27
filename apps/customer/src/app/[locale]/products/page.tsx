@@ -176,6 +176,8 @@ export default function ProductsPage() {
                 return (
                   <label
                     key={row.slug}
+                    data-testid="category-filter-option"
+                    data-slug={row.slug}
                     className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-cb-surface transition-colors"
                   >
                     <input

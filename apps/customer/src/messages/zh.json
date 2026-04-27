@@ -123,13 +123,13 @@
       "viewAll": "查看全部",
       "includedItems": "套装包含",
       "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）"
+    },
+    "sort": {
+      "featured": "推荐",
+      "priceLow": "价格：低到高",
+      "priceHigh": "价格：高到低",
+      "newest": "最新"
     }
-  },
-  "sort": {
-    "featured": "推荐",
-    "priceLow": "价格：低到高",
-    "priceHigh": "价格：高到低",
-    "newest": "最新"
   },
   "profile": {
     "title": "个人信息",

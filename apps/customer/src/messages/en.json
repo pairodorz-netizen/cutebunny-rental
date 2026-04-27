@@ -123,13 +123,13 @@
       "viewAll": "View All",
       "includedItems": "Included Items",
       "extraDayNote": "Extra day: {rate} THB/day after 5 days"
+    },
+    "sort": {
+      "featured": "Featured",
+      "priceLow": "Price: Low to High",
+      "priceHigh": "Price: High to Low",
+      "newest": "Newest"
     }
-  },
-  "sort": {
-    "featured": "Featured",
-    "priceLow": "Price: Low to High",
-    "priceHigh": "Price: High to Low",
-    "newest": "Newest"
   },
   "profile": {
     "title": "My Profile",
