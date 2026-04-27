@@ -62,7 +62,7 @@ export default function ProductDetailPage() {
   // Messenger delivery state
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
-  const [messengerBaseFee, setMessengerBaseFee] = useState(100);
+  const [, setMessengerBaseFee] = useState(100);
   const [messengerEstimate, setMessengerEstimate] = useState<{
     available: boolean; fee: number; distance_km: number; estimated_minutes: number; reason?: string;
   } | null>(null);
@@ -326,7 +326,6 @@ export default function ProductDetailPage() {
               }
             }}
             messengerEnabled={messengerEnabled}
-            messengerBaseFee={messengerBaseFee}
             messengerEstimate={messengerEstimate}
           />
 
@@ -334,7 +333,6 @@ export default function ProductDetailPage() {
           {deliveryMethod === 'messenger' && (
             <ReturnMethodDisplay
               rentalDays={actualDays}
-              messengerFeeReturn={actualDays === 1 ? (messengerEstimate?.fee ?? 0) : 0}
             />
           )}
 
