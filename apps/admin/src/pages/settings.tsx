@@ -8,11 +8,11 @@ import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff, Link2, Copy, Check } from 'lucide-react';
 import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
 import { DriftBanner } from '@/components/drift-banner';
 
-type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
+type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping' | 'general';
 
 interface AdminUserItem {
   id: string;
@@ -70,10 +70,10 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as Tab | null;
-  const [activeTab, setActiveTab] = useState<Tab>(tabFromUrl && ['config','users','audit','notifications','categories','store','shipping'].includes(tabFromUrl) ? tabFromUrl : 'config');
+  const [activeTab, setActiveTab] = useState<Tab>(tabFromUrl && ['config','users','audit','notifications','categories','store','shipping','general'].includes(tabFromUrl) ? tabFromUrl : 'config');
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab && ['config','users','audit','notifications','categories','store','shipping'].includes(tabFromUrl)) {
+    if (tabFromUrl && tabFromUrl !== activeTab && ['config','users','audit','notifications','categories','store','shipping','general'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -237,7 +237,7 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-muted rounded-lg p-1 mb-6 w-fit flex-wrap">
-        {(['config', 'categories', 'store', 'shipping', 'users', 'notifications', 'audit'] as Tab[])
+        {(['config', 'categories', 'store', 'shipping', 'general', 'users', 'notifications', 'audit'] as Tab[])
           // BUG-AUDIT-UI-A01: cosmetic role hide — server is the real
           // gate (403). Keeps the tab from showing for staff who would
           // only ever see a 403 if they clicked it.
@@ -673,6 +673,9 @@ export function SettingsPage() {
 
       {/* Shipping Tab (#2 + #3) */}
       {activeTab === 'shipping' && <ShippingTab />}
+
+      {/* General Tab — storefront link */}
+      {activeTab === 'general' && <StorefrontLinkTab />}
     </div>
   );
 }
@@ -1642,6 +1645,81 @@ function MessengerConfigSection() {
         {batchMutation.isSuccess && (
           <p className="text-xs text-green-600">{t('settings.messengerSaved')}</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── STOREFRONT LINK TAB ────────────────────────────────────────────────────
+
+const FALLBACK_STOREFRONT_URL = 'https://customer-eta-ruby.vercel.app';
+
+function StorefrontLinkTab() {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  const storefrontQuery = useQuery({
+    queryKey: ['storefront-url'],
+    queryFn: () => adminApi.settings.storefrontUrl(),
+  });
+
+  const url = storefrontQuery.data?.data?.storefront_url ?? FALLBACK_STOREFRONT_URL;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for non-secure contexts
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border">
+        <div className="p-4 border-b bg-muted/30 flex items-center gap-3">
+          <Link2 className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <h3 className="font-semibold">{t('settings.storefrontLinkTitle')}</h3>
+            <p className="text-xs text-muted-foreground">{t('settings.storefrontLinkDesc')}</p>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <Input
+              value={url}
+              readOnly
+              className="flex-1 h-9 bg-muted/50 font-mono text-sm"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 shrink-0"
+              onClick={handleCopy}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-green-600">{t('settings.copied')}</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  {t('settings.copyLink')}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );

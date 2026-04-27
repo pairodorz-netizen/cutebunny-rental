@@ -590,6 +590,7 @@
     "tab_categories": "Categories",
     "tab_store": "Store Address",
     "tab_shipping": "Shipping",
+    "tab_general": "General",
     "categoriesTitle": "Product Categories",
     "categoriesDesc": "Manage the product taxonomy used across the admin and customer surfaces. Slug is lowercase (a-z0-9_-).",
     "categoriesEmpty": "No categories yet.",
@@ -694,6 +695,10 @@
     "shopOrigin": "Shop Origin Coordinates",
     "latitude": "Latitude",
     "longitude": "Longitude",
-    "messengerSaved": "Messenger config saved."
+    "messengerSaved": "Messenger config saved.",
+    "storefrontLinkTitle": "Storefront Link",
+    "storefrontLinkDesc": "Share this link with your customers to let them browse and rent dresses.",
+    "copyLink": "Copy Link",
+    "copied": "Copied!"
   }
 }

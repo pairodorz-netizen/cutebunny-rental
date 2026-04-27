@@ -31,4 +31,21 @@ settings.get('/messenger', async (c) => {
   });
 });
 
+// GET /api/v1/settings/storefront — returns the storefront URL from
+// system_configs. Falls back to the hardcoded Vercel deployment URL when
+// the config row hasn't been seeded yet.
+const FALLBACK_STOREFRONT_URL = 'https://customer-eta-ruby.vercel.app';
+
+settings.get('/storefront', async (c) => {
+  const db = getDb();
+  const row = await db.systemConfig.findUnique({ where: { key: 'storefront_url' } });
+  const raw = row?.value;
+  // value is stored as a JSON string (e.g. `"https://..."`) — unwrap it.
+  let url = FALLBACK_STOREFRONT_URL;
+  if (typeof raw === 'string') {
+    try { url = JSON.parse(raw); } catch { url = raw; }
+  }
+  return success(c, { storefront_url: url });
+});
+
 export default settings;
