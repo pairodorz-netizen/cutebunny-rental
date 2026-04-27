@@ -9,14 +9,6 @@ interface DeliveryMethodSelectorProps {
   value: DeliveryMethodType;
   onChange: (method: DeliveryMethodType) => void;
   messengerEnabled: boolean;
-  messengerBaseFee: number;
-  messengerEstimate?: {
-    available: boolean;
-    fee: number;
-    distance_km: number;
-    estimated_minutes: number;
-    reason?: string;
-  } | null;
   disabled?: boolean;
 }
 
@@ -24,8 +16,6 @@ export function DeliveryMethodSelector({
   value,
   onChange,
   messengerEnabled,
-  messengerBaseFee,
-  messengerEstimate,
   disabled,
 }: DeliveryMethodSelectorProps) {
   const t = useTranslations('delivery');
@@ -68,18 +58,10 @@ export function DeliveryMethodSelector({
             <span className="font-medium text-sm">{t('messenger')}</span>
           </div>
           <p className="text-xs text-muted-foreground">{t('messengerDesc')}</p>
-          {messengerEnabled && !messengerEstimate && (
+          {messengerEnabled && (
             <p className="text-xs text-muted-foreground mt-1">
-              {t('fromPrice', { price: messengerBaseFee })}
+              {t('payDirectlyToProvider')}
             </p>
-          )}
-          {messengerEstimate?.available && (
-            <p className="text-xs font-medium text-primary mt-1">
-              ฿{messengerEstimate.fee.toLocaleString()} COD · ~{messengerEstimate.estimated_minutes} {t('min')}
-            </p>
-          )}
-          {messengerEstimate && !messengerEstimate.available && (
-            <p className="text-xs text-destructive mt-1">{t('messengerUnavailable')}</p>
           )}
           {!messengerEnabled && (
             <p className="text-xs text-muted-foreground mt-1">{t('messengerDisabled')}</p>
@@ -92,12 +74,10 @@ export function DeliveryMethodSelector({
 
 interface ReturnMethodDisplayProps {
   rentalDays: number;
-  messengerFeeReturn?: number;
 }
 
 export function ReturnMethodDisplay({
   rentalDays,
-  messengerFeeReturn,
 }: ReturnMethodDisplayProps) {
   const t = useTranslations('delivery');
 
@@ -114,16 +94,7 @@ export function ReturnMethodDisplay({
         <span className="text-sm font-medium">{t('returnMethod')}</span>
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        {returnMethod === 'messenger' ? (
-          <>
-            {t('returnMessengerRequired')}
-            {messengerFeeReturn ? (
-              <span className="font-medium"> · ฿{messengerFeeReturn.toLocaleString()} COD</span>
-            ) : null}
-          </>
-        ) : (
-          t('returnStandard')
-        )}
+        {returnMethod === 'messenger' ? t('returnMessengerRequired') : t('returnStandard')}
       </p>
     </div>
   );

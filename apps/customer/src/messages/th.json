@@ -128,7 +128,7 @@
     "requireTermsAndDocs": "กรุณายอมรับเงื่อนไขและแนบเอกสาร",
     "requireTerms": "กรุณายอมรับเงื่อนไข",
     "requireDocs": "กรุณาแนบเอกสารอย่างน้อย 1 รายการ",
-    "messengerCod": "ค่าแมสเซนเจอร์ (เก็บเงินปลายทาง)"
+    "messengerFeeNote": "ค่าจัดส่งแมสเซ็นเจอร์: ชำระแยกกับผู้ให้บริการโดยตรง"
   },
   "delivery": {
     "selectMethod": "วิธีจัดส่ง",
@@ -136,12 +136,10 @@
     "standardDesc": "จัดส่งทางขนส่ง 1-3 วันทำการ",
     "messenger": "แมสเซนเจอร์",
     "messengerDesc": "จัดส่งมอเตอร์ไซค์ ภายในวันเดียว",
-    "fromPrice": "เริ่มต้น ฿{price}",
-    "min": "นาที",
-    "messengerUnavailable": "ไม่สามารถจัดส่งในพื้นที่ของคุณได้",
+    "payDirectlyToProvider": "ชำระค่าจัดส่งกับผู้ให้บริการ (Grab/Lalamove) โดยตรง",
     "messengerDisabled": "ไม่พร้อมให้บริการในขณะนี้",
     "returnMethod": "วิธีส่งคืน",
-    "returnMessengerRequired": "เช่า 1 วัน: ส่งคืนทางแมสเซนเจอร์ (บังคับ)",
+    "returnMessengerRequired": "เช่า 1 วัน: ส่งคืนทางแมสเซ็นเจอร์ (ชำระค่าส่งคืนแยก)",
     "returnStandard": "ส่งคืนทางขนส่งปกติ"
   },
   "orderStatus": {

@@ -128,7 +128,7 @@
     "requireTermsAndDocs": "请接受条款并上传文件",
     "requireTerms": "请接受条款",
     "requireDocs": "请至少上传一份文件",
-    "messengerCod": "快递员代收（货到付款）"
+    "messengerFeeNote": "快递员配送费: 直接支付给服务商"
   },
   "delivery": {
     "selectMethod": "配送方式",
@@ -136,12 +136,10 @@
     "standardDesc": "快递配送，1-3个工作日",
     "messenger": "即时快递",
     "messengerDesc": "摩托车当日送达",
-    "fromPrice": "起步 ฿{price}",
-    "min": "分钟",
-    "messengerUnavailable": "您的位置不支持此服务",
+    "payDirectlyToProvider": "配送费直接支付给服务商 (Grab/Lalamove)",
     "messengerDisabled": "暂不可用",
     "returnMethod": "退还方式",
-    "returnMessengerRequired": "1日租赁：必须通过快递员退还",
+    "returnMessengerRequired": "1日租赁：通过快递员退还（退还费另付）",
     "returnStandard": "标准快递退还"
   },
   "orderStatus": {
