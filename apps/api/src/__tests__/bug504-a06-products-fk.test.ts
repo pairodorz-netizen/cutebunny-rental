@@ -75,9 +75,17 @@ const readStep1Migration = (): string =>
   readFileSync(STEP_1_MIGRATION_PATH, 'utf8');
 
 /**
- * Canonical ProductCategory enum values. Must match the A01 seed
- * verbatim (bug504-a01-checkpoint.md §Seed). Kept as a literal here so
- * a drift in either direction (enum OR seed) trips a gate.
+ * Canonical ProductCategory enum values. Must match the A01 seed plus
+ * any subsequent prod-extended slugs. Kept as a literal here so a
+ * drift in either direction (enum OR seed) trips a gate.
+ *
+ * BUG-504-A06 commit 3 hotfix-3: owner extended both the `categories`
+ * table and the Postgres `ProductCategory` enum with six additional
+ * slugs (`ig-brand`, `dress`, `sea-trip`, `minimal`, `vietnam`,
+ * `camera`). The Prisma schema declares the hyphenated slugs via
+ * `@map("…")` annotations because Prisma identifiers cannot contain
+ * hyphens; the gate parser below strips the annotation and compares
+ * against the mapped DB value (i.e. the slug).
  */
 const CANONICAL_SLUGS = [
   'wedding',
@@ -87,26 +95,49 @@ const CANONICAL_SLUGS = [
   'costume',
   'traditional',
   'accessories',
+  'ig-brand',
+  'dress',
+  'sea-trip',
+  'minimal',
+  'vietnam',
+  'camera',
 ] as const;
+
+/**
+ * Parse the `enum ProductCategory { … }` block of schema.prisma into
+ * the list of mapped DB values (i.e. slugs). Lines like
+ *   `ig_brand    @map("ig-brand")`
+ * become `'ig-brand'`; bare identifiers like `wedding` become
+ * `'wedding'`.
+ */
+function parseProductCategoryEnumValues(schema: string): string[] {
+  const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
+  if (!match) return [];
+  return match[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//'))
+    .map((line) => {
+      const mapped = line.match(/@map\(\s*"([^"]+)"\s*\)/);
+      if (mapped) return mapped[1];
+      // Bare identifier: take the first word.
+      return line.split(/\s+/)[0];
+    });
+}
 
 describe('BUG-504-A06 step 1/3 — products.category_id FK scaffolding', () => {
   describe('gate 1 — mapping complete (every enum value has a seeded slug)', () => {
     it('every ProductCategory enum literal appears in the canonical slug list', () => {
       const schema = readSchema();
-      // Extract the enum ProductCategory { … } block.
-      const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
+      const enumValues = parseProductCategoryEnumValues(schema);
       expect(
-        match,
+        enumValues.length,
         'schema.prisma must declare `enum ProductCategory { … }`',
-      ).not.toBeNull();
-      const enumValues = match![1]
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith('//'));
+      ).toBeGreaterThan(0);
       for (const value of enumValues) {
         expect(
           CANONICAL_SLUGS.includes(value as (typeof CANONICAL_SLUGS)[number]),
-          `enum value ${value} must have a seeded slug in categories (A01)`,
+          `enum value ${value} must have a seeded slug in categories (A01 + hotfix-3)`,
         ).toBe(true);
       }
     });
@@ -115,13 +146,8 @@ describe('BUG-504-A06 step 1/3 — products.category_id FK scaffolding', () => {
   describe('gate 2 — no unseeded extras (symmetric mapping)', () => {
     it('every canonical slug appears as a ProductCategory enum value', () => {
       const schema = readSchema();
-      const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
-      expect(match).not.toBeNull();
       const enumValues = new Set(
-        match![1]
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && !line.startsWith('//')),
+        parseProductCategoryEnumValues(schema),
       );
       for (const slug of CANONICAL_SLUGS) {
         expect(
@@ -482,7 +508,13 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       // output; the trigger reduces to a no-op pass-through. Commit 4
       // FINAL drops the legacy column + trigger together.
       expect(body).toMatch(/categoryId:\s*resolvedCategoryId/);
-      expect(body).toMatch(/category:\s*resolvedSlug\s+as\s+any/);
+      // BUG-504-A06 hotfix-3: slug must be mapped to its Prisma enum
+      // identifier (hyphen → underscore) before the cast, otherwise
+      // the Prisma client rejects slugs like `ig-brand` at the TS
+      // layer with `PrismaClientValidationError`.
+      expect(body).toMatch(
+        /category:\s*slugToCategoryEnum\(\s*resolvedSlug\s*\)\s+as\s+any/,
+      );
     });
 
     it('PATCH /:id writes BOTH updateData.category AND updateData.categoryRef (hotfix-2 dual-write)', () => {
@@ -493,8 +525,11 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       expect(patchHandlerMatch, 'PATCH /:id handler not found').not.toBeNull();
       const body = patchHandlerMatch![0];
       expect(body).toMatch(/resolveCategoryId\(/);
-      // BUG-504-A06 commit 3 hotfix-2: PATCH dual-writes alongside POST.
-      expect(body).toMatch(/updateData\.category\s*=\s*categoryResult\.data\.slug\s+as\s+any/);
+      // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: PATCH dual-writes
+      // alongside POST and maps slug → enum identifier first.
+      expect(body).toMatch(
+        /updateData\.category\s*=\s*slugToCategoryEnum\(\s*[\s\S]*?categoryResult\.data\.slug[\s\S]*?\)\s+as\s+any/,
+      );
       expect(body).toMatch(/updateData\.categoryRef\s*=/);
     });
 

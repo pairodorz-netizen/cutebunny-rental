@@ -130,6 +130,21 @@ export async function resolveCategoryId(
   };
 }
 
+// BUG-504-A06 commit 3 hotfix-3: convert a `categories.slug` value to
+// the matching Prisma legacy-category enum identifier. Prisma enum
+// identifiers must be valid TS identifiers (no hyphens), so slugs
+// like `ig-brand` are declared in the schema as `ig_brand` with a
+// `@map("ig-brand")` annotation. The Prisma client validates input
+// against the TS-side identifier (`ig_brand`) before sending SQL,
+// then serializes back to the mapped DB value (`ig-brand`).
+//
+// All slugs without a hyphen pass through unchanged. This helper is
+// retired by A06 commit 4 FINAL when the legacy enum + the
+// `products.category` column drop together.
+export function slugToCategoryEnum(slug: string): string {
+  return slug.replace(/-/g, '_');
+}
+
 // BUG-404-A01 — structured error envelope for admin product routes.
 //
 // Background: the admin Create Product flow previously returned a
@@ -560,11 +575,12 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || undefined,
           descriptionI18n: descI18n,
-          // BUG-504-A06 commit 3 hotfix-2: write the legacy enum
-          // alongside the FK explicitly. The BEFORE-trigger derive
-          // path was leaving `category` NULL on this code path in
-          // prod, surfacing as 500 on every product write.
-          category: catResolved.data.slug as any,
+          // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: write the legacy
+          // enum alongside the FK explicitly. Slugs are mapped to
+          // their Prisma enum identifier first (hyphen → underscore)
+          // because the Prisma client validates the input against the
+          // TS-side identifier before sending SQL. See `slugToCategoryEnum`.
+          category: slugToCategoryEnum(catResolved.data.slug) as any,
           categoryRef: { connect: { id: rowCategoryId } },
           size: row.size,
           color: row.color,
@@ -592,9 +608,10 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || `${row.name_en} available for rental.`,
           descriptionI18n: descI18n,
-          // BUG-504-A06 commit 3 hotfix-2: write the legacy enum
-          // alongside the FK explicitly (see admin POST handler).
-          category: catResolved.data.slug as any,
+          // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: write the legacy
+          // enum alongside the FK explicitly. Slug → enum identifier
+          // mapping via `slugToCategoryEnum` (see admin POST handler).
+          category: slugToCategoryEnum(catResolved.data.slug) as any,
           categoryId: rowCategoryId,
           size: row.size,
           color: row.color,
@@ -717,20 +734,27 @@ adminProducts.post('/', async (c) => {
       nameI18n: parsed.data.name_i18n ?? Prisma.JsonNull,
       description: parsed.data.description ?? '',
       descriptionI18n: parsed.data.description_i18n ?? Prisma.JsonNull,
-      // BUG-504-A06 commit 3 hotfix-2: write BOTH the legacy enum
-      // column AND the FK explicitly. The original commit 3 plan was
-      // to let the BEFORE INSERT trigger `products_sync_category_trg`
-      // derive `category` from `category_id`, but the live reproducer
-      // showed the legacy column landing NULL anyway — every product
-      // create was failing the NOT NULL check with a generic 500.
-      // Setting both columns from the resolver removes the trigger
-      // dependency entirely. The `as any` cast is required because the
-      // Prisma client types this column as a strict enum union; the
-      // slug string is the same literal as the enum value for seeded
-      // categories. Slugs that don't match an enum literal will still
-      // fail at the DB cast — resolved by A06 commit 4 FINAL when the
-      // enum + column are dropped together.
-      category: resolvedSlug as any,
+      // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: write BOTH the
+      // legacy enum column AND the FK explicitly. The original commit 3
+      // plan was to let the BEFORE INSERT trigger
+      // `products_sync_category_trg` derive `category` from
+      // `category_id`, but the live reproducer showed the legacy column
+      // landing NULL anyway — every product create was failing the NOT
+      // NULL check with a generic 500. Setting both columns from the
+      // resolver removes the trigger dependency entirely.
+      //
+      // The slug is mapped to its Prisma enum identifier first
+      // (hyphen → underscore) because the Prisma client validates the
+      // input against the TS-side identifier (`ig_brand`) and not the
+      // mapped DB value (`ig-brand`). Without this transform, slugs
+      // such as `ig-brand` raise `PrismaClientValidationError` before
+      // any SQL is sent — every product create fails as a 500. See
+      // `slugToCategoryEnum` and the schema enum block. The `as any`
+      // cast is still required because the resolver yields a generic
+      // string and the Prisma client types this column as a strict
+      // enum union. Resolved entirely by A06 commit 4 FINAL when the
+      // enum + column drop together.
+      category: slugToCategoryEnum(resolvedSlug) as any,
       categoryId: resolvedCategoryId,
       brandId: resolvedBrandId,
       size: parsed.data.size,
@@ -903,7 +927,12 @@ adminProducts.patch('/:id', async (c) => {
         categoryResult.error.code === 'VALIDATION_ERROR' ? 400 : 422;
       return c.json({ error: categoryResult.error }, status);
     }
-    updateData.category = categoryResult.data.slug as any;
+    // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: dual-write the legacy
+    // enum + FK on PATCH. Slug → enum identifier mapping via
+    // `slugToCategoryEnum` (see admin POST handler).
+    updateData.category = slugToCategoryEnum(
+      categoryResult.data.slug,
+    ) as any;
     updateData.categoryRef = {
       connect: { id: categoryResult.data.categoryId },
     };
