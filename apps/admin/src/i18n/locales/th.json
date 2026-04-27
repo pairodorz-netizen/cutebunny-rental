@@ -590,6 +590,7 @@
     "tab_categories": "หมวดหมู่",
     "tab_store": "ที่อยู่ร้าน",
     "tab_shipping": "การจัดส่ง",
+    "tab_general": "ทั่วไป",
     "categoriesTitle": "หมวดหมู่สินค้า",
     "categoriesDesc": "จัดการหมวดหมู่สินค้าที่ใช้ทั้งฝั่งแอดมินและฝั่งลูกค้า (slug เป็นตัวพิมพ์เล็ก a-z0-9_-)",
     "categoriesEmpty": "ยังไม่มีหมวดหมู่",
@@ -694,6 +695,10 @@
     "shopOrigin": "พิกัดร้าน",
     "latitude": "ละติจูด",
     "longitude": "ลองจิจูด",
-    "messengerSaved": "บันทึกการตั้งค่าแมสเซนเจอร์แล้ว"
+    "messengerSaved": "บันทึกการตั้งค่าแมสเซนเจอร์แล้ว",
+    "storefrontLinkTitle": "ลิงก์หน้าร้าน",
+    "storefrontLinkDesc": "แชร์ลิงก์นี้ให้ลูกค้าเพื่อเลือกชุดเช่า",
+    "copyLink": "คัดลอกลิงก์",
+    "copied": "คัดลอกแล้ว!"
   }
 }
