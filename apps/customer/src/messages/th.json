@@ -142,7 +142,7 @@
     "messengerDisabled": "ไม่พร้อมให้บริการในขณะนี้",
     "returnMethod": "วิธีส่งคืน",
     "returnMessengerRequired": "ส่งคืนทางแมสเซ็นเจอร์",
-    "returnMessengerPayNote": "ชำระค่าส่งคืนแยก",
+    "returnMessengerPayNote": "ลูกค้าเป็นคนออกค่าส่งขากลับ",
     "returnStandard": "ส่งคืนทางขนส่งปกติ",
     "messengerPayNote": "ชำระค่าจัดส่งกับผู้ให้บริการ (Grab/Lalamove) โดยตรง"
   },

@@ -142,7 +142,7 @@
     "messengerDisabled": "Currently unavailable",
     "returnMethod": "Return Method",
     "returnMessengerRequired": "Return via messenger",
-    "returnMessengerPayNote": "Return fee paid separately",
+    "returnMessengerPayNote": "Customer pays for return delivery",
     "returnStandard": "Standard courier return",
     "messengerPayNote": "Pay delivery fee directly to provider (Grab/Lalamove)"
   },

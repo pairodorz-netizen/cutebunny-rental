@@ -142,7 +142,7 @@
     "messengerDisabled": "暂不可用",
     "returnMethod": "退还方式",
     "returnMessengerRequired": "通过快递员退还",
-    "returnMessengerPayNote": "退还费另付",
+    "returnMessengerPayNote": "客户承担退还运费",
     "returnStandard": "标准快递退还",
     "messengerPayNote": "配送费直接支付给服务商 (Grab/Lalamove)"
   },
