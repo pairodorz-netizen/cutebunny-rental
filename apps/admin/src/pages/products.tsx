@@ -721,7 +721,13 @@ function ProductForm({
   const [sku, setSku] = useState(product?.sku ?? '');
   const [name, setName] = useState(product?.name ?? '');
   const [brandName, setBrandName] = useState(product?.brand ?? '');
-  const [category, setCategory] = useState(product?.category ?? 'evening');
+  // BUG-504-A06 commit 3 hotfix: form state holds the category UUID, not the
+  // slug. PR #99 made the API require `category_id` (UUID) on POST/PATCH;
+  // the previous slug-keyed dropdown was breaking every product create/edit
+  // with 400 'Invalid product data'. The wire still echoes `category: <slug>`
+  // for back-compat (decision A from the A06 ratify), so the slug-from-product
+  // is resolved to its UUID once `categoryRows` load (effect below).
+  const [categoryId, setCategoryId] = useState<string>('');
   const [size, setSize] = useState(product?.size?.join(', ') ?? 'M');
   const [color, setColor] = useState(product?.color?.join(', ') ?? '');
   const [price1, setPrice1] = useState(product ? String(product.rental_prices['1day']) : '');
@@ -758,8 +764,25 @@ function ProductForm({
   // /api/v1/categories + detectCategoryDrift). Key stays the same so
   // CategoriesTab mutation invalidations still refresh this dropdown.
   const categoriesQuery = useAdminCategoriesWithDriftGuard();
-  const categoryRows = categoriesQuery.data?.admin ?? [];
+  const categoryRows = useMemo(() => categoriesQuery.data?.admin ?? [], [categoriesQuery.data]);
   const driftReport = categoriesQuery.data?.report;
+
+  // BUG-504-A06 commit 3 hotfix: once `categoryRows` resolve, seed
+  // `categoryId` from the product's slug (edit mode) or the first visible
+  // row (create mode). Does not overwrite a user selection.
+  useEffect(() => {
+    if (categoryRows.length === 0) return;
+    if (categoryId) return;
+    if (product?.category) {
+      const matched = categoryRows.find((row) => row.slug === product.category);
+      if (matched) {
+        setCategoryId(matched.id);
+        return;
+      }
+    }
+    const firstVisible = categoryRows.find((row) => row.visible_backend);
+    if (firstVisible) setCategoryId(firstVisible.id);
+  }, [categoryRows, product?.category, categoryId]);
 
   function handleMutationError(err: Error, fallback: string) {
     // BUG-404-A02: route admin API errors (content-type-aware envelope
@@ -892,6 +915,7 @@ function ProductForm({
     // Frontend validation (#7)
     if (!sku.trim()) { setFormError('SKU is required'); return; }
     if (!name.trim()) { setFormError('Product name is required'); return; }
+    if (!categoryId) { setFormError('Category is required'); return; }
     if (!size.trim()) { setFormError('At least one size is required'); return; }
     if (!color.trim()) { setFormError('At least one color is required'); return; }
     if (!price1 || Number(price1) <= 0) { setFormError('1-day rental price is required'); return; }
@@ -908,7 +932,8 @@ function ProductForm({
       sku,
       name,
       brand_name: brandName || undefined,
-      category,
+      // BUG-504-A06 commit 3 hotfix: send the FK UUID, not the slug.
+      category_id: categoryId,
       size: size.split(',').map((s) => s.trim()).filter(Boolean),
       color: color.split(',').map((s) => s.trim()).filter(Boolean),
       rental_price_1day: Number(price1),
@@ -978,11 +1003,11 @@ function ProductForm({
             <label className="text-sm font-medium">{t('products.category')}</label>
             <div className="mt-1 space-y-2">
               <DriftBanner report={driftReport} />
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                 {categoryRows
                   .filter((row) => row.visible_backend)
                   .map((row) => (
-                    <option key={row.slug} value={row.slug}>
+                    <option key={row.id} value={row.id}>
                       {i18n.language === 'th' ? row.name_th : row.name_en}
                     </option>
                   ))}
