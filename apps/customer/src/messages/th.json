@@ -42,7 +42,33 @@
       "size": "ขนาด",
       "color": "สี",
       "priceRange": "ช่วงราคา",
-      "availability": "ความพร้อม"
+      "availability": "ความพร้อม",
+      "searchPlaceholder": "ค้นหาชุด...",
+      "clearAll": "ล้างทั้งหมด",
+      "colors": {
+        "white": "ขาว",
+        "black": "ดำ",
+        "red": "แดง",
+        "pink": "ชมพู",
+        "orange": "ส้ม",
+        "yellow": "เหลือง",
+        "green": "เขียว",
+        "blue": "ฟ้า",
+        "navy": "น้ำเงิน",
+        "purple": "ม่วง",
+        "cream": "ครีม",
+        "beige": "เบจ",
+        "brown": "น้ำตาล",
+        "gray": "เทา",
+        "gold": "ทอง",
+        "silver": "เงิน"
+      },
+      "priceRanges": {
+        "under200": "ต่ำกว่า ฿200",
+        "201to400": "฿201-฿400",
+        "401to600": "฿401-฿600",
+        "above601": "฿601+"
+      }
     },
     "card": {
       "rentFrom": "เช่าเริ่มต้น",
