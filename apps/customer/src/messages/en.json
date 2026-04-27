@@ -42,7 +42,33 @@
       "size": "Size",
       "color": "Color",
       "priceRange": "Price Range",
-      "availability": "Availability"
+      "availability": "Availability",
+      "searchPlaceholder": "Search dresses...",
+      "clearAll": "Clear all",
+      "colors": {
+        "white": "White",
+        "black": "Black",
+        "red": "Red",
+        "pink": "Pink",
+        "orange": "Orange",
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "navy": "Navy",
+        "purple": "Purple",
+        "cream": "Cream",
+        "beige": "Beige",
+        "brown": "Brown",
+        "gray": "Gray",
+        "gold": "Gold",
+        "silver": "Silver"
+      },
+      "priceRanges": {
+        "under200": "Under ฿200",
+        "201to400": "฿201-฿400",
+        "401to600": "฿401-฿600",
+        "above601": "฿601+"
+      }
     },
     "card": {
       "rentFrom": "Rent from",
