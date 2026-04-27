@@ -560,6 +560,11 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || undefined,
           descriptionI18n: descI18n,
+          // BUG-504-A06 commit 3 hotfix-2: write the legacy enum
+          // alongside the FK explicitly. The BEFORE-trigger derive
+          // path was leaving `category` NULL on this code path in
+          // prod, surfacing as 500 on every product write.
+          category: catResolved.data.slug as any,
           categoryRef: { connect: { id: rowCategoryId } },
           size: row.size,
           color: row.color,
@@ -587,6 +592,9 @@ adminProducts.post('/import', async (c) => {
           nameI18n,
           description: row.desc_en || `${row.name_en} available for rental.`,
           descriptionI18n: descI18n,
+          // BUG-504-A06 commit 3 hotfix-2: write the legacy enum
+          // alongside the FK explicitly (see admin POST handler).
+          category: catResolved.data.slug as any,
           categoryId: rowCategoryId,
           size: row.size,
           color: row.color,
@@ -709,9 +717,20 @@ adminProducts.post('/', async (c) => {
       nameI18n: parsed.data.name_i18n ?? Prisma.JsonNull,
       description: parsed.data.description ?? '',
       descriptionI18n: parsed.data.description_i18n ?? Prisma.JsonNull,
-      // BUG-504-A06 commit 3 — single-source write on the FK column.
-      // The trigger `products_sync_category_trg` keeps the legacy enum
-      // populated until commit 4 FINAL drops it.
+      // BUG-504-A06 commit 3 hotfix-2: write BOTH the legacy enum
+      // column AND the FK explicitly. The original commit 3 plan was
+      // to let the BEFORE INSERT trigger `products_sync_category_trg`
+      // derive `category` from `category_id`, but the live reproducer
+      // showed the legacy column landing NULL anyway — every product
+      // create was failing the NOT NULL check with a generic 500.
+      // Setting both columns from the resolver removes the trigger
+      // dependency entirely. The `as any` cast is required because the
+      // Prisma client types this column as a strict enum union; the
+      // slug string is the same literal as the enum value for seeded
+      // categories. Slugs that don't match an enum literal will still
+      // fail at the DB cast — resolved by A06 commit 4 FINAL when the
+      // enum + column are dropped together.
+      category: resolvedSlug as any,
       categoryId: resolvedCategoryId,
       brandId: resolvedBrandId,
       size: parsed.data.size,
@@ -871,9 +890,10 @@ adminProducts.patch('/:id', async (c) => {
   if (parsed.data.name_i18n !== undefined) updateData.nameI18n = parsed.data.name_i18n;
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
   if (parsed.data.description_i18n !== undefined) updateData.descriptionI18n = parsed.data.description_i18n;
-  // BUG-504-A06 commit 3 — single-source FK update on PATCH. Omitting
-  // `category_id` keeps the existing value, preserving PATCH semantics.
-  // The trigger keeps the legacy enum column in sync at the DB layer.
+  // BUG-504-A06 commit 3 hotfix-2: dual-write the legacy enum + FK on
+  // PATCH for the same reason as POST (trigger derive landing NULL in
+  // prod). Omitting `category_id` from the PATCH body keeps the
+  // existing values on both columns, preserving PATCH semantics.
   if (parsed.data.category_id !== undefined) {
     const categoryResult = await resolveCategoryId(db, {
       category_id: parsed.data.category_id,
@@ -883,6 +903,7 @@ adminProducts.patch('/:id', async (c) => {
         categoryResult.error.code === 'VALIDATION_ERROR' ? 400 : 422;
       return c.json({ error: categoryResult.error }, status);
     }
+    updateData.category = categoryResult.data.slug as any;
     updateData.categoryRef = {
       connect: { id: categoryResult.data.categoryId },
     };
