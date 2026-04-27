@@ -11,6 +11,24 @@ datasource db {
 
 // ─── ENUMS ───────────────────────────────────────────────────────────────────
 
+// BUG-504-A06 commit 3 hotfix-3: extend the legacy enum to cover
+// the slugs that have been added to `categories` since the original
+// 7-row seed. The Prisma client validates enum inputs at the TS
+// layer before sending SQL, so any slug not declared here is
+// rejected as `PrismaClientValidationError` regardless of how the
+// `as any` cast is written. The Postgres `ProductCategory` type was
+// already extended in prod via raw SQL by the owner; this block
+// brings the Prisma schema (and the generated client) into sync.
+//
+// `@map` is used for slugs that contain a hyphen, because Prisma
+// enum identifiers must be valid TS identifiers (no hyphens). The
+// app-layer dual-write transforms `slug.replace(/-/g, '_')` before
+// passing the value to the Prisma client, matching the TS-side
+// identifier; Prisma then serializes back to the hyphenated DB
+// value via the `@map` annotation.
+//
+// All of this is removed by A06 commit 4 FINAL when the enum + the
+// `products.category` column + the sync trigger drop together.
 enum ProductCategory {
   wedding
   evening
@@ -19,6 +37,12 @@ enum ProductCategory {
   costume
   traditional
   accessories
+  ig_brand    @map("ig-brand")
+  dress
+  sea_trip    @map("sea-trip")
+  minimal
+  vietnam
+  camera
 }
 
 enum InventoryPhysicalStatus {
