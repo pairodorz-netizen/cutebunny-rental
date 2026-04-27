@@ -858,10 +858,15 @@ export function OrdersPage() {
                       <div className="text-sm truncate">{order.customer.name}</div>
                       <div className="text-[11px] text-muted-foreground">{order.customer.phone}</div>
                     </div>
-                    <div className="w-20 text-center">
+                    <div className="w-20 text-center space-y-0.5">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${STATUS_COLORS[order.status] ?? 'bg-gray-100'}`}>
                         {t(`orders.statusLabel.${order.status}`)}
                       </span>
+                      {order.delivery_method === 'messenger' && (
+                        <span className="block text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                          🏍 Messenger
+                        </span>
+                      )}
                     </div>
                     <span className="w-20 text-right text-xs">{order.total_amount.toLocaleString()}</span>
                     <span className="w-20 text-xs text-muted-foreground">{new Date(order.created_at).toLocaleDateString()}</span>
@@ -1292,6 +1297,45 @@ export function OrdersPage() {
                   <Printer className="h-3 w-3 mr-1" /> {t('shipping.printLabel')}
                 </Button>
               )}
+              {/* Delivery Info */}
+              {orderDetail && editOrderId === orderDetail.id && (
+                <div className="border-t pt-4">
+                  <label className="text-xs font-semibold text-foreground mb-2 block">
+                    {t('orders.deliveryInfo')}
+                  </label>
+                  <div className="rounded-lg bg-gray-50 p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t('orders.deliveryMethodLabel')}</span>
+                      <span className="font-medium capitalize">{orderDetail.delivery_method}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">{t('orders.returnMethodLabel')}</span>
+                      <span className="font-medium capitalize">{orderDetail.return_method}</span>
+                    </div>
+                    {orderDetail.delivery_method === 'messenger' && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">{t('orders.messengerFeeSend')}</span>
+                          <span className="font-medium text-orange-600">฿{orderDetail.messenger_fee_send.toLocaleString()} COD</span>
+                        </div>
+                        {orderDetail.messenger_fee_return > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('orders.messengerFeeReturn')}</span>
+                            <span className="font-medium text-orange-600">฿{orderDetail.messenger_fee_return.toLocaleString()} COD</span>
+                          </div>
+                        )}
+                        {orderDetail.messenger_distance_km !== null && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">{t('orders.messengerDistance')}</span>
+                            <span>{orderDetail.messenger_distance_km.toFixed(1)} km</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Activity Log */}
               <div className="border-t pt-4">
                 <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">

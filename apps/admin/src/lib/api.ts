@@ -164,6 +164,8 @@ export interface AdminOrder {
   tracking_number: string | null;
   total_amount: number;
   credit_applied: number;
+  delivery_method: string;
+  return_method: string;
   payment_status: string;
   rental_period: {
     start: string;
@@ -180,6 +182,12 @@ export interface AdminOrderDetail {
   deposit_total: number;
   delivery_fee: number;
   credit_applied: number;
+  delivery_method: string;
+  return_method: string;
+  messenger_fee_send: number;
+  messenger_fee_return: number;
+  messenger_distance_km: number | null;
+  messenger_payment_mode: string | null;
   customer: {
     id: string;
     name: string;

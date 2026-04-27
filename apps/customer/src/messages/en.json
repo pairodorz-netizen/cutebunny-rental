@@ -127,7 +127,22 @@
     "uploadingFile": "Uploading...",
     "requireTermsAndDocs": "Please accept terms and upload documents",
     "requireTerms": "Please accept the terms",
-    "requireDocs": "Please upload at least one document"
+    "requireDocs": "Please upload at least one document",
+    "messengerCod": "Messenger COD (pay on delivery)"
+  },
+  "delivery": {
+    "selectMethod": "Delivery Method",
+    "standard": "Standard",
+    "standardDesc": "Courier delivery, 1-3 business days",
+    "messenger": "Messenger",
+    "messengerDesc": "Motorcycle same-day delivery",
+    "fromPrice": "From ฿{price}",
+    "min": "min",
+    "messengerUnavailable": "Not available for your location",
+    "messengerDisabled": "Currently unavailable",
+    "returnMethod": "Return Method",
+    "returnMessengerRequired": "1-day rental: return via messenger (required)",
+    "returnStandard": "Standard courier return"
   },
   "orderStatus": {
     "title": "Order Status",

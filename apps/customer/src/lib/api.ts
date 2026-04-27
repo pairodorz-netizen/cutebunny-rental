@@ -134,6 +134,25 @@ export interface ShippingFeeToggle {
   enabled: boolean;
 }
 
+export interface MessengerSettings {
+  enabled: boolean;
+  base_fee: number;
+  max_distance_km: number;
+}
+
+export interface MessengerEstimate {
+  available: boolean;
+  distance_km: number;
+  fee: number;
+  base_fee: number;
+  per_km_fee: number;
+  currency: string;
+  payment_mode: string;
+  estimated_minutes: number;
+  reason?: string;
+  max_distance_km?: number;
+}
+
 // BUG-504-A04: customer-side category reader. Backs the product filter UI
 // on /products and the category grid on the home page. Payload mirrors
 // the A02 public endpoint shape (snake_case at the API boundary).
@@ -179,6 +198,8 @@ export const api = {
       shipping_address: { province_code: string; line1: string; city?: string; postal_code?: string };
       credit_applied?: number;
       document_urls?: Array<{ url: string; doc_type: string }>;
+      delivery_method?: 'standard' | 'messenger';
+      customer_coords?: { lat: number; lng: number };
     }) =>
       request<{ data: OrderResponse }>('/api/v1/orders', {
         method: 'POST',
@@ -206,10 +227,14 @@ export const api = {
   shipping: {
     calculate: (provinceCode: string, itemCount: number = 1) =>
       request<{ data: ShippingCalcResult }>(`/api/v1/shipping/calculate?province_code=${provinceCode}&item_count=${itemCount}`),
+    messengerEstimate: (lat: number, lng: number) =>
+      request<{ data: MessengerEstimate }>(`/api/v1/shipping/messenger-estimate?lat=${lat}&lng=${lng}`),
   },
   settings: {
     /** Public read of the global shipping-fee toggle (#36). */
     shippingFeeToggle: () =>
       request<{ data: ShippingFeeToggle }>('/api/v1/settings/shipping/fee-toggle'),
+    messenger: () =>
+      request<{ data: MessengerSettings }>('/api/v1/settings/messenger'),
   },
 };
