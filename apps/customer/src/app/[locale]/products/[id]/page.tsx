@@ -350,16 +350,14 @@ export default function ProductDetailPage() {
             {/* Summary Bar */}
             <div className="rounded-2xl bg-white p-5 shadow-soft space-y-3">
               {/* Deposit */}
-              {(product.deposit ?? 0) > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-cb-secondary">{t('depositNote')}</span>
-                  <span className="font-semibold text-cb-heading">
-                    ฿{(product.deposit ?? 0).toLocaleString()}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-cb-secondary">{t('depositNote')}</span>
+                <span className="font-semibold text-cb-heading">
+                  ฿{(product.deposit ?? 0).toLocaleString()}
+                </span>
+              </div>
               {/* Rental total */}
-              <div className="flex items-center justify-between">
+              <div className="border-t border-border/50 pt-3 flex items-center justify-between">
                 <div>
                   <span className="text-sm text-cb-secondary">{t('totalRental')}</span>
                   <p className="text-2xl font-bold text-cb-heading">

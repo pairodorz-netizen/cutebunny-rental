@@ -101,7 +101,10 @@ export default function ProductsPage() {
   if (activePriceRange?.min) params.price_min = String(activePriceRange.min);
   if (activePriceRange?.max) params.price_max = String(activePriceRange.max);
   if (sortBy) params.sort = sortBy;
-  if (availDate) params.available_date = availDate;
+  if (availDate) {
+    params.available_start = availDate;
+    params.available_end = availDate;
+  }
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['products', params],
