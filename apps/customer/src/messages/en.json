@@ -18,8 +18,8 @@
   },
   "home": {
     "hero": {
-      "title": "Rent Beautiful Dresses",
-      "subtitle": "Premium dress rental for every occasion",
+      "title": "Wear the dream dress, keep the budget.",
+      "subtitle": "Rent beautiful dresses at affordable prices — premium brand dresses, delivered to your door, easy returns",
       "cta": "Start Renting",
       "ctaFeatured": "View Featured"
     },
@@ -40,6 +40,10 @@
     "newArrivals": {
       "title": "Just arrived"
     },
+        "banner": "NEW ARRIVAL — New dresses this week",
+        "recommended": "Recommended",
+        "perDay": "/day",
+        "newBadge": "NEW",
     "profile": {
       "title": "Your Profile",
       "subtitle": "Manage your profile and shipping addresses",
