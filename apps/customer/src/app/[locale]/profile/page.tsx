@@ -166,7 +166,7 @@ export default function ProfilePage() {
   // Not logged in: show login/register form
   if (!token) {
     return (
-      <div className="bg-cb-surface min-h-screen">
+      <div className="min-h-screen">
         <div className="container py-8">
           <h1 className="text-2xl md:text-3xl font-display font-semibold text-cb-heading mb-8">
             {t('title')}
@@ -303,7 +303,7 @@ export default function ProfilePage() {
 
   // Logged in: show profile + rental history
   return (
-    <div className="bg-cb-surface min-h-screen">
+    <div className="min-h-screen">
       <div className="container py-8">
         <h1 className="text-2xl md:text-3xl font-display font-semibold text-cb-heading mb-8">
           {t('title')}

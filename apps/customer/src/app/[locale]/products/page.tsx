@@ -296,7 +296,7 @@ export default function ProductsPage() {
   );
 
   return (
-    <div className="bg-cb-surface min-h-screen">
+    <div className="min-h-screen">
       <div className="container py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">

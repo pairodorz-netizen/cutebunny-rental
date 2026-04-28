@@ -138,7 +138,7 @@ export default function ProductDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="bg-cb-surface min-h-screen">
+      <div className="min-h-screen">
         <div className="container py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-4 w-32 bg-muted rounded" />
@@ -160,7 +160,7 @@ export default function ProductDetailPage() {
 
   if (isError || !product) {
     return (
-      <div className="bg-cb-surface min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center text-cb-secondary">{t('notFound')}</div>
       </div>
     );
@@ -169,7 +169,7 @@ export default function ProductDetailPage() {
   const hasExtraDayRate = (product.extra_day_rate ?? 0) > 0;
 
   return (
-    <div className="bg-cb-surface min-h-screen">
+    <div className="min-h-screen">
       <div className="container py-8">
         {/* Back link */}
         <Link
