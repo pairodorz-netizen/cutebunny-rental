@@ -7,6 +7,7 @@ import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
 import { confirmHolds, createLifecycleBlocks } from '../lib/availability';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
+import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
 import { getCartStore } from './cart';
 
 function getSupabaseClient() {
@@ -47,6 +48,11 @@ orders.post('/', async (c) => {
       url: z.string().url(),
       doc_type: z.string(),
     })).optional(),
+    delivery_method: z.enum(['standard', 'messenger']).default('standard'),
+    customer_coords: z.object({
+      lat: z.number(),
+      lng: z.number(),
+    }).optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -81,6 +87,53 @@ orders.post('/', async (c) => {
   );
   const deliveryFee = feeEnabled ? (shippingResult?.totalFee ?? 150) : 0;
 
+  // Messenger delivery handling
+  const deliveryMethod = parsed.data.delivery_method;
+  let messengerFeeSend = 0;
+  let messengerFeeReturn = 0;
+  let messengerDistanceKm: number | null = null;
+  let messengerPaymentMode: string | null = null;
+  let returnMethod: 'standard' | 'messenger' = 'standard';
+
+  if (deliveryMethod === 'messenger') {
+    if (!parsed.data.customer_coords) {
+      return error(c, 400, 'VALIDATION_ERROR', 'customer_coords required for messenger delivery');
+    }
+
+    const messengerConfig = await getMessengerConfig(db);
+    if (!messengerConfig.enabled) {
+      return error(c, 400, 'MESSENGER_DISABLED', 'Messenger delivery is not available');
+    }
+
+    const estimate = estimateMessenger(
+      parsed.data.customer_coords.lat,
+      parsed.data.customer_coords.lng,
+      messengerConfig,
+    );
+
+    if (!estimate.available) {
+      return error(c, 400, 'MESSENGER_UNAVAILABLE', 'Messenger delivery unavailable for this location');
+    }
+
+    messengerFeeSend = estimate.fee;
+    messengerDistanceKm = estimate.distanceKm;
+    messengerPaymentMode = 'cod';
+  }
+
+  // Determine return method based on rental days
+  const maxRentalDays = Math.max(...cartData.items.map((i) => i.rental_days));
+  returnMethod = resolveReturnMethod(maxRentalDays, deliveryMethod);
+
+  if (returnMethod === 'messenger' && messengerDistanceKm !== null) {
+    const messengerConfig = await getMessengerConfig(db);
+    const returnEstimate = estimateMessenger(
+      parsed.data.customer_coords!.lat,
+      parsed.data.customer_coords!.lng,
+      messengerConfig,
+    );
+    messengerFeeReturn = returnEstimate.available ? returnEstimate.fee : 0;
+  }
+
   // Find or create customer
   let customer = await db.customer.findUnique({
     where: { email: parsed.data.customer.email },
@@ -109,13 +162,15 @@ orders.post('/', async (c) => {
   const totalDeposit = cartData.items.reduce((sum, i) => sum + i.deposit, 0);
 
   // Handle credit application
+  // Messenger fees are COD — not included in the transfer total
+  const effectiveDeliveryFee = deliveryMethod === 'messenger' ? 0 : deliveryFee;
   let creditApplied = 0;
   if (parsed.data.credit_applied && parsed.data.credit_applied > 0) {
-    const maxCredit = Math.min(parsed.data.credit_applied, customer.creditBalance, subtotal + totalDeposit + deliveryFee);
+    const maxCredit = Math.min(parsed.data.credit_applied, customer.creditBalance, subtotal + totalDeposit + effectiveDeliveryFee);
     creditApplied = maxCredit;
   }
 
-  const totalAmount = subtotal + totalDeposit + deliveryFee - creditApplied;
+  const totalAmount = subtotal + totalDeposit + effectiveDeliveryFee - creditApplied;
 
   // Determine rental date range from cart items
   const startDates = cartData.items.map((i) => new Date(i.rental_start));
@@ -142,15 +197,27 @@ orders.post('/', async (c) => {
       totalDays,
       subtotal,
       deposit: totalDeposit,
-      deliveryFee,
+      deliveryFee: effectiveDeliveryFee,
       creditApplied,
       totalAmount,
+      deliveryMethod,
+      returnMethod,
+      messengerFeeSend,
+      messengerFeeReturn,
+      messengerDistanceKm,
+      messengerPaymentMode,
       shippingSnapshot: {
         name: parsed.data.customer.name,
         phone: parsed.data.customer.phone,
         email: parsed.data.customer.email,
         address: parsed.data.shipping_address,
         zone: shippingResult?.zone ?? 'Nationwide',
+        delivery_method: deliveryMethod,
+        return_method: returnMethod,
+        messenger_fee_send: messengerFeeSend,
+        messenger_fee_return: messengerFeeReturn,
+        messenger_distance_km: messengerDistanceKm,
+        ...(parsed.data.customer_coords ? { customer_lat: parsed.data.customer_coords.lat, customer_lng: parsed.data.customer_coords.lng } : {}),
       },
     },
   });
@@ -285,9 +352,18 @@ orders.post('/', async (c) => {
     summary: {
       subtotal,
       deposit: totalDeposit,
-      delivery_fee: deliveryFee,
+      delivery_fee: effectiveDeliveryFee,
       credit_applied: creditApplied,
       total: totalAmount,
+    },
+    delivery: {
+      delivery_method: deliveryMethod,
+      return_method: returnMethod,
+      messenger_fee_send: messengerFeeSend,
+      messenger_fee_return: messengerFeeReturn,
+      messenger_distance_km: messengerDistanceKm,
+      messenger_payment_mode: messengerPaymentMode,
+      cod_total: messengerFeeSend + messengerFeeReturn,
     },
   });
 });

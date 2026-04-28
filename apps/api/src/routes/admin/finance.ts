@@ -231,7 +231,13 @@ adminFinance.get('/report', async (c) => {
           items: {
             select: {
               product: {
-                select: { category: true, name: true, sku: true },
+                // BUG-504-A06 commit 3 — group-by sources `category` from
+                // FK slug, not the legacy enum column.
+                select: {
+                  categoryRef: { select: { slug: true } },
+                  name: true,
+                  sku: true,
+                },
               },
               subtotal: true,
             },
@@ -265,18 +271,26 @@ adminFinance.get('/report', async (c) => {
   if (group_by === 'category') {
     for (const tx of transactions) {
       if (!revenueTypes.includes(tx.txType)) continue;
-      const category = tx.order?.items[0]?.product.category ?? 'unknown';
+      // BUG-504-A06 commit 3 — read the canonical slug from the FK.
+      const category = tx.order?.items[0]?.product.categoryRef?.slug ?? 'unknown';
       if (!grouped[category]) grouped[category] = { revenue: 0, expenses: 0, orders: 0 };
       grouped[category].revenue += tx.amount;
     }
     const ordersInRange = await db.order.findMany({
       where: { createdAt: { gte: startDate, lte: endDate } },
       select: {
-        items: { select: { product: { select: { category: true } } }, take: 1 },
+        items: {
+          select: {
+            product: {
+              select: { categoryRef: { select: { slug: true } } },
+            },
+          },
+          take: 1,
+        },
       },
     });
     for (const o of ordersInRange) {
-      const cat = o.items[0]?.product.category ?? 'unknown';
+      const cat = o.items[0]?.product.categoryRef?.slug ?? 'unknown';
       if (!grouped[cat]) grouped[cat] = { revenue: 0, expenses: 0, orders: 0 };
       grouped[cat].orders++;
     }

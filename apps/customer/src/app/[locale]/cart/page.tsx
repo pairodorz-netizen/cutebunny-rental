@@ -6,7 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { api } from '@/lib/api';
-import { Trash2, Upload, FileCheck, X } from 'lucide-react';
+import { Trash2, Upload, FileCheck, X, Bike } from 'lucide-react';
 
 const THAI_PROVINCES = [
   { code: 'BKK', name: 'Bangkok' },
@@ -22,7 +22,7 @@ const THAI_PROVINCES = [
 export default function CartPage() {
   const t = useTranslations('cart');
   const router = useRouter();
-  const { items, removeItem, clearCart, getTotal } = useCartStore();
+  const { items, removeItem, clearCart, getTotal, deliveryMethod, customerCoords } = useCartStore();
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,8 +141,9 @@ export default function CartPage() {
     }
   }
 
-  const maxCreditUsable = Math.min(creditBalance, totals.total + shippingFee);
-  const finalTotal = totals.total + shippingFee - (useCredit ? creditToUse : 0);
+  const effectiveShippingFee = deliveryMethod === 'messenger' ? 0 : shippingFee;
+  const maxCreditUsable = Math.min(creditBalance, totals.total + effectiveShippingFee);
+  const finalTotal = totals.total + effectiveShippingFee - (useCredit ? creditToUse : 0);
 
   async function handleCheckout() {
     setLoading(true);
@@ -166,6 +167,8 @@ export default function CartPage() {
         shipping_address: { province_code: province, line1: address, postal_code: postalCode },
         credit_applied: creditApplied,
         document_urls: docUrls,
+        delivery_method: deliveryMethod,
+        ...(deliveryMethod === 'messenger' && customerCoords ? { customer_coords: customerCoords } : {}),
       });
 
       clearCart();
@@ -341,14 +344,21 @@ export default function CartPage() {
                   <span>{t('deposit')}</span>
                   <span>{totals.deposit.toLocaleString()} THB</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>{t('shippingFee')}</span>
-                  {shippingFeeEnabled ? (
-                    <span>{shippingFee.toLocaleString()} THB</span>
-                  ) : (
-                    <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
-                  )}
-                </div>
+                {deliveryMethod === 'messenger' ? (
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-2">
+                    <Bike className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <span>{t('messengerFeeNote')}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span>{t('shippingFee')}</span>
+                    {shippingFeeEnabled ? (
+                      <span>{shippingFee.toLocaleString()} THB</span>
+                    ) : (
+                      <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
+                    )}
+                  </div>
+                )}
 
                 {/* Credit Balance Section — always visible after lookup */}
                 {creditLookedUp && (

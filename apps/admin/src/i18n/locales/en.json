@@ -148,6 +148,12 @@
     "quantity": "Qty",
     "auditLog": "Audit Log",
     "noAuditLogs": "No changes recorded yet",
+    "deliveryInfo": "Delivery Info",
+    "deliveryMethodLabel": "Delivery",
+    "returnMethodLabel": "Return",
+    "messengerFeeSend": "Messenger Fee (Send)",
+    "messengerFeeReturn": "Messenger Fee (Return)",
+    "messengerDistance": "Distance",
     "addItem": "Add Item",
     "removeItem": "Remove Item",
     "selectProduct": "Select product",
@@ -584,6 +590,7 @@
     "tab_categories": "Categories",
     "tab_store": "Store Address",
     "tab_shipping": "Shipping",
+    "tab_general": "General",
     "categoriesTitle": "Product Categories",
     "categoriesDesc": "Manage the product taxonomy used across the admin and customer surfaces. Slug is lowercase (a-z0-9_-).",
     "categoriesEmpty": "No categories yet.",
@@ -678,6 +685,20 @@
       "errMinZero": "Value must be 0 or greater.",
       "errMinOne": "Value must be 1 or greater.",
       "errMustBeInteger": "Value must be a whole number."
-    }
+    },
+    "messengerTitle": "Messenger Delivery",
+    "messengerDesc": "Configure motorcycle same-day delivery pricing and origin.",
+    "messengerBaseFee": "Base Fee (THB)",
+    "messengerPerKmFee": "Per-km Fee (THB)",
+    "messengerBaseDistance": "Base Distance (km)",
+    "messengerMaxDistance": "Max Distance (km)",
+    "shopOrigin": "Shop Origin Coordinates",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "messengerSaved": "Messenger config saved.",
+    "storefrontLinkTitle": "Storefront Link",
+    "storefrontLinkDesc": "Share this link with your customers to let them browse and rent dresses.",
+    "copyLink": "Copy Link",
+    "copied": "Copied!"
   }
 }

@@ -342,17 +342,31 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Category not found');
   }
 
-  // BUG-504-RC2 + BUG-505-A01 pre-check — short-circuit the FK
-  // violation path on ACTIVE rows only.
+  // BUG-504-RC2 + BUG-505-A01 + BUG-504-A08-commit2 pre-check —
+  // short-circuit the FK violation path before `category.delete` runs.
   //
-  // Soft-deleted products keep their `category_id` so Restore can put
-  // them back on their original category. Counting those tombstones
-  // against the category was BUG-505-A01: owners hit `409 IN_USE`
-  // even after soft-deleting every active product. The fix narrows
-  // the count to `deletedAt: null` rows, which is the same predicate
-  // the rest of the admin products surface uses to mean "live row".
+  // BUG-505-A01 narrowed the count to `deletedAt: null` so soft-
+  // deleted tombstones (which keep their `category_id` for Restore)
+  // would not block a category that had no active products. The
+  // tombstone FK was supposed to be cleared by the `$executeRaw`
+  // UPDATE below before `category.delete`. In production we observed
+  // that the UPDATE never effectively reaches storage — owner-side
+  // SQL on prod 2026-04-26 confirmed 4 tombstones on the `casual`
+  // category retained `category_id` after multiple DELETE attempts
+  // (Cloudflare ray 9f250bf8fe01e395 + reproducer ~20:28 GMT+9 /
+  // cutebunny-api Workers Logs `[admin-categories]` line). The FK
+  // is `ON DELETE RESTRICT`, so the storage-layer check fires P2003
+  // on the unchanged tombstone rows.
+  //
+  // A08-commit2 widens the count to ALL products (active +
+  // tombstones) referencing the category. This regresses BUG-505-A01
+  // until A06 commit 3 FINAL drops the dual-write surface (legacy
+  // `category` enum column + sync trigger): with the FK column gone,
+  // tombstones can no longer block category delete via the FK.
+  // A08-commit1 (PR #97) remains as defense-in-depth for any P2003
+  // that reaches `category.delete` despite this widened pre-check.
   const productsCount = await db.product.count({
-    where: { categoryId: id, deletedAt: null },
+    where: { categoryId: id },
   });
   if (productsCount > 0) {
     logAdminCategoryCrud({
@@ -393,7 +407,48 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
        AND "deleted_at" IS NOT NULL
   `;
 
-  await db.category.delete({ where: { id } });
+  // BUG-504-A08-commit1 — defense-in-depth: translate Prisma P2003
+  // (foreign-key constraint violated) into the same 409 IN_USE
+  // envelope the layer-1 pre-check above emits. The layer-1 check
+  // counts active (`deletedAt: null`) products, and the $executeRaw
+  // above clears tombstones; together they should leave the FK
+  // unconstrained. In production we observed the pre-check returning
+  // 0 yet `db.category.delete` still throwing P2003 on
+  // `products_category_id_fkey` (Cloudflare ray 9f250bf8fe01e395
+  // + reproducer 2026-04-26 ~20:28 GMT+9 / cutebunny-api Workers
+  // Logs `[admin-categories]` line). Root-cause investigation of
+  // the visibility gap is parked under A08-commit2 (suspected RLS
+  // filtering products from the Prisma SELECT/UPDATE while
+  // Postgres's storage-layer FK enforcer still sees them). This
+  // catch keeps admin UX consistent — clients see the same 409
+  // IN_USE / `formatCategoryError` toast they'd see if the layer-1
+  // pre-check had fired correctly.
+  try {
+    await db.category.delete({ where: { id } });
+  } catch (err) {
+    const errCode =
+      typeof (err as { code?: unknown })?.code === 'string'
+        ? (err as { code: string }).code
+        : null;
+    if (errCode === 'P2003') {
+      logAdminCategoryCrud({
+        route: '/api/v1/admin/categories/:id',
+        method: 'DELETE',
+        identifier: id,
+        outcome: 'in_use_blocked',
+        errorCode: 'IN_USE',
+        details: { slug: existing.slug, layer: 'p2003-catch' },
+      });
+      return error(
+        c,
+        409,
+        'IN_USE',
+        `Cannot delete category "${existing.slug}": products still reference it. Reassign the products first or hide the category via the visibility toggles.`,
+        { slug: existing.slug },
+      );
+    }
+    throw err;
+  }
 
   await safeAuditLog(db, {
     adminId: admin.sub,

@@ -164,6 +164,8 @@ export interface AdminOrder {
   tracking_number: string | null;
   total_amount: number;
   credit_applied: number;
+  delivery_method: string;
+  return_method: string;
   payment_status: string;
   rental_period: {
     start: string;
@@ -180,6 +182,12 @@ export interface AdminOrderDetail {
   deposit_total: number;
   delivery_fee: number;
   credit_applied: number;
+  delivery_method: string;
+  return_method: string;
+  messenger_fee_send: number;
+  messenger_fee_return: number;
+  messenger_distance_km: number | null;
+  messenger_payment_mode: string | null;
   customer: {
     id: string;
     name: string;
@@ -1032,6 +1040,8 @@ export const adminApi = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    storefrontUrl: () =>
+      request<{ data: { storefront_url: string } }>('/api/v1/settings/storefront'),
   },
   // BUG-504-A03: DB-backed taxonomy CRUD (superadmin writes). Separate
   // from `settings.categories` (legacy SystemConfig JSON blob still used

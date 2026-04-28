@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { getDb } from '../lib/db';
 import { success, error } from '../lib/response';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
+import { getMessengerConfig, estimateMessenger } from '../lib/messenger';
 
 const shipping = new Hono();
 
@@ -33,6 +34,47 @@ shipping.get('/calculate', async (c) => {
     shipping_days: result.shippingDays,
     fee_enabled: feeEnabled,
     currency: 'THB',
+  });
+});
+
+// GET /api/v1/shipping/messenger-estimate — Messenger fee calculator
+shipping.get('/messenger-estimate', async (c) => {
+  const db = getDb();
+  const lat = parseFloat(c.req.query('lat') ?? '');
+  const lng = parseFloat(c.req.query('lng') ?? '');
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'lat and lng are required');
+  }
+
+  const config = await getMessengerConfig(db);
+  if (!config.enabled) {
+    return success(c, {
+      available: false,
+      reason: 'MESSENGER_DISABLED',
+    });
+  }
+
+  if (config.shopOriginLat === 0 && config.shopOriginLng === 0) {
+    return success(c, {
+      available: false,
+      reason: 'SHOP_ORIGIN_NOT_CONFIGURED',
+    });
+  }
+
+  const estimate = estimateMessenger(lat, lng, config);
+
+  return success(c, {
+    available: estimate.available,
+    distance_km: estimate.distanceKm,
+    fee: estimate.fee,
+    base_fee: estimate.baseFee,
+    per_km_fee: estimate.perKmFee,
+    currency: 'THB',
+    payment_mode: estimate.paymentMode,
+    estimated_minutes: estimate.estimatedMinutes,
+    ...(estimate.reason ? { reason: estimate.reason } : {}),
+    ...(estimate.maxDistanceKm !== undefined ? { max_distance_km: estimate.maxDistanceKm } : {}),
   });
 });
 

@@ -52,7 +52,8 @@ adminCalendar.get('/', async (c) => {
       sku: true,
       name: true,
       nameI18n: true,
-      category: true,
+      // BUG-504-A06 commit 3 — pull the FK slug for wire format.
+      categoryRef: { select: { slug: true } },
       thumbnailUrl: true,
       stockOnHand: true,
       brand: { select: { name: true, nameI18n: true } },
@@ -83,7 +84,8 @@ adminCalendar.get('/', async (c) => {
     brand: p.brand
       ? localizeField(p.brand.nameI18n as Record<string, string> | null, p.brand.name, locale)
       : null,
-    category: p.category,
+    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
+    category: p.categoryRef.slug,
     thumbnail: p.thumbnailUrl,
     stock_on_hand: p.stockOnHand,
     units: p.inventoryUnits.map((u) => ({

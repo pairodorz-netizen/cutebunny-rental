@@ -148,6 +148,12 @@
     "quantity": "数量",
     "auditLog": "审计日志",
     "noAuditLogs": "暂无变更记录",
+    "deliveryInfo": "配送信息",
+    "deliveryMethodLabel": "配送方式",
+    "returnMethodLabel": "退还方式",
+    "messengerFeeSend": "快递员费用 (送)",
+    "messengerFeeReturn": "快递员费用 (退)",
+    "messengerDistance": "距离",
     "addItem": "添加商品",
     "removeItem": "移除商品",
     "selectProduct": "选择商品",
@@ -583,6 +589,7 @@
     "tab_categories": "分类",
     "tab_store": "店铺地址",
     "tab_shipping": "配送",
+    "tab_general": "通用",
     "categoriesTitle": "产品分类",
     "categoriesDesc": "管理后台和前台共用的产品分类（slug 为小写 a-z0-9_-）。",
     "categoriesEmpty": "暂无分类。",
@@ -678,6 +685,20 @@
       "errMinZero": "值必须大于或等于 0。",
       "errMinOne": "值必须大于或等于 1。",
       "errMustBeInteger": "值必须是整数。"
-    }
+    },
+    "messengerTitle": "即时快递",
+    "messengerDesc": "配置摩托车当日送达定价和店铺位置",
+    "messengerBaseFee": "基础费用 (THB)",
+    "messengerPerKmFee": "每公里费用 (THB)",
+    "messengerBaseDistance": "基础距离 (km)",
+    "messengerMaxDistance": "最大距离 (km)",
+    "shopOrigin": "店铺坐标",
+    "latitude": "纬度",
+    "longitude": "经度",
+    "messengerSaved": "快递配置已保存",
+    "storefrontLinkTitle": "店铺链接",
+    "storefrontLinkDesc": "将此链接分享给您的客户来浏览和租赁礼服",
+    "copyLink": "复制链接",
+    "copied": "已复制!"
   }
 }

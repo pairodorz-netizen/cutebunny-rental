@@ -134,6 +134,25 @@ export interface ShippingFeeToggle {
   enabled: boolean;
 }
 
+export interface MessengerSettings {
+  enabled: boolean;
+  base_fee: number;
+  max_distance_km: number;
+}
+
+export interface MessengerEstimate {
+  available: boolean;
+  distance_km: number;
+  fee: number;
+  base_fee: number;
+  per_km_fee: number;
+  currency: string;
+  payment_mode: string;
+  estimated_minutes: number;
+  reason?: string;
+  max_distance_km?: number;
+}
+
 // BUG-504-A04: customer-side category reader. Backs the product filter UI
 // on /products and the category grid on the home page. Payload mirrors
 // the A02 public endpoint shape (snake_case at the API boundary).
@@ -145,6 +164,56 @@ export interface Category {
   sort_order: number;
   visible_frontend: boolean;
   visible_backend: boolean;
+}
+
+export interface CustomerProfile {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  tier: string;
+  rental_count: number;
+  total_payment: number;
+  credit_balance: number;
+  address: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CustomerOrderItem {
+  product_name: string;
+  size: string;
+  quantity: number;
+  subtotal: number;
+  status: string;
+  thumbnail: string | null;
+}
+
+export interface CustomerOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  rental_start: string;
+  rental_end: string;
+  total_days: number;
+  total_amount: number;
+  deposit: number;
+  delivery_fee: number;
+  items: CustomerOrderItem[];
+  created_at: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  customer: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    phone: string | null;
+    tier: string;
+  };
 }
 
 export const api = {
@@ -179,6 +248,8 @@ export const api = {
       shipping_address: { province_code: string; line1: string; city?: string; postal_code?: string };
       credit_applied?: number;
       document_urls?: Array<{ url: string; doc_type: string }>;
+      delivery_method?: 'standard' | 'messenger';
+      customer_coords?: { lat: number; lng: number };
     }) =>
       request<{ data: OrderResponse }>('/api/v1/orders', {
         method: 'POST',
@@ -206,10 +277,40 @@ export const api = {
   shipping: {
     calculate: (provinceCode: string, itemCount: number = 1) =>
       request<{ data: ShippingCalcResult }>(`/api/v1/shipping/calculate?province_code=${provinceCode}&item_count=${itemCount}`),
+    messengerEstimate: (lat: number, lng: number) =>
+      request<{ data: MessengerEstimate }>(`/api/v1/shipping/messenger-estimate?lat=${lat}&lng=${lng}`),
   },
   settings: {
     /** Public read of the global shipping-fee toggle (#36). */
     shippingFeeToggle: () =>
       request<{ data: ShippingFeeToggle }>('/api/v1/settings/shipping/fee-toggle'),
+    messenger: () =>
+      request<{ data: MessengerSettings }>('/api/v1/settings/messenger'),
+  },
+  customer: {
+    login: (email: string, password: string) =>
+      request<{ data: LoginResponse }>('/api/v1/customer/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }),
+    register: (data: { email: string; password: string; first_name: string; last_name: string; phone?: string }) =>
+      request<{ data: LoginResponse }>('/api/v1/customer/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    me: (token: string) =>
+      request<{ data: CustomerProfile }>('/api/v1/customer/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    orders: (token: string) =>
+      request<{ data: CustomerOrder[] }>('/api/v1/customer/auth/orders', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    updateProfile: (token: string, data: { first_name?: string; last_name?: string; phone?: string }) =>
+      request<{ data: CustomerProfile }>('/api/v1/customer/auth/profile', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
   },
 };

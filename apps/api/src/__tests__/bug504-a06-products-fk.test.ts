@@ -10,7 +10,7 @@
  *     Category.products backref.
  *   • RED introspection gates 1, 2, 3, 6, 7, 14.
  *
- * Commit 2 (THIS file's new gates):
+ * Commit 2 (merged):
  *   • Step 2/3 SQL: backfill UPDATE products SET category_id FROM
  *     categories c WHERE c.slug = p.category::text (1:1 trivial map),
  *     RAISE EXCEPTION on residual NULL, ALTER SET NOT NULL,
@@ -18,21 +18,30 @@
  *     keeps the two columns in sync on every write.
  *   • schema.prisma: Product.categoryId promoted to `String`
  *     (non-optional). Product.categoryRef promoted to `Category`.
- *   • apps/api: `resolveCategoryPair()` helper in admin/products.ts;
- *     POST + PATCH + CSV bulk import all dual-write. Read payloads
- *     (admin list + admin detail) expose both `category` and
- *     `category_id`.
- *   • Activates gates 4, 5, 9, 10.
+ *   • apps/api: dual-write resolver + dual-write payloads on
+ *     POST + PATCH + CSV bulk import. Read payloads exposed both
+ *     `category` and `category_id`.
+ *   • Activated gates 4, 5, 9, 10.
  *
- * Commit 3 (FINAL, gated by 24h-post-commit-2-prod + explicit
- * `FINAL_CUTOVER` ack):
- *   • Step 3/3 SQL: DROP COLUMN products.category, DROP TYPE
- *     ProductCategory, delete legacy system_config row.
- *   • Legacy /api/v1/admin/settings/categories returns 410 Gone +
- *     Sunset header (RFC 8594). Dual-write helper + PATCH branch
- *     deleted.
+ * Commit 3 (THIS file's new gates — GREEN app cutover):
+ *   • App layer is now FK-first: writes only `categoryId`; reads
+ *     source the wire `category` field from `categoryRef.slug`. The
+ *     trigger `products_sync_category_trg` remains as a DB-layer
+ *     safety net so the legacy enum column stays in sync until
+ *     commit 4 FINAL drops it.
+ *   • Helper renamed `resolveCategoryPair` → `resolveCategoryId`,
+ *     return type narrowed to `{ categoryId, slug }`. POST/PATCH
+ *     zod schemas drop the legacy `category` slug input field; the
+ *     UUID `category_id` is the only accepted form.
+ *   • Activates cutover gates (CR-A through CR-F below). The
+ *     dual-write gates 4 and 5 are flipped in-place to assert the
+ *     single-source FK contract.
+ *
+ * Commit 4 (FINAL, gated by explicit owner ack + post-commit-3 soak):
+ *   • Step 4/4 SQL: DROP TRIGGER, DROP FUNCTION, DROP COLUMN
+ *     products.category, DROP TYPE ProductCategory.
  *   • Activates gates 12, 13. Gate 8 (Playwright parity) stays green
- *     across all three commits.
+ *     across all four commits.
  *
  * All assertions here operate on on-disk artifacts (schema.prisma,
  * migration SQL, admin/products.ts source) rather than a live DB
@@ -66,9 +75,17 @@ const readStep1Migration = (): string =>
   readFileSync(STEP_1_MIGRATION_PATH, 'utf8');
 
 /**
- * Canonical ProductCategory enum values. Must match the A01 seed
- * verbatim (bug504-a01-checkpoint.md §Seed). Kept as a literal here so
- * a drift in either direction (enum OR seed) trips a gate.
+ * Canonical ProductCategory enum values. Must match the A01 seed plus
+ * any subsequent prod-extended slugs. Kept as a literal here so a
+ * drift in either direction (enum OR seed) trips a gate.
+ *
+ * BUG-504-A06 commit 3 hotfix-3: owner extended both the `categories`
+ * table and the Postgres `ProductCategory` enum with six additional
+ * slugs (`ig-brand`, `dress`, `sea-trip`, `minimal`, `vietnam`,
+ * `camera`). The Prisma schema declares the hyphenated slugs via
+ * `@map("…")` annotations because Prisma identifiers cannot contain
+ * hyphens; the gate parser below strips the annotation and compares
+ * against the mapped DB value (i.e. the slug).
  */
 const CANONICAL_SLUGS = [
   'wedding',
@@ -78,26 +95,49 @@ const CANONICAL_SLUGS = [
   'costume',
   'traditional',
   'accessories',
+  'ig-brand',
+  'dress',
+  'sea-trip',
+  'minimal',
+  'vietnam',
+  'camera',
 ] as const;
+
+/**
+ * Parse the `enum ProductCategory { … }` block of schema.prisma into
+ * the list of mapped DB values (i.e. slugs). Lines like
+ *   `ig_brand    @map("ig-brand")`
+ * become `'ig-brand'`; bare identifiers like `wedding` become
+ * `'wedding'`.
+ */
+function parseProductCategoryEnumValues(schema: string): string[] {
+  const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
+  if (!match) return [];
+  return match[1]
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('//'))
+    .map((line) => {
+      const mapped = line.match(/@map\(\s*"([^"]+)"\s*\)/);
+      if (mapped) return mapped[1];
+      // Bare identifier: take the first word.
+      return line.split(/\s+/)[0];
+    });
+}
 
 describe('BUG-504-A06 step 1/3 — products.category_id FK scaffolding', () => {
   describe('gate 1 — mapping complete (every enum value has a seeded slug)', () => {
     it('every ProductCategory enum literal appears in the canonical slug list', () => {
       const schema = readSchema();
-      // Extract the enum ProductCategory { … } block.
-      const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
+      const enumValues = parseProductCategoryEnumValues(schema);
       expect(
-        match,
+        enumValues.length,
         'schema.prisma must declare `enum ProductCategory { … }`',
-      ).not.toBeNull();
-      const enumValues = match![1]
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith('//'));
+      ).toBeGreaterThan(0);
       for (const value of enumValues) {
         expect(
           CANONICAL_SLUGS.includes(value as (typeof CANONICAL_SLUGS)[number]),
-          `enum value ${value} must have a seeded slug in categories (A01)`,
+          `enum value ${value} must have a seeded slug in categories (A01 + hotfix-3)`,
         ).toBe(true);
       }
     });
@@ -106,13 +146,8 @@ describe('BUG-504-A06 step 1/3 — products.category_id FK scaffolding', () => {
   describe('gate 2 — no unseeded extras (symmetric mapping)', () => {
     it('every canonical slug appears as a ProductCategory enum value', () => {
       const schema = readSchema();
-      const match = schema.match(/enum ProductCategory\s*{([^}]+)}/);
-      expect(match).not.toBeNull();
       const enumValues = new Set(
-        match![1]
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && !line.startsWith('//')),
+        parseProductCategoryEnumValues(schema),
       );
       for (const slug of CANONICAL_SLUGS) {
         expect(
@@ -429,75 +464,107 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
     });
   });
 
-  describe('gate 4 — admin POST /products dual-writes category AND category_id', () => {
-    it('admin/products.ts declares the resolveCategoryPair helper', () => {
+  describe('gate 4 — admin POST /products writes both categoryId AND legacy category enum (hotfix-2 dual-write)', () => {
+    it('admin/products.ts declares the resolveCategoryId helper (renamed from resolveCategoryPair)', () => {
       const source = readAdminProducts();
       expect(source).toMatch(
+        /export\s+(async\s+)?function\s+resolveCategoryId\s*\(/,
+      );
+      // The legacy dual-write helper name must be gone after commit 3.
+      expect(source).not.toMatch(
         /export\s+(async\s+)?function\s+resolveCategoryPair\s*\(/,
       );
     });
 
-    it('POST / handler invokes resolveCategoryPair before db.product.create', () => {
+    it('POST / handler invokes resolveCategoryId before db.product.create', () => {
       const source = readAdminProducts();
       // Anchor: the POST handler starts at `adminProducts.post('/',`. We
-      // capture everything up to the next `adminProducts.post(` or
-      // `adminProducts.patch(`.
+      // capture everything up to the next adminProducts.<verb>(.
       const postHandlerMatch = source.match(
         /adminProducts\.post\(\s*['"]\/['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(postHandlerMatch, 'POST / handler not found').not.toBeNull();
       const body = postHandlerMatch![0];
-      expect(body).toMatch(/resolveCategoryPair\(/);
+      expect(body).toMatch(/resolveCategoryId\(/);
       expect(body).toMatch(/db\.product\.create\(/);
       // The resolver call must precede the create call.
-      const resolverIdx = body.indexOf('resolveCategoryPair(');
+      const resolverIdx = body.indexOf('resolveCategoryId(');
       const createIdx = body.indexOf('db.product.create(');
       expect(resolverIdx).toBeGreaterThanOrEqual(0);
       expect(createIdx).toBeGreaterThan(resolverIdx);
     });
 
-    it('POST / create payload writes both category and categoryId', () => {
+    it('POST / create payload writes BOTH categoryId AND legacy category enum (hotfix-2 dual-write)', () => {
       const source = readAdminProducts();
       const postHandlerMatch = source.match(
         /adminProducts\.post\(\s*['"]\/['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(postHandlerMatch).not.toBeNull();
       const body = postHandlerMatch![0];
-      expect(body).toMatch(/category:\s*resolvedCategory/);
+      // BUG-504-A06 commit 3 hotfix-2: prod showed the BEFORE-trigger
+      // derive path leaving `category` NULL, which violated the
+      // existing NOT NULL constraint on the legacy enum column. The
+      // app now sets BOTH columns explicitly from `resolveCategoryId`
+      // output; the trigger reduces to a no-op pass-through. Commit 4
+      // FINAL drops the legacy column + trigger together.
       expect(body).toMatch(/categoryId:\s*resolvedCategoryId/);
+      // BUG-504-A06 hotfix-3: slug must be mapped to its Prisma enum
+      // identifier (hyphen → underscore) before the cast, otherwise
+      // the Prisma client rejects slugs like `ig-brand` at the TS
+      // layer with `PrismaClientValidationError`.
+      expect(body).toMatch(
+        /category:\s*slugToCategoryEnum\(\s*resolvedSlug\s*\)\s+as\s+any/,
+      );
     });
 
-    it('PATCH /:id dual-writes category and categoryRef when either field is supplied', () => {
+    it('PATCH /:id writes BOTH updateData.category AND updateData.categoryRef (hotfix-2 dual-write)', () => {
       const source = readAdminProducts();
       const patchHandlerMatch = source.match(
         /adminProducts\.patch\(\s*['"]\/:id['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(patchHandlerMatch, 'PATCH /:id handler not found').not.toBeNull();
       const body = patchHandlerMatch![0];
-      expect(body).toMatch(/resolveCategoryPair\(/);
-      expect(body).toMatch(/updateData\.category\s*=/);
+      expect(body).toMatch(/resolveCategoryId\(/);
+      // BUG-504-A06 commit 3 hotfix-2 + hotfix-3: PATCH dual-writes
+      // alongside POST and maps slug → enum identifier first.
+      expect(body).toMatch(
+        /updateData\.category\s*=\s*slugToCategoryEnum\(\s*[\s\S]*?categoryResult\.data\.slug[\s\S]*?\)\s+as\s+any/,
+      );
       expect(body).toMatch(/updateData\.categoryRef\s*=/);
     });
 
-    it('POST body schema accepts either category (slug) or category_id (UUID)', () => {
+    it('POST body schema requires category_id (UUID) and rejects legacy `category` slug field', () => {
       const source = readAdminProducts();
       const postHandlerMatch = source.match(
         /adminProducts\.post\(\s*['"]\/['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(postHandlerMatch).not.toBeNull();
       const body = postHandlerMatch![0];
-      expect(body).toMatch(/category:\s*z\.string\(\)\.min\(1\)\.optional\(\)/);
-      expect(body).toMatch(/category_id:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
+      // category_id is now required, not optional.
+      expect(body).toMatch(/category_id:\s*z\.string\(\)\.uuid\(\)(?!\.optional)/);
+      // Legacy slug input is gone from the schema.
+      expect(body).not.toMatch(/category:\s*z\.string\(\)\.min\(1\)/);
     });
 
-    it('resolver rejects when neither category nor category_id supplied', () => {
+    it('PATCH body schema accepts only category_id (optional UUID), no `category` slug field', () => {
+      const source = readAdminProducts();
+      const patchHandlerMatch = source.match(
+        /adminProducts\.patch\(\s*['"]\/:id['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
+      );
+      expect(patchHandlerMatch).not.toBeNull();
+      const body = patchHandlerMatch![0];
+      expect(body).toMatch(/category_id:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
+      expect(body).not.toMatch(/category:\s*z\.string\(\)\.min\(1\)\.optional\(\)/);
+    });
+
+    it('resolveCategoryId rejects when no category_id is supplied (FK-required error message)', () => {
       const source = readAdminProducts();
       expect(source).toMatch(
-        /Either\s+`category`\s+\(slug\)\s+or\s+`category_id`\s+\(UUID\)\s+must\s+be\s+provided/,
+        /`category_id`\s+\(UUID\)\s+is\s+required/,
       );
     });
 
-    it('resolver rejects mismatched category / category_id pair', () => {
+    it('resolver still rejects mismatched category / category_id pair (defence-in-depth)', () => {
       const source = readAdminProducts();
       expect(source).toMatch(/CATEGORY_MISMATCH/);
       expect(source).toMatch(
@@ -506,8 +573,8 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
     });
   });
 
-  describe('gate 5 — read payloads expose category_id alongside category', () => {
-    it('GET /admin/products list response includes category_id', () => {
+  describe('gate 5 — read payloads expose category from FK slug, not legacy enum', () => {
+    it('GET /admin/products list wire `category` is sourced from categoryRef.slug', () => {
       const source = readAdminProducts();
       // The list-response projection is the first `const data = products.map(`.
       const listProjection = source.match(
@@ -515,11 +582,12 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       );
       expect(listProjection, 'list projection not found').not.toBeNull();
       const body = listProjection![0];
-      expect(body).toMatch(/category:\s*p\.category/);
+      expect(body).toMatch(/category:\s*p\.categoryRef\.slug/);
+      expect(body).not.toMatch(/category:\s*p\.category[^I_R]/);
       expect(body).toMatch(/category_id:\s*p\.categoryId/);
     });
 
-    it('GET /admin/products/:id detail response includes category_id', () => {
+    it('GET /admin/products/:id detail wire `category` is sourced from categoryRef.slug', () => {
       const source = readAdminProducts();
       // Anchor: the detail handler terminates its return in a `success(c, { … })` block
       // containing `brand_id: product.brandId`.
@@ -528,19 +596,155 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       );
       expect(detailMatch, 'detail projection not found').not.toBeNull();
       const body = detailMatch![0];
-      expect(body).toMatch(/category:\s*product\.category/);
+      expect(body).toMatch(/category:\s*product\.categoryRef\.slug/);
+      expect(body).not.toMatch(/category:\s*product\.category[^I_R]/);
       expect(body).toMatch(/category_id:\s*product\.categoryId/);
     });
 
-    it('POST /admin/products 201 response includes category_id', () => {
+    it('POST /admin/products 201 wire echoes the resolver slug, not the legacy enum', () => {
       const source = readAdminProducts();
-      // Find the `created(c, { … })` return block that sits inside POST '/'.
+      // After commit 3 the created() envelope reads `category: resolvedSlug`.
       const createdReturnMatch = source.match(
-        /return\s+created\(c,\s*\{[\s\S]*?id:\s*product\.id,[\s\S]*?category:\s*product\.category,[\s\S]*?\}\);/,
+        /return\s+created\(c,\s*\{[\s\S]*?id:\s*product\.id,[\s\S]*?category:\s*resolvedSlug,[\s\S]*?\}\);/,
       );
       expect(createdReturnMatch, 'POST created() envelope not found').not.toBeNull();
       const body = createdReturnMatch![0];
       expect(body).toMatch(/category_id:\s*product\.categoryId/);
+      expect(body).not.toMatch(/category:\s*product\.category[^I_R]/);
+    });
+  });
+});
+
+// ─── Commit 3 cutover gates (active) ────────────────────────────────────
+describe('BUG-504-A06 commit 3 — app cutover (FK-first reads + writes)', () => {
+  describe('gate CR-A — ProductCategory enum import dropped', () => {
+    it('admin/products.ts no longer imports the ProductCategory type', () => {
+      const source = readAdminProducts();
+      expect(source).not.toMatch(/type\s+ProductCategory/);
+      expect(source).not.toMatch(/\bProductCategory\b/);
+    });
+
+    it('admin/products.ts no longer casts to ProductCategory', () => {
+      const source = readAdminProducts();
+      expect(source).not.toMatch(/as\s+ProductCategory/);
+    });
+  });
+
+  describe('gate CR-B — admin list filter resolves slug → categoryId', () => {
+    it('admin/products.ts does not filter `where.category =` (legacy enum)', () => {
+      const source = readAdminProducts();
+      expect(source).not.toMatch(
+        /where\.category\s*=\s*category\s+as\s+Prisma\.EnumProductCategoryFilter/,
+      );
+    });
+
+    it('admin/products.ts list filter pins where.categoryId after a slug lookup', () => {
+      const source = readAdminProducts();
+      expect(source).toMatch(/where\.categoryId\s*=/);
+    });
+  });
+
+  describe('gate CR-C — customer reads source `category` from FK', () => {
+    const CUSTOMER_PRODUCTS_PATH = join(
+      REPO_ROOT,
+      'apps',
+      'api',
+      'src',
+      'routes',
+      'products.ts',
+    );
+    const readCustomerProducts = (): string =>
+      readFileSync(CUSTOMER_PRODUCTS_PATH, 'utf8');
+
+    it('GET /products list wire `category` is sourced from categoryRef.slug', () => {
+      const source = readCustomerProducts();
+      expect(source).toMatch(/category:\s*p\.categoryRef\.slug/);
+    });
+
+    it('GET /products/:id detail wire `category` is sourced from categoryRef.slug', () => {
+      const source = readCustomerProducts();
+      expect(source).toMatch(/category:\s*product\.categoryRef\.slug/);
+    });
+
+    it('GET /products/:id related-products lookup keys on categoryId, not enum', () => {
+      const source = readCustomerProducts();
+      // Inside the relatedProducts findMany where clause.
+      expect(source).toMatch(
+        /relatedProducts\s*=\s*await\s+db\.product\.findMany\(\{[\s\S]*?where:\s*\{[\s\S]*?categoryId:\s*product\.categoryId/,
+      );
+      expect(source).not.toMatch(
+        /relatedProducts\s*=\s*await\s+db\.product\.findMany\(\{[\s\S]*?where:\s*\{[\s\S]*?category:\s*product\.category[^I_R]/,
+      );
+    });
+
+    it('GET /products list filter resolves slug → categoryId before querying', () => {
+      const source = readCustomerProducts();
+      expect(source).toMatch(/where\.categoryId\s*=/);
+      expect(source).not.toMatch(
+        /where\.category\s*=\s*category\s+as\s+Prisma\.ProductWhereInput/,
+      );
+    });
+  });
+
+  describe('gate CR-D — finance group-by reads slug from FK', () => {
+    const FINANCE_PATH = join(
+      REPO_ROOT,
+      'apps',
+      'api',
+      'src',
+      'routes',
+      'admin',
+      'finance.ts',
+    );
+    const readFinance = (): string => readFileSync(FINANCE_PATH, 'utf8');
+
+    it('group-by `category` reads product.categoryRef.slug', () => {
+      const source = readFinance();
+      expect(source).toMatch(/product\.categoryRef\?\.slug/);
+    });
+
+    it('finance.ts no longer reads product.category (legacy enum)', () => {
+      const source = readFinance();
+      // The legacy `product.category` reads must be gone. Allow
+      // `product.categoryRef`, `product.categoryId`.
+      expect(source).not.toMatch(/product\.category[^I_R]/);
+    });
+  });
+
+  describe('gate CR-E — bulk import SKU prefix + write payload use FK', () => {
+    it('bulk-import SKU prefix counts via where.categoryId, not enum', () => {
+      const source = readAdminProducts();
+      expect(source).toMatch(
+        /db\.product\.count\(\{\s*where:\s*\{\s*categoryId:\s*rowCategoryId\s*\}\s*\}\)/,
+      );
+      expect(source).not.toMatch(
+        /db\.product\.count\(\{\s*where:\s*\{\s*category:\s*row\.category/,
+      );
+    });
+
+    it('bulk-import create payload writes only categoryId (no enum field)', () => {
+      const source = readAdminProducts();
+      // The bulk-import branch is the one inside `parsedRows.forEach` /
+      // `for (const row of parsedRows)` — it must write only the FK.
+      expect(source).not.toMatch(/category:\s*row\.category\s+as\s+ProductCategory/);
+    });
+  });
+
+  describe('gate CR-F — admin calendar wire reads slug from FK', () => {
+    const CALENDAR_PATH = join(
+      REPO_ROOT,
+      'apps',
+      'api',
+      'src',
+      'routes',
+      'admin',
+      'calendar.ts',
+    );
+    const readCalendar = (): string => readFileSync(CALENDAR_PATH, 'utf8');
+
+    it('admin /calendar wire `category` is sourced from categoryRef.slug', () => {
+      const source = readCalendar();
+      expect(source).toMatch(/category:\s*p\.categoryRef\.slug/);
     });
   });
 });

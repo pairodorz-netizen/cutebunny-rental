@@ -10,6 +10,7 @@
   "nav": {
     "home": "Home",
     "products": "Products",
+    "profile": "Profile",
     "about": "About",
     "contact": "Contact",
     "cart": "Cart",
@@ -19,7 +20,8 @@
     "hero": {
       "title": "Rent Beautiful Dresses",
       "subtitle": "Premium dress rental for every occasion",
-      "cta": "Browse Collection"
+      "cta": "Start Renting",
+      "ctaFeatured": "View Featured"
     },
     "featured": {
       "title": "Featured Dresses",
@@ -27,10 +29,28 @@
     },
     "categories": {
       "title": "Shop by Category"
+    },
+    "stats": {
+      "totalDresses": "dresses in store",
+      "fastDelivery": "Express delivery 24h"
+    },
+    "popular": {
+      "title": "Popular this week"
+    },
+    "newArrivals": {
+      "title": "Just arrived"
+    },
+    "profile": {
+      "title": "Your Profile",
+      "subtitle": "Manage your profile and shipping addresses",
+      "historyTitle": "Rental History",
+      "historySubtitle": "View all your rentals and order statuses",
+      "editProfile": "Edit Profile"
     }
   },
   "products": {
-    "title": "Our Collection",
+    "title": "All Dresses",
+    "resultCount": "items",
     "loading": "Loading products...",
     "error": "Failed to load products. Please try again.",
     "empty": "No products found matching your criteria.",
@@ -42,7 +62,34 @@
       "size": "Size",
       "color": "Color",
       "priceRange": "Price Range",
-      "availability": "Availability"
+      "availability": "Available Date",
+      "filters": "Filters",
+      "searchPlaceholder": "Search dresses...",
+      "clearAll": "Clear all",
+      "colors": {
+        "white": "White",
+        "black": "Black",
+        "red": "Red",
+        "pink": "Pink",
+        "orange": "Orange",
+        "yellow": "Yellow",
+        "green": "Green",
+        "blue": "Blue",
+        "navy": "Navy",
+        "purple": "Purple",
+        "cream": "Cream",
+        "beige": "Beige",
+        "brown": "Brown",
+        "gray": "Gray",
+        "gold": "Gold",
+        "silver": "Silver"
+      },
+      "priceRanges": {
+        "under200": "Under ฿200",
+        "201to400": "฿201-฿400",
+        "401to600": "฿401-฿600",
+        "above601": "฿601+"
+      }
     },
     "card": {
       "rentFrom": "Rent from",
@@ -60,6 +107,7 @@
       "startDate": "Start Date",
       "endDate": "End Date",
       "addToCart": "Add to Cart",
+      "rentNow": "Rent Now",
       "added": "Added!",
       "totalRental": "Total Rental",
       "days": "days",
@@ -71,9 +119,48 @@
       "retailPrice": "Retail price",
       "timesRented": "times rented",
       "relatedProducts": "You May Also Like",
+      "similarDresses": "Similar Dresses",
+      "viewAll": "View All",
       "includedItems": "Included Items",
       "extraDayNote": "Extra day: {rate} THB/day after 5 days"
+    },
+    "sort": {
+      "featured": "Featured",
+      "priceLow": "Price: Low to High",
+      "priceHigh": "Price: High to Low",
+      "newest": "Newest"
     }
+  },
+  "profile": {
+    "title": "My Profile",
+    "editProfile": "Edit Profile",
+    "guestUser": "Guest User",
+    "noEmail": "No email added",
+    "name": "Full Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "save": "Save",
+    "cancel": "Cancel",
+    "rentalHistory": "Rental History",
+    "noHistory": "No rental history yet",
+    "noHistoryHint": "Start renting beautiful dresses today!",
+    "loginTitle": "Login",
+    "registerTitle": "Register",
+    "loginHint": "Login to view your profile and rental history",
+    "registerHint": "Create an account to start renting",
+    "password": "Password",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "loginBtn": "Login",
+    "registerBtn": "Register",
+    "switchToRegister": "No account? Register",
+    "switchToLogin": "Already have an account? Login",
+    "loginError": "Invalid email or password",
+    "registerError": "Registration failed. Please try again",
+    "logout": "Logout",
+    "credit": "Credit Balance",
+    "qty": "Qty"
   },
   "calendar": {
     "loading": "Loading calendar...",
@@ -127,7 +214,20 @@
     "uploadingFile": "Uploading...",
     "requireTermsAndDocs": "Please accept terms and upload documents",
     "requireTerms": "Please accept the terms",
-    "requireDocs": "Please upload at least one document"
+    "requireDocs": "Please upload at least one document",
+    "messengerFeeNote": "Messenger delivery fee: paid separately to provider (Grab/Lalamove)"
+  },
+  "delivery": {
+    "selectMethod": "Delivery Method",
+    "standard": "Standard",
+    "standardDesc": "Courier delivery, 1-3 business days",
+    "messenger": "Messenger",
+    "messengerDesc": "Motorcycle same-day delivery",
+    "payDirectlyToProvider": "Pay delivery fee directly to provider (Grab/Lalamove)",
+    "messengerDisabled": "Currently unavailable",
+    "returnMethod": "Return Method",
+    "returnMessengerRequired": "1-day rental: return via messenger (pay return fee separately)",
+    "returnStandard": "Standard courier return"
   },
   "orderStatus": {
     "title": "Order Status",

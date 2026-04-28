@@ -8,11 +8,11 @@ import { useAdminCategoriesWithDriftGuard } from '@/lib/categories-drift-guard';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Save, Plus, Trash2, Pencil, X, Shield, User, Bell, Send, GripVertical, MapPin, Truck, Tag, AlertCircle, Eye, EyeOff, Link2, Copy, Check } from 'lucide-react';
 import { SystemConfigForm } from '@/components/settings/SystemConfigForm';
 import { DriftBanner } from '@/components/drift-banner';
 
-type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping';
+type Tab = 'config' | 'users' | 'audit' | 'notifications' | 'categories' | 'store' | 'shipping' | 'general';
 
 interface AdminUserItem {
   id: string;
@@ -70,10 +70,10 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as Tab | null;
-  const [activeTab, setActiveTab] = useState<Tab>(tabFromUrl && ['config','users','audit','notifications','categories','store','shipping'].includes(tabFromUrl) ? tabFromUrl : 'config');
+  const [activeTab, setActiveTab] = useState<Tab>(tabFromUrl && ['config','users','audit','notifications','categories','store','shipping','general'].includes(tabFromUrl) ? tabFromUrl : 'config');
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab && ['config','users','audit','notifications','categories','store','shipping'].includes(tabFromUrl)) {
+    if (tabFromUrl && tabFromUrl !== activeTab && ['config','users','audit','notifications','categories','store','shipping','general'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
   }, [tabFromUrl]);
@@ -237,7 +237,7 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-muted rounded-lg p-1 mb-6 w-fit flex-wrap">
-        {(['config', 'categories', 'store', 'shipping', 'users', 'notifications', 'audit'] as Tab[])
+        {(['config', 'categories', 'store', 'shipping', 'general', 'users', 'notifications', 'audit'] as Tab[])
           // BUG-AUDIT-UI-A01: cosmetic role hide — server is the real
           // gate (403). Keeps the tab from showing for staff who would
           // only ever see a 403 if they clicked it.
@@ -673,6 +673,9 @@ export function SettingsPage() {
 
       {/* Shipping Tab (#2 + #3) */}
       {activeTab === 'shipping' && <ShippingTab />}
+
+      {/* General Tab — storefront link */}
+      {activeTab === 'general' && <StorefrontLinkTab />}
     </div>
   );
 }
@@ -1507,6 +1510,217 @@ function ShippingTab() {
           ))}
         </div>
       )}
+
+      {/* Messenger Delivery Config */}
+      <MessengerConfigSection />
+    </div>
+  );
+}
+
+function MessengerConfigSection() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+
+  const configQuery = useQuery({
+    queryKey: ['admin-config'],
+    queryFn: () => adminApi.settings.config(),
+  });
+
+  const allConfigs = (configQuery.data?.data ?? []) as Array<{ key: string; value: string }>;
+  const MESSENGER_KEYS = [
+    'messenger_enabled', 'messenger_base_fee', 'messenger_per_km_fee',
+    'messenger_base_distance_km', 'messenger_max_distance_km',
+    'shop_origin_lat', 'shop_origin_lng',
+  ];
+  const messengerMap = new Map(
+    allConfigs.filter((c) => MESSENGER_KEYS.includes(c.key)).map((c) => [c.key, c.value])
+  );
+
+  const parseVal = (key: string, fallback: string) => {
+    const raw = messengerMap.get(key) ?? fallback;
+    try { return JSON.parse(raw); } catch { return raw; }
+  };
+
+  const [enabled, setEnabled] = useState(false);
+  const [baseFee, setBaseFee] = useState('100');
+  const [perKmFee, setPerKmFee] = useState('15');
+  const [baseDist, setBaseDist] = useState('5');
+  const [maxDist, setMaxDist] = useState('50');
+  const [lat, setLat] = useState('0');
+  const [lng, setLng] = useState('0');
+  const [initialized, setInitialized] = useState(false);
+
+  if (configQuery.isSuccess && !initialized) {
+    setEnabled(String(parseVal('messenger_enabled', 'false')) === 'true');
+    setBaseFee(String(parseVal('messenger_base_fee', '100')));
+    setPerKmFee(String(parseVal('messenger_per_km_fee', '15')));
+    setBaseDist(String(parseVal('messenger_base_distance_km', '5')));
+    setMaxDist(String(parseVal('messenger_max_distance_km', '50')));
+    setLat(String(parseVal('shop_origin_lat', '0')));
+    setLng(String(parseVal('shop_origin_lng', '0')));
+    setInitialized(true);
+  }
+
+  const batchMutation = useMutation({
+    mutationFn: (updates: Record<string, string>) =>
+      adminApi.settings.batchUpdateConfig(updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-config'] }),
+  });
+
+  const handleSave = () => {
+    batchMutation.mutate({
+      messenger_enabled: JSON.stringify(enabled),
+      messenger_base_fee: JSON.stringify(baseFee),
+      messenger_per_km_fee: JSON.stringify(perKmFee),
+      messenger_base_distance_km: JSON.stringify(baseDist),
+      messenger_max_distance_km: JSON.stringify(maxDist),
+      shop_origin_lat: JSON.stringify(lat),
+      shop_origin_lng: JSON.stringify(lng),
+    });
+  };
+
+  return (
+    <div className="rounded-lg border">
+      <div className="p-4 border-b bg-muted/30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">🏍</span>
+          <div>
+            <h3 className="font-semibold">{t('settings.messengerTitle')}</h3>
+            <p className="text-xs text-muted-foreground">{t('settings.messengerDesc')}</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={() => setEnabled(!enabled)}
+          className={
+            'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors focus:outline-none ' +
+            (enabled ? 'bg-primary border-primary' : 'bg-muted border-input')
+          }
+        >
+          <span
+            className={
+              'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ' +
+              (enabled ? 'translate-x-5' : 'translate-x-0.5')
+            }
+          />
+        </button>
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{t('settings.messengerBaseFee')}</label>
+            <Input value={baseFee} onChange={(e) => setBaseFee(e.target.value)} type="number" className="mt-1 h-8" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{t('settings.messengerPerKmFee')}</label>
+            <Input value={perKmFee} onChange={(e) => setPerKmFee(e.target.value)} type="number" className="mt-1 h-8" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{t('settings.messengerBaseDistance')}</label>
+            <Input value={baseDist} onChange={(e) => setBaseDist(e.target.value)} type="number" className="mt-1 h-8" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">{t('settings.messengerMaxDistance')}</label>
+            <Input value={maxDist} onChange={(e) => setMaxDist(e.target.value)} type="number" className="mt-1 h-8" />
+          </div>
+        </div>
+        <div className="border-t pt-4">
+          <h4 className="text-xs font-semibold mb-2">{t('settings.shopOrigin')}</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">{t('settings.latitude')}</label>
+              <Input value={lat} onChange={(e) => setLat(e.target.value)} type="number" step="0.000001" className="mt-1 h-8" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">{t('settings.longitude')}</label>
+              <Input value={lng} onChange={(e) => setLng(e.target.value)} type="number" step="0.000001" className="mt-1 h-8" />
+            </div>
+          </div>
+        </div>
+        <Button size="sm" onClick={handleSave} disabled={batchMutation.isPending}>
+          {batchMutation.isPending ? t('common.loading') : t('common.save')}
+        </Button>
+        {batchMutation.isSuccess && (
+          <p className="text-xs text-green-600">{t('settings.messengerSaved')}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── STOREFRONT LINK TAB ────────────────────────────────────────────────────
+
+const FALLBACK_STOREFRONT_URL = 'https://customer-eta-ruby.vercel.app';
+
+function StorefrontLinkTab() {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  const storefrontQuery = useQuery({
+    queryKey: ['storefront-url'],
+    queryFn: () => adminApi.settings.storefrontUrl(),
+  });
+
+  const url = storefrontQuery.data?.data?.storefront_url ?? FALLBACK_STOREFRONT_URL;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for non-secure contexts
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border">
+        <div className="p-4 border-b bg-muted/30 flex items-center gap-3">
+          <Link2 className="h-5 w-5 text-muted-foreground" />
+          <div>
+            <h3 className="font-semibold">{t('settings.storefrontLinkTitle')}</h3>
+            <p className="text-xs text-muted-foreground">{t('settings.storefrontLinkDesc')}</p>
+          </div>
+        </div>
+        <div className="p-4">
+          <div className="flex items-center gap-2">
+            <Input
+              value={url}
+              readOnly
+              className="flex-1 h-9 bg-muted/50 font-mono text-sm"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 gap-1.5 shrink-0"
+              onClick={handleCopy}
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-green-600" />
+                  <span className="text-green-600">{t('settings.copied')}</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  {t('settings.copyLink')}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
