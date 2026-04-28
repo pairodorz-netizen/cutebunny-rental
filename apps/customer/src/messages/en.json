@@ -114,6 +114,7 @@
       "rentNow": "Rent Now",
       "added": "Added!",
       "totalRental": "Total Rental",
+      "day": "day",
       "days": "days",
       "backToProducts": "Back to Products",
       "notFound": "Product not found",
@@ -126,7 +127,8 @@
       "similarDresses": "Similar Dresses",
       "viewAll": "View All",
       "includedItems": "Included Items",
-      "extraDayNote": "Extra day: {rate} THB/day after 5 days"
+      "extraDayNote": "Extra day: {rate} THB/day after 5 days",
+      "perDay": "/day"
     },
     "sort": {
       "featured": "Featured",

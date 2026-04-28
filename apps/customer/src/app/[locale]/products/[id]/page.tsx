@@ -42,7 +42,7 @@ export default function ProductDetailPage() {
   const productId = params.id as string;
   const addItem = useCartStore((s) => s.addItem);
 
-  const [selectedRentalDays, setSelectedRentalDays] = useState(3);
+  const [selectedRentalDays, setSelectedRentalDays] = useState(1);
   const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
   const [customDays, setCustomDays] = useState<number | null>(null);
@@ -254,7 +254,7 @@ export default function ProductDetailPage() {
                       }`}
                     >
                       <div className="text-xs text-cb-secondary">
-                        {tier.days} {t('days')}
+                        {tier.days} {tier.days === 1 ? t('day') : t('days')}
                       </div>
                       <div className="text-xl font-bold text-cb-heading mt-1">
                         ฿{(product.rental_prices?.[tier.key] ?? 0).toLocaleString()}
@@ -353,7 +353,7 @@ export default function ProductDetailPage() {
                     ฿{rentalPrice.toLocaleString()}
                   </p>
                   <span className="text-xs text-cb-secondary">
-                    {actualDays} {t('days')}
+                    {actualDays} {actualDays === 1 ? t('day') : t('days')}
                     {selectedStartDate ? ` • ${selectedStartDate}` : ''}
                     {selectedEndDate ? ` → ${selectedEndDate}` : ''}
                   </span>
@@ -424,7 +424,7 @@ export default function ProductDetailPage() {
                     <p className="text-sm font-medium text-cb-heading line-clamp-1">{rp.name}</p>
                     <p className="text-sm font-semibold text-cb-heading mt-1">
                       ฿{rp.price_1day.toLocaleString()}
-                      <span className="text-xs font-normal text-cb-secondary ml-1">/วัน</span>
+                      <span className="text-xs font-normal text-cb-secondary ml-1">{t('perDay')}</span>
                     </p>
                   </div>
                 </Link>

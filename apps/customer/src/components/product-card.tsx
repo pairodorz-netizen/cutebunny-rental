@@ -13,6 +13,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, badge }: ProductCardProps) {
   const t = useTranslations('products');
+  const tHome = useTranslations('home');
   const [wishlisted, setWishlisted] = useState(false);
 
   return (
@@ -40,7 +41,7 @@ export function ProductCard({ product, badge }: ProductCardProps) {
         )}
         {badge === 'new' && (
           <span className="absolute top-3 left-3 bg-cb-blue-100 text-cb-heading text-[10px] font-bold uppercase px-2.5 py-1 rounded-full tracking-wide">
-            New
+            {tHome('newBadge')}
           </span>
         )}
         {!badge && product.is_popular && (

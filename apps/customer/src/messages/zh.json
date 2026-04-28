@@ -40,6 +40,10 @@
     "newArrivals": {
       "title": "新品上架"
     },
+    "banner": "NEW ARRIVAL — 本周新款",
+    "recommended": "推荐",
+    "perDay": "/天",
+    "newBadge": "新品",
     "profile": {
       "title": "个人信息",
       "subtitle": "管理您的个人资料和送货地址",
@@ -110,6 +114,7 @@
       "rentNow": "立即租赁",
       "added": "已添加！",
       "totalRental": "租赁总价",
+      "day": "天",
       "days": "天",
       "backToProducts": "返回商品列表",
       "notFound": "未找到商品",
@@ -122,7 +127,8 @@
       "similarDresses": "类似礼服",
       "viewAll": "查看全部",
       "includedItems": "套装包含",
-      "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）"
+      "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）",
+      "perDay": "/天"
     },
     "sort": {
       "featured": "推荐",
