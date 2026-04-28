@@ -175,8 +175,8 @@ export default function ProfilePage() {
           <div className="max-w-md mx-auto">
             <div className="rounded-2xl bg-white p-6 shadow-soft">
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-cb-purple/10 flex items-center justify-center mb-4">
-                  <LogIn className="h-10 w-10 text-cb-purple" />
+                <div className="w-20 h-20 rounded-full bg-cb-lavender-100 flex items-center justify-center mb-4">
+                  <LogIn className="h-10 w-10 text-cb-lavender-300" />
                 </div>
                 <h2 className="text-lg font-semibold text-cb-heading">
                   {authMode === 'login' ? t('loginTitle') : t('registerTitle')}
@@ -314,8 +314,8 @@ export default function ProfilePage() {
           <div className="lg:col-span-1">
             <div className="rounded-2xl bg-white p-6 shadow-soft">
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-cb-purple/10 flex items-center justify-center mb-4">
-                  <User className="h-10 w-10 text-cb-purple" />
+                <div className="w-20 h-20 rounded-full bg-cb-lavender-100 flex items-center justify-center mb-4">
+                  <User className="h-10 w-10 text-cb-lavender-300" />
                 </div>
                 {profileQuery.isLoading ? (
                   <div className="animate-pulse space-y-2">
@@ -331,7 +331,7 @@ export default function ProfilePage() {
                       {profile?.email ?? t('noEmail')}
                     </p>
                     {profile?.tier && (
-                      <span className="mt-2 inline-block text-xs font-medium px-3 py-1 rounded-full bg-cb-purple/10 text-cb-purple">
+                      <span className="mt-2 inline-block text-xs font-medium px-3 py-1 rounded-full bg-cb-lavender-100 text-cb-lavender-300">
                         {profile.tier}
                       </span>
                     )}

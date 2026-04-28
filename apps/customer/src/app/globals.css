@@ -6,39 +6,48 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 217 30% 30%;
+    --background: 255 67% 99%;
+    --foreground: 221 44% 41%;
     --card: 0 0% 100%;
-    --card-foreground: 217 30% 30%;
+    --card-foreground: 221 44% 41%;
     --popover: 0 0% 100%;
-    --popover-foreground: 217 30% 30%;
-    --primary: 330 60% 75%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 260 40% 92%;
-    --secondary-foreground: 217 30% 30%;
-    --muted: 220 20% 96%;
-    --muted-foreground: 217 20% 55%;
-    --accent: 180 40% 90%;
-    --accent-foreground: 217 30% 30%;
+    --popover-foreground: 221 44% 41%;
+    --primary: 259 62% 95%;
+    --primary-foreground: 221 44% 41%;
+    --secondary: 253 47% 96%;
+    --secondary-foreground: 221 44% 41%;
+    --muted: 253 47% 96%;
+    --muted-foreground: 214 44% 76%;
+    --accent: 19 46% 69%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 220 20% 92%;
-    --input: 220 20% 92%;
-    --ring: 210 60% 60%;
+    --border: 249 30% 92%;
+    --input: 249 30% 92%;
+    --ring: 210 100% 60%;
     --radius: 1.25rem;
 
-    /* CuteBunny pastel palette */
-    --cb-pink: 330 60% 75%;
-    --cb-purple: 260 40% 75%;
-    --cb-blue: 210 60% 72%;
-    --cb-mint: 160 40% 80%;
-    --cb-heading: 217 44% 36%;
-    --cb-text-secondary: 213 35% 65%;
+    /* CuteBunny Lavender wash palette */
+    --cb-lavender-100: 259 62% 95%;
+    --cb-lavender-200: 260 50% 88%;
+    --cb-lavender-300: 262 47% 81%;
+    --cb-blue-100: 215 58% 94%;
+    --cb-blue-200: 217 48% 87%;
+    --cb-blue-300: 217 51% 78%;
+    --cb-heading: 221 44% 41%;
+    --cb-text-secondary: 212 55% 67%;
+    --cb-text-faint: 214 44% 76%;
     --cb-active: 210 100% 60%;
     --cb-active-foreground: 0 0% 100%;
-    --cb-surface: 240 20% 98%;
-    --cb-gradient-start: 330 60% 95%;
-    --cb-gradient-end: 260 40% 95%;
+    --cb-surface: 253 47% 96%;
+    --cb-bg: 255 67% 99%;
+    --cb-line: 249 30% 92%;
+    --cb-line-strong: 248 22% 85%;
+    --cb-selected-hover: 209 100% 94%;
+    --cb-accent: 19 46% 69%;
+    --cb-accent-deep: 20 34% 53%;
+    --cb-gradient-start: 259 62% 95%;
+    --cb-gradient-end: 215 58% 94%;
   }
 }
 
