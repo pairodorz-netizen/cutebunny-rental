@@ -215,7 +215,7 @@
     "requireTermsAndDocs": "Please accept terms and upload documents",
     "requireTerms": "Please accept the terms",
     "requireDocs": "Please upload at least one document",
-    "messengerPayNote": "Messenger delivery fee is paid directly to the provider (Grab/Lalamove) — not included in order total"
+    "messengerFeeNote": "Messenger delivery fee: paid separately to provider (Grab/Lalamove)"
   },
   "delivery": {
     "selectMethod": "Delivery Method",
@@ -223,15 +223,11 @@
     "standardDesc": "Courier delivery, 1-3 business days",
     "messenger": "Messenger",
     "messengerDesc": "Motorcycle same-day delivery",
-    "fromPrice": "From ฿{price}",
-    "min": "min",
-    "messengerUnavailable": "Not available for your location",
+    "payDirectlyToProvider": "Pay delivery fee directly to provider (Grab/Lalamove)",
     "messengerDisabled": "Currently unavailable",
     "returnMethod": "Return Method",
-    "returnMessengerRequired": "Return via messenger",
-    "returnMessengerPayNote": "Customer pays for return delivery",
-    "returnStandard": "Standard courier return",
-    "messengerPayNote": "Pay delivery fee directly to provider (Grab/Lalamove)"
+    "returnMessengerRequired": "1-day rental: return via messenger (pay return fee separately)",
+    "returnStandard": "Standard courier return"
   },
   "orderStatus": {
     "title": "Order Status",

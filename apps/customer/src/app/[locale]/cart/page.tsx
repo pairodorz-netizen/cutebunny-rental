@@ -344,20 +344,19 @@ export default function CartPage() {
                   <span>{t('deposit')}</span>
                   <span>{totals.deposit.toLocaleString()} THB</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>{t('shippingFee')}</span>
-                  {deliveryMethod === 'messenger' ? (
-                    <span className="text-muted-foreground line-through">—</span>
-                  ) : shippingFeeEnabled ? (
-                    <span>{shippingFee.toLocaleString()} THB</span>
-                  ) : (
-                    <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
-                  )}
-                </div>
-                {deliveryMethod === 'messenger' && (
-                  <div className="flex items-start gap-2 text-xs bg-blue-50 text-blue-700 rounded-md px-3 py-2 mt-1">
-                    <Bike className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>{t('messengerPayNote')}</span>
+                {deliveryMethod === 'messenger' ? (
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-2">
+                    <Bike className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <span>{t('messengerFeeNote')}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-sm">
+                    <span>{t('shippingFee')}</span>
+                    {shippingFeeEnabled ? (
+                      <span>{shippingFee.toLocaleString()} THB</span>
+                    ) : (
+                      <span className="font-semibold text-emerald-600">{t('freeShipping')}</span>
+                    )}
                   </div>
                 )}
 

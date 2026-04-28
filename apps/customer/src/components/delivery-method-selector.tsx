@@ -9,13 +9,6 @@ interface DeliveryMethodSelectorProps {
   value: DeliveryMethodType;
   onChange: (method: DeliveryMethodType) => void;
   messengerEnabled: boolean;
-  messengerEstimate?: {
-    available: boolean;
-    fee: number;
-    distance_km: number;
-    estimated_minutes: number;
-    reason?: string;
-  } | null;
   disabled?: boolean;
 }
 
@@ -23,7 +16,6 @@ export function DeliveryMethodSelector({
   value,
   onChange,
   messengerEnabled,
-  messengerEstimate,
   disabled,
 }: DeliveryMethodSelectorProps) {
   const t = useTranslations('delivery');
@@ -68,16 +60,8 @@ export function DeliveryMethodSelector({
           <p className="text-xs text-muted-foreground">{t('messengerDesc')}</p>
           {messengerEnabled && (
             <p className="text-xs text-muted-foreground mt-1">
-              {t('messengerPayNote')}
+              {t('payDirectlyToProvider')}
             </p>
-          )}
-          {messengerEstimate?.available && (
-            <p className="text-xs font-medium text-primary mt-1">
-              ~{messengerEstimate.estimated_minutes} {t('min')}
-            </p>
-          )}
-          {messengerEstimate && !messengerEstimate.available && (
-            <p className="text-xs text-destructive mt-1">{t('messengerUnavailable')}</p>
           )}
           {!messengerEnabled && (
             <p className="text-xs text-muted-foreground mt-1">{t('messengerDisabled')}</p>
@@ -110,14 +94,7 @@ export function ReturnMethodDisplay({
         <span className="text-sm font-medium">{t('returnMethod')}</span>
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        {returnMethod === 'messenger' ? (
-          <>
-            {t('returnMessengerRequired')}
-            {' ('}{t('returnMessengerPayNote')}{')'}
-          </>
-        ) : (
-          t('returnStandard')
-        )}
+        {returnMethod === 'messenger' ? t('returnMessengerRequired') : t('returnStandard')}
       </p>
     </div>
   );

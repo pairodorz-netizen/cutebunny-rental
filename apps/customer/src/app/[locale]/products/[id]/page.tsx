@@ -52,12 +52,7 @@ export default function ProductDetailPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
-  const [, setMessengerBaseFee] = useState(100);
-  const [messengerEstimate, setMessengerEstimate] = useState<{
-    available: boolean; fee: number; distance_km: number; estimated_minutes: number; reason?: string;
-  } | null>(null);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
-  const setCartMessengerFees = useCartStore((s) => s.setMessengerFees);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +61,6 @@ export default function ProductDetailPage() {
         const result = await api.settings.messenger();
         if (!cancelled) {
           setMessengerEnabled(result.data.enabled);
-          setMessengerBaseFee(result.data.base_fee);
         }
       } catch {
         // default to disabled
@@ -326,13 +320,8 @@ export default function ProductDetailPage() {
               onChange={(m) => {
                 setDeliveryMethod(m);
                 setCartDeliveryMethod(m);
-                if (m === 'standard') {
-                  setMessengerEstimate(null);
-                  setCartMessengerFees(0, 0, null);
-                }
               }}
               messengerEnabled={messengerEnabled}
-              messengerEstimate={messengerEstimate}
             />
 
             {deliveryMethod === 'messenger' && (
