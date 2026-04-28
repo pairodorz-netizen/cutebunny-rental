@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
 import { api, type Category, type ProductListItem } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
-import { ChevronRight, ChevronLeft, Truck, User, Clock } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Truck, User, Clock, Sparkles } from 'lucide-react';
 import { useRef } from 'react';
 
 const CATEGORY_STRIPE_COLORS: Record<string, [string, string]> = {
@@ -15,6 +15,15 @@ const CATEGORY_STRIPE_COLORS: Record<string, [string, string]> = {
   vietnam:   ['#FFF3C4', '#FFF9E0'],
   camera:    ['#D5C4F7', '#E8DFF7'],
   'ig-brand': ['#FFB7A5', '#FFDDD4'],
+};
+
+const CATEGORY_EN_SUBTITLE: Record<string, string> = {
+  dress: 'DRESS',
+  'sea-trip': 'BEACH',
+  minimal: 'MINIMAL',
+  vietnam: 'VIETNAM',
+  camera: 'CAMERA',
+  'ig-brand': 'IG BRAND',
 };
 
 function categoryStripeStyle(slug: string): React.CSSProperties {
@@ -76,6 +85,14 @@ export default function HomePage() {
 
   return (
     <div>
+      {/* Announcement Banner */}
+      <div className="flex justify-center py-3">
+        <span className="inline-flex items-center gap-2 rounded-full px-5 py-1.5 text-xs font-semibold text-white" style={{ background: 'linear-gradient(135deg, #E8837C, #D4A28A)' }}>
+          <Sparkles className="h-3.5 w-3.5" />
+          NEW ARRIVAL — ชุดใหม่ประจำสัปดาห์
+        </span>
+      </div>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         {/* Decorative blobs */}
@@ -134,32 +151,33 @@ export default function HomePage() {
                   )}
                 </div>
               </div>
+              {/* Floating price overlay */}
+              {(popularProducts[0] || newProducts[0]) && (
+                <div className="absolute -bottom-3 -right-2 bg-white rounded-xl shadow-md px-4 py-2.5 z-10">
+                  <p className="text-[10px] font-medium text-cb-secondary uppercase tracking-wider">ชุดแนะนำ</p>
+                  <p className="text-sm font-bold text-cb-heading">
+                    + ฿{((popularProducts[0] || newProducts[0])?.rental_prices?.['1day'] ?? 0).toLocaleString()}
+                    <span className="text-xs font-normal text-cb-secondary"> /วัน</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </section>
 
       {/* Stats Bar */}
-      <section className="border-y" style={{ borderColor: '#EFEAF6' }}>
-        <div className="container py-5">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-cb-lavender-100 flex items-center justify-center">
-                <span className="text-cb-lavender-300 text-lg">👗</span>
-              </div>
-              <div>
-                <span className="text-2xl font-bold text-cb-heading">{allProductsQuery.isLoading ? '—' : totalCount}</span>
-                <span className="text-sm text-cb-secondary ml-2">{t('home.stats.totalDresses')}</span>
-              </div>
+      <section className="py-6">
+        <div className="container">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="inline-flex items-center gap-3 rounded-full bg-white shadow-sm border border-border px-6 py-3">
+              <span className="text-lg">👗</span>
+              <span className="text-xl font-bold text-cb-heading">{allProductsQuery.isLoading ? '—' : totalCount}</span>
+              <span className="text-sm text-cb-secondary">{t('home.stats.totalDresses')}</span>
             </div>
-            <div className="hidden sm:block w-px h-8 bg-border" />
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-cb-blue-100 flex items-center justify-center">
-                <Truck className="h-5 w-5 text-cb-blue-300" />
-              </div>
-              <div>
-                <span className="text-sm font-medium text-cb-heading">{t('home.stats.fastDelivery')}</span>
-              </div>
+            <div className="inline-flex items-center gap-3 rounded-full bg-white shadow-sm border border-border px-6 py-3">
+              <Truck className="h-5 w-5 text-cb-blue-300" />
+              <span className="text-sm font-medium text-cb-heading">{t('home.stats.fastDelivery')}</span>
             </div>
           </div>
         </div>
@@ -195,6 +213,9 @@ export default function HomePage() {
                 </div>
                 <p className="text-xs font-medium text-cb-heading text-center line-clamp-2">
                   {categoryLabel(row)}
+                </p>
+                <p className="text-[10px] text-cb-secondary/70 text-center uppercase tracking-wider">
+                  {CATEGORY_EN_SUBTITLE[row.slug] ?? row.name_en}
                 </p>
               </Link>
             ))}
@@ -235,14 +256,14 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => scrollCarousel(popularScrollRef, 'left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading hover:scale-110 transition-transform z-10"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
                 onClick={() => scrollCarousel(popularScrollRef, 'right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading hover:scale-110 transition-transform z-10"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -284,14 +305,14 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => scrollCarousel(newScrollRef, 'left')}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading hover:scale-110 transition-transform z-10"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
                 onClick={() => scrollCarousel(newScrollRef, 'right')}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading hover:scale-110 transition-transform z-10"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
