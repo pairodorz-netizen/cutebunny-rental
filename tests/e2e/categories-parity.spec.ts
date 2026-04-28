@@ -52,13 +52,24 @@ async function readRenderedCategoryButtons(
   page: Page,
 ): Promise<Array<{ slug: string; label: string }>> {
   const locator = page.locator('[data-testid="category-filter-option"]');
-  await locator.first().waitFor({ state: 'visible', timeout: 15_000 });
+  await locator.first().waitFor({ state: 'visible', timeout: 30_000 });
   return locator.evaluateAll((els) =>
     els.map((el) => ({
       slug: (el as HTMLElement).dataset.slug ?? '',
       label: (el.textContent ?? '').trim(),
     })),
   );
+}
+
+/** Navigate to a products page and wait for the categories API to respond. */
+async function gotoProductsPage(page: Page, path: string): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(
+      (resp) => resp.url().includes('/api/v1/categories') && resp.status() === 200,
+      { timeout: 30_000 },
+    ),
+    page.goto(path, { waitUntil: 'domcontentloaded' }),
+  ]);
 }
 
 test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
@@ -79,7 +90,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 1 — every visible API slug is rendered on /th/products', async ({
     page,
   }) => {
-    await page.goto('/th/products');
+    await gotoProductsPage(page, '/th/products');
     const rendered = await readRenderedCategoryButtons(page);
     const renderedSlugs = new Set(rendered.map((r) => r.slug));
     const missing = visibleApiCategories
@@ -94,7 +105,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 2 — no slug is rendered that is not in the API list', async ({
     page,
   }) => {
-    await page.goto('/th/products');
+    await gotoProductsPage(page, '/th/products');
     const rendered = await readRenderedCategoryButtons(page);
     const apiSlugs = new Set(apiCategories.map((c) => c.slug));
     const extra = rendered
@@ -109,7 +120,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 3 — filter buttons preserve API sort_order ASC', async ({
     page,
   }) => {
-    await page.goto('/th/products');
+    await gotoProductsPage(page, '/th/products');
     const rendered = await readRenderedCategoryButtons(page);
     const expected = visibleApiCategories.map((c) => c.slug);
     const actual = rendered.map((r) => r.slug);
@@ -119,7 +130,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 4 — visible_frontend=false categories do NOT leak to customer', async ({
     page,
   }) => {
-    await page.goto('/th/products');
+    await gotoProductsPage(page, '/th/products');
     const rendered = await readRenderedCategoryButtons(page);
     const hiddenSlugs = apiCategories
       .filter((c) => !c.visible_frontend)
@@ -136,7 +147,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 5 — label text equals name_th on /th (no capitalized-slug regression)', async ({
     page,
   }) => {
-    await page.goto('/th/products');
+    await gotoProductsPage(page, '/th/products');
     const rendered = await readRenderedCategoryButtons(page);
     expect(rendered.length).toBeGreaterThan(0);
     for (const entry of rendered) {
@@ -162,7 +173,7 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 6 — /en/products renders name_en (locale switch keeps parity)', async ({
     page,
   }) => {
-    await page.goto('/en/products');
+    await gotoProductsPage(page, '/en/products');
     const rendered = await readRenderedCategoryButtons(page);
     expect(rendered.length).toBeGreaterThan(0);
     for (const entry of rendered) {
