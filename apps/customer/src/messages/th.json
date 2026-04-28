@@ -35,11 +35,15 @@
       "fastDelivery": "จัดส่งด่วน 24h"
     },
     "popular": {
-      "title": "ชุดยอดนิยม this week"
+      "title": "ชุดยอดนิยมประจำสัปดาห์"
     },
     "newArrivals": {
-      "title": "เพิ่งเข้าใหม่ just arrived"
+      "title": "เพิ่งเข้าใหม่d"
     },
+        "banner": "NEW ARRIVAL — ชุดใหม่ประจำสัปดาห์",
+        "recommended": "ชุดแนะนำ",
+        "perDay": "/วัน",
+        "newBadge": "ใหม่",
     "profile": {
       "title": "ข้อมูลส่วนตัว",
       "subtitle": "จัดการโปรไฟล์และที่อยู่จัดส่งของคุณ",
