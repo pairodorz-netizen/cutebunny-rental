@@ -5,7 +5,28 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
 import { api, type Category, type ProductListItem } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
-import { ChevronRight, Truck, User, Clock } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Truck, User, Clock } from 'lucide-react';
+import { useRef } from 'react';
+
+const CATEGORY_STRIPE_COLORS: Record<string, [string, string]> = {
+  dress:     ['#FFD1DC', '#FFE8EE'],
+  'sea-trip': ['#B5D8F7', '#DCEEF7'],
+  minimal:   ['#B5EAD7', '#D4F5E9'],
+  vietnam:   ['#FFF3C4', '#FFF9E0'],
+  camera:    ['#D5C4F7', '#E8DFF7'],
+  'ig-brand': ['#FFB7A5', '#FFDDD4'],
+};
+
+function categoryStripeStyle(slug: string): React.CSSProperties {
+  const [a, b] = CATEGORY_STRIPE_COLORS[slug] ?? ['#E0D4F5', '#F0EAF9'];
+  return {
+    background: `repeating-linear-gradient(
+      135deg,
+      ${a} 0px, ${a} 8px,
+      ${b} 8px, ${b} 16px
+    )`,
+  };
+}
 
 export default function HomePage() {
   const t = useTranslations();
@@ -39,6 +60,15 @@ export default function HomePage() {
   const popularProducts: ProductListItem[] = popularQuery.data?.data ?? [];
   const newProducts: ProductListItem[] = newArrivalsQuery.data?.data ?? [];
   const totalCount = allProductsQuery.data?.meta?.total ?? 0;
+
+  const popularScrollRef = useRef<HTMLDivElement>(null);
+  const newScrollRef = useRef<HTMLDivElement>(null);
+
+  function scrollCarousel(ref: React.RefObject<HTMLDivElement | null>, dir: 'left' | 'right') {
+    if (!ref.current) return;
+    const amount = ref.current.clientWidth * 0.8;
+    ref.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+  }
 
   function categoryLabel(row: Category): string {
     return locale === 'th' ? row.name_th : row.name_en;
@@ -118,7 +148,7 @@ export default function HomePage() {
                 <span className="text-cb-lavender-300 text-lg">👗</span>
               </div>
               <div>
-                <span className="text-2xl font-bold text-cb-heading">{totalCount}</span>
+                <span className="text-2xl font-bold text-cb-heading">{allProductsQuery.isLoading ? '—' : totalCount}</span>
                 <span className="text-sm text-cb-secondary ml-2">{t('home.stats.totalDresses')}</span>
               </div>
             </div>
@@ -157,8 +187,11 @@ export default function HomePage() {
                 href={`/products?category=${row.slug}`}
                 className="shrink-0 w-28 group"
               >
-                <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-cb-lavender-100 to-cb-blue-100 flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow">
-                  <span className="text-3xl">👗</span>
+                <div
+                  className="w-28 h-28 rounded-2xl overflow-hidden flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow"
+                  style={categoryStripeStyle(row.slug)}
+                >
+                  <span className="text-3xl drop-shadow-sm">👗</span>
                 </div>
                 <p className="text-xs font-medium text-cb-heading text-center line-clamp-2">
                   {categoryLabel(row)}
@@ -191,12 +224,28 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
-              {popularProducts.slice(0, 8).map((product, idx) => (
-                <div key={product.id} className="shrink-0 w-64">
-                  <ProductCard product={product} badge={idx < 2 ? 'bestseller' : undefined} />
-                </div>
-              ))}
+            <div className="relative group/carousel">
+              <div ref={popularScrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 scroll-smooth">
+                {popularProducts.slice(0, 8).map((product, idx) => (
+                  <div key={product.id} className="shrink-0 w-[calc(25%-12px)] min-w-[200px]">
+                    <ProductCard product={product} badge={idx < 2 ? 'bestseller' : undefined} />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollCarousel(popularScrollRef, 'left')}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollCarousel(popularScrollRef, 'right')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
           )}
         </div>
@@ -224,12 +273,28 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
-              {newProducts.slice(0, 8).map((product) => (
-                <div key={product.id} className="shrink-0 w-64">
-                  <ProductCard product={product} badge="new" />
-                </div>
-              ))}
+            <div className="relative group/carousel">
+              <div ref={newScrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 scroll-smooth">
+                {newProducts.slice(0, 8).map((product) => (
+                  <div key={product.id} className="shrink-0 w-[calc(25%-12px)] min-w-[200px]">
+                    <ProductCard product={product} badge="new" />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => scrollCarousel(newScrollRef, 'left')}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollCarousel(newScrollRef, 'right')}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-10 h-10 rounded-full bg-white shadow-md flex items-center justify-center text-cb-heading opacity-0 group-hover/carousel:opacity-100 transition-opacity hover:scale-110 z-10"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
           )}
         </div>
