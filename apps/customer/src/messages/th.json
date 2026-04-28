@@ -127,6 +127,7 @@
       "rentNow": "เช่าเลย",
       "added": "เพิ่มแล้ว!",
       "totalRental": "ค่าเช่ารวม",
+      "day": "วัน",
       "days": "วัน",
             "day": "วัน",
       "backToProducts": "กลับไปหน้าสินค้า",
@@ -140,7 +141,8 @@
       "similarDresses": "ชุดที่คล้ายกัน",
       "viewAll": "ดูทั้งหมด",
       "includedItems": "สินค้าในชุด",
-      "extraDayNote": "วันเพิ่มเติม: {rate} บาท/วัน หลังจาก 5 วัน"
+      "extraDayNote": "วันเพิ่มเติม: {rate} บาท/วัน หลังจาก 5 วัน",
+      "perDay": "/วัน"
     }
   },
   "profile": {
