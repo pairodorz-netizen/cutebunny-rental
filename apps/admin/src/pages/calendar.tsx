@@ -49,8 +49,9 @@ export function CalendarPage() {
   const { t } = useTranslation();
   const now = new Date();
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date(now.getFullYear(), now.getMonth(), 1);
-    return d.toISOString().split('T')[0];
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
   });
 
   // BUG-CAL-06 — derive the month end via pure string math so month boundaries
@@ -192,15 +193,17 @@ export function CalendarPage() {
   const dates: string[] = generateMonthDays(startDate);
 
   function prevMonth() {
-    const d = new Date(startDate);
-    d.setMonth(d.getMonth() - 1);
-    setStartDate(d.toISOString().split('T')[0]);
+    const [y, m] = startDate.split('-').map(Number);
+    const pm = m === 1 ? 12 : m - 1;
+    const py = m === 1 ? y - 1 : y;
+    setStartDate(`${py}-${String(pm).padStart(2, '0')}-01`);
   }
 
   function nextMonth() {
-    const d = new Date(startDate);
-    d.setMonth(d.getMonth() + 1);
-    setStartDate(d.toISOString().split('T')[0]);
+    const [y, m] = startDate.split('-').map(Number);
+    const nm = m === 12 ? 1 : m + 1;
+    const ny = m === 12 ? y + 1 : y;
+    setStartDate(`${ny}-${String(nm).padStart(2, '0')}-01`);
   }
 
   return (
