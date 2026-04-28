@@ -166,6 +166,56 @@ export interface Category {
   visible_backend: boolean;
 }
 
+export interface CustomerProfile {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  tier: string;
+  rental_count: number;
+  total_payment: number;
+  credit_balance: number;
+  address: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CustomerOrderItem {
+  product_name: string;
+  size: string;
+  quantity: number;
+  subtotal: number;
+  status: string;
+  thumbnail: string | null;
+}
+
+export interface CustomerOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  rental_start: string;
+  rental_end: string;
+  total_days: number;
+  total_amount: number;
+  deposit: number;
+  delivery_fee: number;
+  items: CustomerOrderItem[];
+  created_at: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  customer: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    phone: string | null;
+    tier: string;
+  };
+}
+
 export const api = {
   categories: {
     list: () => request<{ data: Category[] }>('/api/v1/categories'),
@@ -236,5 +286,31 @@ export const api = {
       request<{ data: ShippingFeeToggle }>('/api/v1/settings/shipping/fee-toggle'),
     messenger: () =>
       request<{ data: MessengerSettings }>('/api/v1/settings/messenger'),
+  },
+  customer: {
+    login: (email: string, password: string) =>
+      request<{ data: LoginResponse }>('/api/v1/customer/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }),
+    register: (data: { email: string; password: string; first_name: string; last_name: string; phone?: string }) =>
+      request<{ data: LoginResponse }>('/api/v1/customer/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    me: (token: string) =>
+      request<{ data: CustomerProfile }>('/api/v1/customer/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    orders: (token: string) =>
+      request<{ data: CustomerOrder[] }>('/api/v1/customer/auth/orders', {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+    updateProfile: (token: string, data: { first_name?: string; last_name?: string; phone?: string }) =>
+      request<{ data: CustomerProfile }>('/api/v1/customer/auth/profile', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(data),
+      }),
   },
 };
