@@ -19,7 +19,10 @@
   "home": {
     "hero": {
       "title": "租赁精美礼服",
-      "subtitle": "各种场合的高端礼服租赁服务",
+      "titleLine1": "租赁精美",
+      "titleLine2": "梦想礼服",
+      "titleLine3": "预算无忧",
+      "subtitle": "以您负担得起的价格租赁美丽礼服 — 品牌精品礼服，送货上门，轻松退还",
       "cta": "开始租赁",
       "ctaFeatured": "查看精选"
     },
@@ -39,6 +42,13 @@
     },
     "newArrivals": {
       "title": "新品上架"
+    },
+    "banner": {
+      "newArrival": "本周新品上架"
+    },
+    "popup": {
+      "recommended": "推荐",
+      "perDay": "/天"
     },
     "profile": {
       "title": "个人信息",
@@ -97,6 +107,7 @@
       "viewDetails": "查看详情",
       "outOfStock": "无库存",
       "popular": "热门",
+      "new": "新品",
       "rented": "次租赁"
     },
     "detail": {
@@ -169,7 +180,9 @@
     "available": "可用",
     "booked": "已预订",
     "cleaning": "清洁中",
-    "selectEndDate": "点击另一个日期设为结束日期"
+    "selectEndDate": "点击另一个日期设为结束日期",
+    "days": ["日", "一", "二", "三", "四", "五", "六"],
+    "months": ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
   },
   "cart": {
     "title": "购物车",

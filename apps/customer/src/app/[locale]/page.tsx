@@ -49,7 +49,7 @@ export default function HomePage() {
       <div className="flex justify-center py-3">
         <span className="inline-flex items-center gap-2 rounded-full px-5 py-1.5 text-xs font-semibold text-white" style={{ background: 'linear-gradient(135deg, #E8837C, #D4A28A)' }}>
           <Sparkles className="h-3.5 w-3.5" />
-          {t('home.banner')}
+          {t('home.banner.newArrival')}
         </span>
       </div>
 
@@ -67,7 +67,10 @@ export default function HomePage() {
                 className="font-serif text-cb-heading mb-4"
                 style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em' }}
               >
-                {t('home.hero.title')}
+                {t('home.hero.titleLine1')}<br />
+                <span className="italic" style={{ color: '#9F848D', fontWeight: 400 }}>{t('home.hero.titleLine2')}</span>
+                <br />
+                {t('home.hero.titleLine3')}
               </h1>
               <p className="font-sans-thai text-lg md:text-xl text-cb-secondary mb-8 max-w-lg">
                 {t('home.hero.subtitle')}
@@ -111,10 +114,10 @@ export default function HomePage() {
               {/* Floating price overlay */}
               {(popularProducts[0] || newProducts[0]) && (
                 <div className="absolute -bottom-3 -right-2 bg-white rounded-xl shadow-md px-4 py-2.5 z-10">
-                  <p className="text-[10px] font-medium text-cb-secondary uppercase tracking-wider">{t('home.recommended')}</p>
+                  <p className="text-[10px] font-medium text-cb-secondary uppercase tracking-wider">{t('home.popup.recommended')}</p>
                   <p className="text-sm font-bold text-cb-heading">
                     + ฿{((popularProducts[0] || newProducts[0])?.rental_prices?.['1day'] ?? 0).toLocaleString()}
-                    <span className="text-xs font-normal text-cb-secondary"> {t('home.perDay')}</span>
+                    <span className="text-xs font-normal text-cb-secondary"> {t('home.popup.perDay')}</span>
                   </p>
                 </div>
               )}
@@ -237,6 +240,8 @@ export default function HomePage() {
           )}
         </div>
       </section>
-            </div>
+
+
+    </div>
   );
 }

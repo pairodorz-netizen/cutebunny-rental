@@ -144,6 +144,7 @@ export default function ProductsPage() {
         <h3 className="text-sm font-semibold text-cb-heading mb-3">{t('filter.availability')}</h3>
         <input
           type="date"
+          lang={locale === 'th' ? 'th' : 'en'}
           value={availDate}
           onChange={(e) => { setAvailDate(e.target.value); setPage(1); }}
           min={new Date().toISOString().split('T')[0]}
