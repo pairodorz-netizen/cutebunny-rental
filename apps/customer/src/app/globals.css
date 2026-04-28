@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 255 67% 99%;
+    --background: 0 0% 100%;
     --foreground: 221 44% 41%;
     --card: 0 0% 100%;
     --card-foreground: 221 44% 41%;
@@ -22,12 +22,19 @@
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 249 30% 92%;
-    --input: 249 30% 92%;
+    --border: 265 40% 94%;
+    --input: 265 40% 94%;
     --ring: 210 100% 60%;
     --radius: 1.25rem;
 
-    /* CuteBunny Lavender wash palette */
+    /* Draft 1 — Pastel Blue/Purple */
+    --bg: #FBF9FF;
+    --line: #EFEAF6;
+    --purple-deep: #9F848D;
+    --shadow-sm: 0 1px 2px rgba(160,140,200,0.08), 0 2px 8px rgba(160,140,200,0.06);
+    --shadow-md: 0 4px 14px rgba(160,140,200,0.12), 0 12px 32px rgba(160,140,200,0.08);
+
+    /* CuteBunny palette */
     --cb-lavender-100: 259 62% 95%;
     --cb-lavender-200: 260 50% 88%;
     --cb-lavender-300: 262 47% 81%;
@@ -53,11 +60,14 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--line);
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', sans-serif;
+    background: var(--bg);
+    color: hsl(var(--foreground));
+    font-family: 'Plus Jakarta Sans', 'Noto Sans Thai', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   h1, h2, h3, h4, h5, h6 {
     color: hsl(var(--cb-heading));
@@ -66,10 +76,15 @@
 
 @layer utilities {
   .font-display {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: 'Fraunces', 'Noto Serif Thai', serif;
+    font-optical-sizing: auto;
+  }
+  .font-serif {
+    font-family: 'Fraunces', 'Noto Serif Thai', serif;
+    font-optical-sizing: auto;
   }
   .font-sans-thai {
-    font-family: 'Noto Sans Thai', 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Noto Sans Thai', 'Plus Jakarta Sans', system-ui, sans-serif;
   }
   .text-heading {
     color: hsl(var(--cb-heading));
@@ -82,6 +97,18 @@
   }
   .bg-surface {
     background-color: hsl(var(--cb-surface));
+  }
+  .bg-sidebar-gradient {
+    background: linear-gradient(135deg, #DCEEF7 0%, #E5DCF2 100%);
+  }
+  .bg-summary-gradient {
+    background: linear-gradient(135deg, #DCEEF7 0%, #E5DCF2 100%);
+  }
+  .shadow-draft {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-draft-md {
+    box-shadow: var(--shadow-md);
   }
 
   /* Hide scrollbar for carousel */

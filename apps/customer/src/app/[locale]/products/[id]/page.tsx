@@ -337,7 +337,7 @@ export default function ProductDetailPage() {
             />
 
             {/* Summary Bar */}
-            <div className="rounded-2xl bg-white p-5 shadow-soft space-y-3">
+            <div className="rounded-2xl bg-summary-gradient p-5 shadow-soft space-y-3">
               {/* Deposit */}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-cb-secondary">{t('depositNote')}</span>

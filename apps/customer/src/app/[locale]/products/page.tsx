@@ -366,8 +366,13 @@ export default function ProductsPage() {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Desktop Sidebar */}
           <aside className="hidden md:block w-64 shrink-0">
-            <div className="rounded-2xl bg-white p-5 shadow-soft sticky top-24">
-              {filterSidebar}
+            <div className="rounded-2xl bg-white shadow-soft sticky top-24 overflow-hidden">
+              <div className="bg-sidebar-gradient px-5 py-3">
+                <h3 className="text-sm font-semibold text-cb-heading">{t('filter.filters')}</h3>
+              </div>
+              <div className="p-5">
+                {filterSidebar}
+              </div>
             </div>
           </aside>
 
