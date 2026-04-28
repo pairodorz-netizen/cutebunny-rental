@@ -74,8 +74,8 @@ export default function HomePage() {
             </div>
             <div className="hidden md:flex justify-center">
               <div className="relative w-80 h-96">
-                <div className="absolute top-0 right-0 w-64 h-80 rounded-2xl bg-cb-pink/20 transform rotate-3" />
-                <div className="absolute top-4 right-8 w-64 h-80 rounded-2xl bg-cb-purple/20 transform -rotate-2" />
+                <div className="absolute top-0 right-0 w-64 h-80 rounded-2xl bg-cb-lavender-200/20 transform rotate-3" />
+                <div className="absolute top-4 right-8 w-64 h-80 rounded-2xl bg-cb-lavender-300/20 transform -rotate-2" />
                 <div className="absolute top-8 right-4 w-64 h-80 rounded-2xl bg-white shadow-card overflow-hidden">
                   {(popularProducts[0]?.thumbnail || newProducts[0]?.thumbnail) ? (
                     <img
@@ -103,8 +103,8 @@ export default function HomePage() {
         <div className="container py-5">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-cb-pink/10 flex items-center justify-center">
-                <span className="text-cb-pink text-lg">👗</span>
+              <div className="w-10 h-10 rounded-full bg-cb-lavender-100 flex items-center justify-center">
+                <span className="text-cb-lavender-300 text-lg">👗</span>
               </div>
               <div>
                 <span className="text-2xl font-bold text-cb-heading">{totalCount}</span>
@@ -113,8 +113,8 @@ export default function HomePage() {
             </div>
             <div className="hidden sm:block w-px h-8 bg-border" />
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-cb-blue/10 flex items-center justify-center">
-                <Truck className="h-5 w-5 text-cb-blue" />
+              <div className="w-10 h-10 rounded-full bg-cb-blue-100 flex items-center justify-center">
+                <Truck className="h-5 w-5 text-cb-blue-300" />
               </div>
               <div>
                 <span className="text-sm font-medium text-cb-heading">{t('home.stats.fastDelivery')}</span>
@@ -146,7 +146,7 @@ export default function HomePage() {
                 href={`/products?category=${row.slug}`}
                 className="shrink-0 w-28 group"
               >
-                <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-cb-pink/10 to-cb-purple/10 flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow">
+                <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-cb-lavender-100 to-cb-blue-100 flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow">
                   <span className="text-3xl">👗</span>
                 </div>
                 <p className="text-xs font-medium text-cb-heading text-center line-clamp-2">
@@ -230,8 +230,8 @@ export default function HomePage() {
           <div className="rounded-2xl bg-white shadow-card p-8">
             <div className="flex flex-col md:flex-row gap-8">
               <div className="flex-1 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-cb-purple/10 flex items-center justify-center shrink-0">
-                  <User className="h-8 w-8 text-cb-purple" />
+                <div className="w-16 h-16 rounded-full bg-cb-lavender-100 flex items-center justify-center shrink-0">
+                  <User className="h-8 w-8 text-cb-lavender-300" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-cb-heading">{t('home.profile.title')}</h3>
@@ -239,7 +239,7 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="flex-1 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-cb-mint/20 flex items-center justify-center shrink-0">
+                <div className="w-16 h-16 rounded-full bg-cb-blue-100 flex items-center justify-center shrink-0">
                   <Clock className="h-8 w-8 text-emerald-500" />
                 </div>
                 <div>
