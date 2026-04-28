@@ -34,7 +34,7 @@ export default async function LocaleLayout({
           <Providers>
             <Header />
             <main className="flex-1">{children}</main>
-            <footer className="border-t border-border/50 py-6 mt-auto bg-cb-surface">
+            <footer className="border-t py-6 mt-auto bg-white" style={{ borderColor: '#EFEAF6' }}>
               <div className="container text-center text-sm text-cb-secondary">
                 &copy; {new Date().getFullYear()} CuteBunny Rental
               </div>

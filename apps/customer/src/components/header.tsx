@@ -24,7 +24,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-md border-b border-border/40">
+    <header className="sticky top-0 z-50 w-full backdrop-blur-[12px] border-b" style={{ background: 'rgba(255,255,255,0.85)', borderColor: '#EFEAF6' }}>
       <div className="container flex h-16 items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
@@ -99,7 +99,7 @@ export function Header() {
 
       {/* Mobile Nav */}
       {mobileOpen && (
-        <div className="md:hidden border-t border-border/40 bg-white/95 backdrop-blur-md">
+        <div className="md:hidden border-t bg-white/95 backdrop-blur-[12px]" style={{ borderColor: '#EFEAF6' }}>
           <nav className="container py-4 flex flex-col gap-1">
             {navItems.map((item) => (
               <Link

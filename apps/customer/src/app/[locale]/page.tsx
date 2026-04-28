@@ -47,15 +47,26 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-pastel-gradient">
-        <div className="container py-16 md:py-24">
+      <section className="relative overflow-hidden">
+        {/* Decorative blobs */}
+        <div className="absolute pointer-events-none" style={{ width: 500, height: 500, top: -100, right: -50, opacity: 0.6, background: 'radial-gradient(circle, #FFD1DC 0%, transparent 70%)' }} />
+        <div className="absolute pointer-events-none" style={{ width: 400, height: 400, bottom: -80, left: -30, opacity: 0.5, background: 'radial-gradient(circle, #C3AED6 0%, transparent 70%)' }} />
+        <div className="absolute pointer-events-none" style={{ width: 350, height: 350, top: '50%', left: '40%', opacity: 0.4, background: 'radial-gradient(circle, #B5EAD7 0%, transparent 70%)' }} />
+
+        <div className="container relative py-16 md:py-24">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div className="text-center md:text-left">
-              <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold text-cb-heading leading-tight mb-4">
-                {t('home.hero.title')}
+              <h1
+                className="font-serif text-cb-heading mb-4"
+                style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em' }}
+              >
+                Wear the{' '}
+                <span className="italic" style={{ color: '#9F848D', fontWeight: 400 }}>dream dress,</span>
+                <br />
+                keep the budget.
               </h1>
-              <p className="text-lg md:text-xl text-cb-secondary mb-8 max-w-lg">
-                {t('home.hero.subtitle')}
+              <p className="font-sans-thai text-lg md:text-xl text-cb-secondary mb-8 max-w-lg">
+                เช่าชุดสวย ในราคาที่คุณเอื้อมถึง — ชุดแบรนด์เนมพรีเมียม จัดส่งถึงบ้าน คืนง่าย ไม่ยุ่งยาก
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
                 <Link
@@ -99,7 +110,7 @@ export default function HomePage() {
       </section>
 
       {/* Stats Bar */}
-      <section className="bg-white border-y border-border/50">
+      <section className="bg-white border-y" style={{ borderColor: '#EFEAF6' }}>
         <div className="container py-5">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
             <div className="flex items-center gap-3">
