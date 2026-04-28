@@ -5,6 +5,7 @@ import { Link, usePathname } from '@/i18n/routing';
 import { Search, Heart, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { useState } from 'react';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 
 export function Header() {
   const t = useTranslations('nav');
@@ -53,6 +54,7 @@ export function Header() {
 
         {/* Right icons */}
         <div className="flex items-center gap-2">
+                        <LocaleSwitcher />
           <button
             type="button"
             className="p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
