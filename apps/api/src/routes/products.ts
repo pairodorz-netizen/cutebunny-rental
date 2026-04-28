@@ -23,6 +23,7 @@ products.get('/', async (c) => {
   const brand = c.req.query('brand');
   const priceMin = c.req.query('price_min');
   const priceMax = c.req.query('price_max');
+  const sort = c.req.query('sort');
 
   const where: Prisma.ProductWhereInput = { available: true };
 
@@ -97,7 +98,12 @@ products.get('/', async (c) => {
       },
       skip: (page - 1) * perPage,
       take: perPage,
-      orderBy: { createdAt: 'desc' },
+      orderBy:
+        sort === 'price_asc'
+          ? { rentalPrice1Day: 'asc' as const }
+          : sort === 'price_desc'
+            ? { rentalPrice1Day: 'desc' as const }
+            : { createdAt: 'desc' as const },
     }),
     db.product.count({ where }),
   ]);
