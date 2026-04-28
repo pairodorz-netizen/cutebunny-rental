@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
+import { Heart } from 'lucide-react';
 import type { ProductListItem } from '@/lib/api';
 
 interface ProductCardProps {
@@ -11,6 +13,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, badge }: ProductCardProps) {
   const t = useTranslations('products');
+  const [wishlisted, setWishlisted] = useState(false);
 
   return (
     <Link
@@ -45,6 +48,16 @@ export function ProductCard({ product, badge }: ProductCardProps) {
             {t('card.popular')}
           </span>
         )}
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setWishlisted((v) => !v); }}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white hover:scale-110 transition-all z-10"
+          aria-label="Toggle wishlist"
+        >
+          <Heart
+            className={`h-4 w-4 transition-colors ${wishlisted ? 'fill-red-400 text-red-400' : 'text-cb-heading/60'}`}
+          />
+        </button>
       </div>
       <div className="p-4">
         {product.brand && (
