@@ -110,7 +110,7 @@ export default function HomePage() {
       </section>
 
       {/* Stats Bar */}
-      <section className="bg-white border-y" style={{ borderColor: '#EFEAF6' }}>
+      <section className="border-y" style={{ borderColor: '#EFEAF6' }}>
         <div className="container py-5">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
             <div className="flex items-center gap-3">
@@ -136,7 +136,7 @@ export default function HomePage() {
       </section>
 
       {/* Category Strip */}
-      <section className="py-12 bg-white">
+      <section className="py-12">
         <div className="container">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-display font-semibold text-cb-heading">
@@ -170,7 +170,7 @@ export default function HomePage() {
       </section>
 
       {/* Popular This Week Carousel */}
-      <section className="py-12 bg-cb-surface">
+      <section className="py-12">
         <div className="container">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-display font-semibold text-cb-heading">
@@ -203,7 +203,7 @@ export default function HomePage() {
       </section>
 
       {/* Just Arrived Carousel */}
-      <section className="py-12 bg-white">
+      <section className="py-12">
         <div className="container">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-display font-semibold text-cb-heading">
@@ -236,7 +236,7 @@ export default function HomePage() {
       </section>
 
       {/* Profile Section */}
-      <section className="py-12 bg-pastel-gradient">
+      <section className="py-12">
         <div className="container">
           <div className="rounded-2xl bg-white shadow-card p-8">
             <div className="flex flex-col md:flex-row gap-8">
