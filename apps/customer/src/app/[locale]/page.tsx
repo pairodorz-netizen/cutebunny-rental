@@ -3,49 +3,14 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
-import { api, type Category, type ProductListItem } from '@/lib/api';
+import { api, type ProductListItem } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
-import { ChevronRight, ChevronLeft, Truck, User, Clock, Sparkles } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Truck, Sparkles } from 'lucide-react';
 import { useRef } from 'react';
-
-const CATEGORY_STRIPE_COLORS: Record<string, [string, string]> = {
-  dress:     ['#FFD1DC', '#FFE8EE'],
-  'sea-trip': ['#B5D8F7', '#DCEEF7'],
-  minimal:   ['#B5EAD7', '#D4F5E9'],
-  vietnam:   ['#FFF3C4', '#FFF9E0'],
-  camera:    ['#D5C4F7', '#E8DFF7'],
-  'ig-brand': ['#FFB7A5', '#FFDDD4'],
-};
-
-const CATEGORY_EN_SUBTITLE: Record<string, string> = {
-  dress: 'DRESS',
-  'sea-trip': 'BEACH',
-  minimal: 'MINIMAL',
-  vietnam: 'VIETNAM',
-  camera: 'CAMERA',
-  'ig-brand': 'IG BRAND',
-};
-
-function categoryStripeStyle(slug: string): React.CSSProperties {
-  const [a, b] = CATEGORY_STRIPE_COLORS[slug] ?? ['#E0D4F5', '#F0EAF9'];
-  return {
-    background: `repeating-linear-gradient(
-      135deg,
-      ${a} 0px, ${a} 8px,
-      ${b} 8px, ${b} 16px
-    )`,
-  };
-}
 
 export default function HomePage() {
   const t = useTranslations();
   const locale = useLocale();
-
-  const categoriesQuery = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => api.categories.list(),
-    staleTime: 5 * 60 * 1000,
-  });
 
   const popularQuery = useQuery({
     queryKey: ['products', 'popular', locale],
@@ -65,7 +30,6 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const categories: Category[] = (categoriesQuery.data?.data ?? []).filter((r) => r.visible_frontend);
   const popularProducts: ProductListItem[] = popularQuery.data?.data ?? [];
   const newProducts: ProductListItem[] = newArrivalsQuery.data?.data ?? [];
   const totalCount = allProductsQuery.data?.meta?.total ?? 0;
@@ -77,10 +41,6 @@ export default function HomePage() {
     if (!ref.current) return;
     const amount = ref.current.clientWidth * 0.8;
     ref.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
-  }
-
-  function categoryLabel(row: Category): string {
-    return locale === 'th' ? row.name_th : row.name_en;
   }
 
   return (
@@ -107,7 +67,7 @@ export default function HomePage() {
                 className="font-serif text-cb-heading mb-4"
                 style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em' }}
               >
-                Wear the{' '}
+                Wear the<br />
                 <span className="italic" style={{ color: '#9F848D', fontWeight: 400 }}>dream dress,</span>
                 <br />
                 keep the budget.
@@ -179,46 +139,6 @@ export default function HomePage() {
               <Truck className="h-5 w-5 text-cb-blue-300" />
               <span className="text-sm font-medium text-cb-heading">{t('home.stats.fastDelivery')}</span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Category Strip */}
-      <section className="py-12">
-        <div className="container">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-display font-semibold text-cb-heading">
-              {t('home.categories.title')}
-            </h2>
-          </div>
-          <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
-            {categoriesQuery.isLoading &&
-              Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="shrink-0 w-28 h-36 rounded-2xl bg-muted animate-pulse"
-                />
-              ))}
-            {categories.map((row) => (
-              <Link
-                key={row.slug}
-                href={`/products?category=${row.slug}`}
-                className="shrink-0 w-28 group"
-              >
-                <div
-                  className="w-28 h-28 rounded-2xl overflow-hidden flex items-center justify-center mb-2 group-hover:shadow-card transition-shadow"
-                  style={categoryStripeStyle(row.slug)}
-                >
-                  <span className="text-3xl drop-shadow-sm">👗</span>
-                </div>
-                <p className="text-xs font-medium text-cb-heading text-center line-clamp-2">
-                  {categoryLabel(row)}
-                </p>
-                <p className="text-[10px] text-cb-secondary/70 text-center uppercase tracking-wider">
-                  {CATEGORY_EN_SUBTITLE[row.slug] ?? row.name_en}
-                </p>
-              </Link>
-            ))}
           </div>
         </div>
       </section>
@@ -321,39 +241,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Profile Section */}
-      <section className="py-12">
-        <div className="container">
-          <div className="rounded-2xl bg-white shadow-card p-8">
-            <div className="flex flex-col md:flex-row gap-8">
-              <div className="flex-1 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-cb-lavender-100 flex items-center justify-center shrink-0">
-                  <User className="h-8 w-8 text-cb-lavender-300" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-cb-heading">{t('home.profile.title')}</h3>
-                  <p className="text-sm text-cb-secondary mt-1">{t('home.profile.subtitle')}</p>
-                </div>
-              </div>
-              <div className="flex-1 flex items-center gap-6">
-                <div className="w-16 h-16 rounded-full bg-cb-blue-100 flex items-center justify-center shrink-0">
-                  <Clock className="h-8 w-8 text-emerald-500" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-cb-heading">{t('home.profile.historyTitle')}</h3>
-                  <p className="text-sm text-cb-secondary mt-1">{t('home.profile.historySubtitle')}</p>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <Link
-                  href="/profile"
-                  className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-cb-active text-white font-medium text-sm hover:brightness-110 transition-all"
-                >
-                  {t('home.profile.editProfile')}
-                </Link>
-              </div>
-            </div>
-          </div>
+      {/* Footer Copyright */}
+      <section className="py-8">
+        <div className="container text-center">
+          <p className="text-xs text-cb-secondary">&copy; 2026 CuteBunny Rental</p>
         </div>
       </section>
     </div>
