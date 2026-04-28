@@ -67,13 +67,10 @@ export default function HomePage() {
                 className="font-serif text-cb-heading mb-4"
                 style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em' }}
               >
-                Wear the<br />
-                <span className="italic" style={{ color: '#9F848D', fontWeight: 400 }}>dream dress,</span>
-                <br />
-                keep the budget.
+                {t('home.hero.title')}
               </h1>
               <p className="font-sans-thai text-lg md:text-xl text-cb-secondary mb-8 max-w-lg">
-                {t('home.hero.subtitle')} — ชุดแบรนด์เนมพรีเมียม จัดส่งถึงบ้าน คืนง่าย ไม่ยุ่งยาก
+                {t('home.hero.subtitle')}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
                 <Link
@@ -240,13 +237,5 @@ export default function HomePage() {
           )}
         </div>
       </section>
-
-      {/* Footer Copyright */}
-      <section className="py-8">
-        <div className="container text-center">
-          <p className="text-xs text-cb-secondary">&copy; 2026 CuteBunny Rental</p>
-        </div>
-      </section>
-    </div>
   );
 }
