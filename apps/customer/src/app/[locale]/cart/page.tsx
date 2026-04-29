@@ -210,6 +210,7 @@ export default function CartPage() {
                     {item.rental_days} {t('days')} &bull; {t('from')} {item.rental_start}
                   </p>
                   <p className="text-sm text-muted-foreground">{t('size')}: {item.size}</p>
+                                      {item.color && <p className="text-sm text-muted-foreground capitalize">{t('color')}: {item.color}</p>}
                 </div>
                 <div className="text-right">
                   <p className="font-semibold">{item.subtotal.toLocaleString()} THB</p>
