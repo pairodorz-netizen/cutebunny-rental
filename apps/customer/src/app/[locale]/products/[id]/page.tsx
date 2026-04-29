@@ -131,7 +131,7 @@ export default function ProductDetailPage() {
       subtotal: rentalPrice,
       deposit: product.deposit ?? 0,
       size: selectedSize ?? product.size?.[0] ?? 'ONE',
-            color: selectedColor ?? null,
+            color: selectedColor ?? undefined,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
