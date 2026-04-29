@@ -85,6 +85,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
+            onSelectRange?.(dateStr, dateStr, 1);
     } else if (newClickCount === 2 && rangeStart) {
       // Second click = end date
       let start = rangeStart;
