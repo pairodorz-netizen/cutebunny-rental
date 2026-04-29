@@ -33,6 +33,9 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
   const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
   const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
 
+  // Today's date string for past-date comparison
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
   function prevMonth() {
     if (month === 1) { setYear(year - 1); setMonth(12); }
     else setMonth(month - 1);
@@ -53,6 +56,11 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     return dateStr >= rangeStart && dateStr <= rangeEnd;
   }
 
+  // Check if a date is in the past (before today)
+  function isPastDate(dateStr: string): boolean {
+    return dateStr < todayStr;
+  }
+
   // BUG-403: Check if any day in a range is blocked (non-available)
   const hasBlockedDayInRange = useCallback((start: string, end: string): boolean => {
     for (const day of days) {
@@ -67,6 +75,8 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
 
   const handleDayClick = useCallback((dateStr: string, status: string) => {
     if (getCustomerStatus(status) !== 'available') return;
+    // Prevent selecting past dates
+    if (isPastDate(dateStr)) return;
 
     const newClickCount = clickCount + 1;
 
@@ -148,6 +158,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
             const dayNum = parseInt(day.date.split('-')[2], 10);
             const customerStatus = getCustomerStatus(day.status);
             const isAvailable = customerStatus === 'available';
+            const isPast = isPastDate(day.date);
             const isStart = rangeStart === day.date;
             const isEnd = rangeEnd === day.date;
             const inRange = isInRange(day.date);
@@ -159,6 +170,9 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
               colorClass = 'bg-[#DBEAFE] text-blue-800';
             } else if (inRange && !isAvailable) {
               colorClass = 'bg-red-100 text-red-600 line-through';
+            } else if (isPast) {
+              // Past dates shown as disabled regardless of availability
+              colorClass = 'bg-gray-100 text-gray-400 cursor-not-allowed';
             } else if (isAvailable) {
               colorClass = 'bg-green-100 text-green-800 hover:bg-green-200 cursor-pointer';
             } else {
@@ -170,7 +184,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
                 key={day.date}
                 className={`p-1.5 rounded text-xs ${colorClass}`}
                 onClick={() => handleDayClick(day.date, day.status)}
-                disabled={!isAvailable && !isStart && !isEnd}
+                disabled={(!isAvailable && !isStart && !isEnd) || isPast}
               >
                 {dayNum}
               </button>

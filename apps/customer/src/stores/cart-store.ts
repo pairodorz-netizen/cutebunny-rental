@@ -10,6 +10,7 @@ export interface CartItem {
   subtotal: number;
   deposit: number;
   size: string;
+    color?: string;
 }
 
 export type DeliveryMethodType = 'standard' | 'messenger';
