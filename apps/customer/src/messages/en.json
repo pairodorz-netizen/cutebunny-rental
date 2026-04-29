@@ -115,6 +115,7 @@
       "added": "Added!",
       "totalRental": "Total Rental",
       "days": "days",
+            "day": "day",
       "backToProducts": "Back to Products",
       "notFound": "Product not found",
       "rentalPricing": "Rental Pricing",
