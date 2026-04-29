@@ -65,7 +65,7 @@ export default function HomePage() {
             <div className="text-center md:text-left">
               <h1
                 className="font-serif text-cb-heading mb-4"
-                style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em' }}
+                style={{ fontSize: 68, fontWeight: 500, lineHeight: 1.02, letterSpacing: '-0.03em', whiteSpace: 'pre-line' as const }}
               >
                 {t('home.hero.titleLine1')}<br />
                 <span className="italic" style={{ color: '#9F848D', fontWeight: 400 }}>{t('home.hero.titleLine2')}</span>
