@@ -121,6 +121,7 @@
       "added": "เพิ่มแล้ว!",
       "totalRental": "ค่าเช่ารวม",
       "days": "วัน",
+            "day": "วัน",
       "backToProducts": "กลับไปหน้าสินค้า",
       "notFound": "ไม่พบสินค้า",
       "rentalPricing": "ราคาเช่า",
