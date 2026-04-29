@@ -254,7 +254,7 @@ export default function ProductDetailPage() {
                       }`}
                     >
                       <div className="text-xs text-cb-secondary">
-                        {tier.days} {t('days')}
+                        {tier.days} {tier.days === 1 ? t('day') : t('days')}
                       </div>
                       <div className="text-xl font-bold text-cb-heading mt-1">
                         ฿{(product.rental_prices?.[tier.key] ?? 0).toLocaleString()}
@@ -353,7 +353,7 @@ export default function ProductDetailPage() {
                     ฿{rentalPrice.toLocaleString()}
                   </p>
                   <span className="text-xs text-cb-secondary">
-                    {actualDays} {t('days')}
+                    {actualDays} {actualDays === 1 ? t('day') : t('days')}
                     {selectedStartDate ? ` • ${selectedStartDate}` : ''}
                     {selectedEndDate ? ` → ${selectedEndDate}` : ''}
                   </span>
