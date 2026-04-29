@@ -183,6 +183,7 @@
     "days": "days",
     "from": "from",
     "size": "Size",
+        "color": "Color",
     "subtotal": "Subtotal",
     "deposit": "Deposit",
     "total": "Total",
