@@ -113,6 +113,7 @@ enum CustomerDocType {
   facebook
   instagram
   selfie_with_id
+  payment_slip
 }
 
 enum FinanceTxType {

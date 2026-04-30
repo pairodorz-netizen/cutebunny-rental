@@ -240,7 +240,22 @@
     "requireTermsAndDocs": "กรุณายอมรับเงื่อนไขและแนบเอกสาร",
     "requireTerms": "กรุณายอมรับเงื่อนไข",
     "requireDocs": "กรุณาแนบเอกสารอย่างน้อย 1 รายการ",
-    "messengerFeeNote": "ค่าจัดส่งแมสเซ็นเจอร์: ชำระแยกกับผู้ให้บริการโดยตรง"
+    "requireBothDocs": "กรุณาแนบบัตรประชาชนและโซเชียลมีเดีย",
+    "messengerFeeNote": "ค่าจัดส่งแมสเซ็นเจอร์: ชำระแยกกับผู้ให้บริการโดยตรง",
+    "next": "ถัดไป",
+    "step1Label": "สรุปยอด",
+    "step2Label": "เงื่อนไข",
+    "step3Label": "ข้อมูล & ชำระเงิน",
+    "step4Label": "สถานะ",
+    "paymentSummary": "สรุปยอดชำระเงิน",
+    "paymentSlipUpload": "อัปโหลดสลิปโอนเงิน",
+    "paymentSlipHint": "กรุณาอัปโหลดสลิปการโอนเงินเพื่อยืนยันการชำระเงิน",
+    "paymentSlipLabel": "สลิปโอนเงิน",
+    "orderConfirmed": "สั่งเช่าสำเร็จ",
+    "orderNumber": "หมายเลขคำสั่งเช่า",
+    "statusWaiting": "รอการยืนยัน",
+    "lineNoticeTitle": "แจ้งเตือนแอดมิน",
+    "lineNoticeMessage": "กรุณาแคปหน้าจอนี้ส่งเข้าไลน์ @cutebunny เพื่อแจ้งเตือนแอดมินให้ตรวจเช็คสลิปโอนเงิน"
   },
   "delivery": {
     "selectMethod": "วิธีจัดส่ง",
