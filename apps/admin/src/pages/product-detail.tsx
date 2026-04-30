@@ -33,6 +33,7 @@ const CALENDAR_COLORS: Record<string, string> = {
 export function ProductDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+    const isNew = id === 'new';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -73,7 +74,7 @@ export function ProductDetailPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-detail', id],
     queryFn: () => adminApi.products.detail(id!),
-    enabled: !!id,
+    enabled: !!id && id !== 'new',
   });
 
   const product: AdminProductDetail | undefined = data?.data;
@@ -165,7 +166,7 @@ export function ProductDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
       queryClient.resetQueries({ queryKey: ['stock-logs', id] });
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
-    },
+            },
     onError: (err: Error) => setStockError(err.message),
   });
 
@@ -187,6 +188,70 @@ export function ProductDetailPage() {
     addStockMutation.mutate({ quantity: qty, unit_cost: cost, note: stockNote || undefined });
   }
 
+    // Create product mutation
+  const createMutation = useMutation({
+    mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      navigate(`/products/${(res as { data: { id: string } }).data?.id || ''}`);
+    },
+    onError: (err: Error) => alert(err.message),
+  });
+
+  // Create product form state
+  const [newProduct, setNewProduct] = useState({
+    name: '', sku: '', category: 'dress' as string, description: '',
+    rental_price_1day: 0, rental_price_3day: 0, rental_price_5day: 0,
+    extra_day_rate: 0, cost_price: 0, deposit: 0,
+    size: [] as string[], color: [] as string[],
+  });
+
+  if (isNew) {
+    const handleCreate = () => {
+      if (!newProduct.name || !newProduct.sku) { alert('Name and SKU are required'); return; }
+      createMutation.mutate(newProduct);
+    };
+    return (
+      <div className="p-6 max-w-3xl mx-auto">
+        <div className="flex items-center gap-2 mb-6">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/products')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold">{t('products.createNew', 'Create New Product')}</h1>
+        </div>
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium">Name *</label><Input value={newProduct.name} onChange={e => setNewProduct(p => ({...p, name: e.target.value}))} /></div>
+            <div><label className="text-sm font-medium">SKU *</label><Input value={newProduct.sku} onChange={e => setNewProduct(p => ({...p, sku: e.target.value}))} /></div>
+          </div>
+          <div><label className="text-sm font-medium">Description</label><Input value={newProduct.description} onChange={e => setNewProduct(p => ({...p, description: e.target.value}))} /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium">Category</label><Input value={newProduct.category} onChange={e => setNewProduct(p => ({...p, category: e.target.value}))} /></div>
+            <div><label className="text-sm font-medium">Deposit</label><Input type="number" value={newProduct.deposit} onChange={e => setNewProduct(p => ({...p, deposit: parseInt(e.target.value)||0}))} /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div><label className="text-sm font-medium">1-Day Price</label><Input type="number" value={newProduct.rental_price_1day} onChange={e => setNewProduct(p => ({...p, rental_price_1day: parseInt(e.target.value)||0}))} /></div>
+            <div><label className="text-sm font-medium">3-Day Price</label><Input type="number" value={newProduct.rental_price_3day} onChange={e => setNewProduct(p => ({...p, rental_price_3day: parseInt(e.target.value)||0}))} /></div>
+            <div><label className="text-sm font-medium">5-Day Price</label><Input type="number" value={newProduct.rental_price_5day} onChange={e => setNewProduct(p => ({...p, rental_price_5day: parseInt(e.target.value)||0}))} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium">Extra Day Rate</label><Input type="number" value={newProduct.extra_day_rate} onChange={e => setNewProduct(p => ({...p, extra_day_rate: parseInt(e.target.value)||0}))} /></div>
+            <div><label className="text-sm font-medium">Cost Price</label><Input type="number" value={newProduct.cost_price} onChange={e => setNewProduct(p => ({...p, cost_price: parseInt(e.target.value)||0}))} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="text-sm font-medium">Sizes (comma-separated)</label><Input placeholder="S,M,L" onChange={e => setNewProduct(p => ({...p, size: e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}))} /></div>
+            <div><label className="text-sm font-medium">Colors (comma-separated)</label><Input placeholder="Beige,Black" onChange={e => setNewProduct(p => ({...p, color: e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}))} /></div>
+          </div>
+          <Button onClick={handleCreate} disabled={createMutation.isPending} className="w-full">
+            {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+            {t('products.create', 'Create Product')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  
   if (isLoading) {
     return (
       <div className="p-6">
