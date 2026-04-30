@@ -533,17 +533,19 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
       expect(body).toMatch(/updateData\.categoryRef\s*=/);
     });
 
-    it('POST body schema requires category_id (UUID) and rejects legacy `category` slug field', () => {
+    it('POST body schema accepts category_id (UUID, optional) or category (slug, optional) with refine requiring at least one', () => {
       const source = readAdminProducts();
       const postHandlerMatch = source.match(
         /adminProducts\.post\(\s*['"]\/['"],[\s\S]*?(?=adminProducts\.(post|patch|get|delete)\()/,
       );
       expect(postHandlerMatch).not.toBeNull();
       const body = postHandlerMatch![0];
-      // category_id is now required, not optional.
-      expect(body).toMatch(/category_id:\s*z\.string\(\)\.uuid\(\)(?!\.optional)/);
-      // Legacy slug input is gone from the schema.
-      expect(body).not.toMatch(/category:\s*z\.string\(\)\.min\(1\)/);
+      // BUG-401: category_id is now optional (slug accepted via `category` field).
+      expect(body).toMatch(/category_id:\s*z\.string\(\)\.uuid\(\)\.optional\(\)/);
+      // BUG-401: category slug field is accepted as optional.
+      expect(body).toMatch(/category:\s*z\.string\(\)\.optional\(\)/);
+      // A refine ensures at least one is provided.
+      expect(body).toMatch(/\.refine\(/);
     });
 
     it('PATCH body schema accepts only category_id (optional UUID), no `category` slug field', () => {
