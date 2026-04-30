@@ -239,7 +239,22 @@
     "requireTermsAndDocs": "请接受条款并上传文件",
     "requireTerms": "请接受条款",
     "requireDocs": "请至少上传一份文件",
-    "messengerFeeNote": "快递员配送费: 直接支付给服务商"
+    "requireBothDocs": "请上传身份证和社交媒体截图",
+    "messengerFeeNote": "快递员配送费: 直接支付给服务商",
+    "next": "下一步",
+    "step1Label": "购物车",
+    "step2Label": "条款",
+    "step3Label": "信息 & 支付",
+    "step4Label": "状态",
+    "paymentSummary": "付款摘要",
+    "paymentSlipUpload": "上传转账凭证",
+    "paymentSlipHint": "请上传银行转账凭证以确认付款。",
+    "paymentSlipLabel": "转账凭证",
+    "orderConfirmed": "下单成功",
+    "orderNumber": "订单号",
+    "statusWaiting": "等待确认",
+    "lineNoticeTitle": "通知管理员",
+    "lineNoticeMessage": "请截图此页面发送至 LINE @cutebunny 以通知管理员检查您的转账凭证。"
   },
   "delivery": {
     "selectMethod": "配送方式",

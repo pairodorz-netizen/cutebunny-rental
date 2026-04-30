@@ -240,7 +240,22 @@
     "requireTermsAndDocs": "Please accept terms and upload documents",
     "requireTerms": "Please accept the terms",
     "requireDocs": "Please upload at least one document",
-    "messengerFeeNote": "Messenger delivery fee: paid separately to provider (Grab/Lalamove)"
+    "requireBothDocs": "Please upload both ID card and social media",
+    "messengerFeeNote": "Messenger delivery fee: paid separately to provider (Grab/Lalamove)",
+    "next": "Next",
+    "step1Label": "Cart",
+    "step2Label": "Terms",
+    "step3Label": "Details & Payment",
+    "step4Label": "Status",
+    "paymentSummary": "Payment Summary",
+    "paymentSlipUpload": "Upload Payment Slip",
+    "paymentSlipHint": "Please upload your bank transfer slip to confirm payment.",
+    "paymentSlipLabel": "Payment Slip",
+    "orderConfirmed": "Order Placed Successfully",
+    "orderNumber": "Order Number",
+    "statusWaiting": "Waiting for Confirmation",
+    "lineNoticeTitle": "Notify Admin",
+    "lineNoticeMessage": "Please screenshot this page and send to LINE @cutebunny to notify admin to check your payment slip."
   },
   "delivery": {
     "selectMethod": "Delivery Method",

@@ -35,7 +35,7 @@ orders.post('/', async (c) => {
     customer: z.object({
       name: z.string().min(1),
       phone: z.string().min(1),
-      email: z.string().email(),
+      email: z.string().email().optional(),
     }),
     shipping_address: z.object({
       province_code: z.string().min(1),
@@ -142,16 +142,21 @@ orders.post('/', async (c) => {
     messengerFeeReturn = returnEstimate.available ? returnEstimate.fee : 0;
   }
 
-  // Find or create customer
-  let customer = await db.customer.findUnique({
-    where: { email: parsed.data.customer.email },
-  });
+  // Find or create customer (email is optional — look up by email first, then by phone)
+  let customer = parsed.data.customer.email
+    ? await db.customer.findUnique({ where: { email: parsed.data.customer.email } })
+    : null;
+
+  if (!customer) {
+    // Try phone lookup as fallback
+    customer = await db.customer.findFirst({ where: { phone: parsed.data.customer.phone } });
+  }
 
   if (!customer) {
     const nameParts = parsed.data.customer.name.split(' ');
     customer = await db.customer.create({
       data: {
-        email: parsed.data.customer.email,
+        email: parsed.data.customer.email ?? `${Date.now()}@no-email.cutebunny.rental`,
         firstName: nameParts[0] ?? parsed.data.customer.name,
         lastName: nameParts.slice(1).join(' ') || '-',
         phone: parsed.data.customer.phone,
@@ -217,7 +222,7 @@ orders.post('/', async (c) => {
       shippingSnapshot: {
         name: parsed.data.customer.name,
         phone: parsed.data.customer.phone,
-        email: parsed.data.customer.email,
+        ...(parsed.data.customer.email ? { email: parsed.data.customer.email } : {}),
         address: parsed.data.shipping_address,
         zone: shippingResult?.zone ?? 'Nationwide',
         delivery_method: deliveryMethod,
@@ -322,9 +327,10 @@ orders.post('/', async (c) => {
 
   // Store customer documents linked to the order's customer
   if (parsed.data.document_urls && parsed.data.document_urls.length > 0) {
-    const docTypeMap: Record<string, 'id_card_front' | 'id_card_back' | 'facebook' | 'instagram' | 'selfie_with_id'> = {
+    const docTypeMap: Record<string, 'id_card_front' | 'id_card_back' | 'facebook' | 'instagram' | 'selfie_with_id' | 'payment_slip'> = {
       id_card: 'id_card_front',
       social_media: 'facebook',
+      payment_slip: 'payment_slip',
     };
     for (const doc of parsed.data.document_urls) {
       try {

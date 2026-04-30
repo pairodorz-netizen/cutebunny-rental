@@ -244,7 +244,7 @@ export const api = {
   orders: {
     create: (body: {
       cart_token: string;
-      customer: { name: string; phone: string; email: string };
+      customer: { name: string; phone: string; email?: string };
       shipping_address: { province_code: string; line1: string; city?: string; postal_code?: string };
       credit_applied?: number;
       document_urls?: Array<{ url: string; doc_type: string }>;
