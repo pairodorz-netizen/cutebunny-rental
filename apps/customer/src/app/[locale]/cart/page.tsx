@@ -435,14 +435,14 @@ export default function CartPage() {
             <div className="mt-6 rounded-lg border p-4">
               <h3 className="font-semibold text-sm mb-2">{t('termsTitle')}</h3>
               <div className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto bg-muted/30 rounded p-3 mb-3">
-                <p>เงื่อนไขการเช่าชุด CuteBunny Rental:</p>
-                <p>1. ลูกค้าต้องวางมัดจำตามจำนวนที่กำหนดก่อนรับชุด</p>
-                <p>2. หากชุดเสียหายหรือสูญหาย ลูกค้าต้องรับผิดชอบค่าเสียหายตามราคาที่กำหนด</p>
-                <p>3. ต้องส่งคืนชุดภายในวันที่กำหนด หากส่งคืนล่าช้าจะมีค่าปรับรายวัน</p>
-                <p>4. ลูกค้าต้องแนบสำเนาบัตรประชาชนและ/หรือหน้า Social Media เพื่อยืนยันตัวตน</p>
-                <p>5. ชุดที่เช่าต้องซักแห้งก่อนส่งคืน หรือชำระค่าซักเพิ่มเติม</p>
-                <p>6. การยกเลิกคำสั่งเช่าหลังจากชำระเงินแล้ว จะหักค่าธรรมเนียม 20%</p>
-                <p>7. CuteBunny Rental ขอสงวนสิทธิ์ในการปฏิเสธการให้เช่าหากพิจารณาแล้วเห็นว่าไม่เหมาะสม</p>
+                                <p>{t('termsIntro')}</p>
+                <p>{t('termDeposit')}</p>
+                <p>{t('termDamage')}</p>
+                <p>{t('termReturn')}</p>
+                <p>{t('termIdVerification')}</p>
+                <p>{t('termCleaning')}</p>
+                <p>{t('termCancellation')}</p>
+                <p>{t('termRefusal')}</p>
               </div>
               <label className="flex items-start gap-2 cursor-pointer">
                 <input
