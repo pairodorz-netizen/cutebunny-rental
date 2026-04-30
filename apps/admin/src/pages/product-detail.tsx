@@ -166,7 +166,7 @@ export function ProductDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
       queryClient.resetQueries({ queryKey: ['stock-logs', id] });
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
-  (res as { data: AdminProductDetail }).data?.id  },
+            },
     onError: (err: Error) => setStockError(err.message),
   });
 
@@ -193,7 +193,7 @@ export function ProductDetailPage() {
     mutationFn: (body: Record<string, unknown>) => adminApi.products.create(body),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      navigate(`/products/${(res as { data: AdminProductDetail }).data?.id || ''}`);
+      navigate(`/products/${(res as { data: { id: string } }).data?.id || ''}`);
     },
     onError: (err: Error) => alert(err.message),
   });
