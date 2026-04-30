@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getDb } from '../lib/db';
 import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
-import { confirmHolds, createLifecycleBlocks } from '../lib/availability';
+import { confirmHolds, createLifecycleBlocks, releaseTentativeHolds } from '../lib/availability';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
 import { getCartStore } from './cart';
@@ -75,6 +75,15 @@ orders.post('/', async (c) => {
     return error(c, 404, 'CART_EXPIRED', 'Cart session has expired');
   }
 
+  // Clean up stale tentative holds older than 30 minutes
+  await db.availabilityCalendar.deleteMany({
+    where: {
+      slotStatus: 'tentative',
+      updatedAt: { lt: new Date(Date.now() - 30 * 60 * 1000) },
+    },
+  });
+
+  try {
   // Calculate shipping. Honors the global `shipping_fee_enabled` toggle
   // (#36): when disabled, ALL orders compute shipping_cost = 0 regardless
   // of per-province config, including the nationwide fallback path.
@@ -96,27 +105,26 @@ orders.post('/', async (c) => {
   let returnMethod: 'standard' | 'messenger' = 'standard';
 
   if (deliveryMethod === 'messenger') {
-    if (!parsed.data.customer_coords) {
-      return error(c, 400, 'VALIDATION_ERROR', 'customer_coords required for messenger delivery');
-    }
-
     const messengerConfig = await getMessengerConfig(db);
     if (!messengerConfig.enabled) {
       return error(c, 400, 'MESSENGER_DISABLED', 'Messenger delivery is not available');
     }
 
-    const estimate = estimateMessenger(
-      parsed.data.customer_coords.lat,
-      parsed.data.customer_coords.lng,
-      messengerConfig,
-    );
+    if (parsed.data.customer_coords) {
+      const estimate = estimateMessenger(
+        parsed.data.customer_coords.lat,
+        parsed.data.customer_coords.lng,
+        messengerConfig,
+      );
 
-    if (!estimate.available) {
-      return error(c, 400, 'MESSENGER_UNAVAILABLE', 'Messenger delivery unavailable for this location');
+      if (!estimate.available) {
+        return error(c, 400, 'MESSENGER_UNAVAILABLE', 'Messenger delivery unavailable for this location');
+      }
+
+      messengerFeeSend = estimate.fee;
+      messengerDistanceKm = estimate.distanceKm;
     }
 
-    messengerFeeSend = estimate.fee;
-    messengerDistanceKm = estimate.distanceKm;
     messengerPaymentMode = 'cod';
   }
 
@@ -366,6 +374,25 @@ orders.post('/', async (c) => {
       cod_total: messengerFeeSend + messengerFeeReturn,
     },
   });
+
+  } catch (err) {
+    // Release tentative holds for all cart items so dates become available again
+    for (const item of cartData.items) {
+      try {
+        const startDate = new Date(item.rental_start + 'T00:00:00.000Z');
+        if (item.is_combo && item.combo_components) {
+          for (const comp of item.combo_components) {
+            await releaseTentativeHolds(db, comp.product_id, startDate, item.rental_days);
+          }
+        } else {
+          await releaseTentativeHolds(db, item.product_id, startDate, item.rental_days);
+        }
+      } catch {
+        // Best-effort cleanup — continue releasing other items
+      }
+    }
+    return error(c, 500, 'ORDER_CREATION_FAILED', 'Failed to create order. Please try again.');
+  }
 });
 
 // GET /api/v1/orders/customer/lookup?email=xxx — Look up customer by email for credit balance

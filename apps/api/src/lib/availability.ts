@@ -272,6 +272,28 @@ export async function createTentativeHolds(
   }
 }
 
+export async function releaseTentativeHolds(
+  db: PrismaClient,
+  productId: string,
+  startDate: Date,
+  rentalDays: number
+): Promise<void> {
+  const dates: Date[] = [];
+  for (let i = 0; i < rentalDays; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    dates.push(new Date(d.toISOString().split('T')[0] + 'T00:00:00.000Z'));
+  }
+
+  await db.availabilityCalendar.deleteMany({
+    where: {
+      productId,
+      calendarDate: { in: dates },
+      slotStatus: 'tentative',
+    },
+  });
+}
+
 export async function confirmHolds(
   db: PrismaClient,
   productId: string,
