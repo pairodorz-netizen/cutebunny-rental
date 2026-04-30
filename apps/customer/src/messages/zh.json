@@ -121,6 +121,7 @@
       "rentNow": "立即租赁",
       "added": "已添加！",
       "totalRental": "租赁总价",
+      "day": "天",
       "days": "天",
             "day": "天",
       "backToProducts": "返回商品列表",
@@ -134,7 +135,8 @@
       "similarDresses": "类似礼服",
       "viewAll": "查看全部",
       "includedItems": "套装包含",
-      "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）"
+      "extraDayNote": "额外天数：{rate} 泰铢/天（超过5天后）",
+      "perDay": "/天"
     },
     "sort": {
       "featured": "推荐",
