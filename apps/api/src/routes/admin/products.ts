@@ -661,11 +661,10 @@ adminProducts.post('/', async (c) => {
     name_i18n: z.record(z.string()).optional(),
     description: z.string().optional(),
     description_i18n: z.record(z.string()).optional(),
-    // BUG-504-A06 commit 3 — POST accepts the FK UUID only. Admin UI
-    // already passes `category_id` since the BUG-504-A04 dropdown
-    // cutover. The trigger backfills the legacy enum column at the DB
-    // layer.
-    category_id: z.string().uuid(),
+    // BUG-401: Accept either category_id (UUID) or category (slug).
+    // resolveCategoryId() handles both formats downstream.
+    category_id: z.string().uuid().optional(),
+    category: z.string().optional(),
     brand_id: z.string().uuid().optional(),
     brand_name: z.string().optional(),
     size: z.array(z.string()).min(1),
@@ -685,7 +684,10 @@ adminProducts.post('/', async (c) => {
       unit_cost: z.number().int().min(0).default(0),
       note: z.string().optional(),
     }).optional(),
-  });
+  }).refine(
+    (d) => d.category_id || d.category,
+    { message: 'Either category_id or category is required', path: ['category_id'] },
+  );
 
   const body = await c.req.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
@@ -696,6 +698,7 @@ adminProducts.post('/', async (c) => {
   // BUG-504-A06 commit 3 — resolve the FK once so the audit log echoes
   // the canonical slug without a second query.
   const categoryResult = await resolveCategoryId(db, {
+    category: parsed.data.category,
     category_id: parsed.data.category_id,
   });
   if (!categoryResult.ok) {

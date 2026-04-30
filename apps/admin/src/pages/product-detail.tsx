@@ -209,6 +209,8 @@ export function ProductDetailPage() {
   if (isNew) {
     const handleCreate = () => {
       if (!newProduct.name || !newProduct.sku) { alert('Name and SKU are required'); return; }
+      if (newProduct.size.length === 0) { alert('At least one size is required'); return; }
+      if (newProduct.color.length === 0) { alert('At least one color is required'); return; }
       createMutation.mutate(newProduct);
     };
     return (
