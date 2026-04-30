@@ -1,12 +1,22 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { CheckCircle, Clock, Truck, Package, ArrowLeft } from 'lucide-react';
+
+function formatDate(dateStr: string, loc: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (loc === 'th') {
+    const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d} ${thMonths[m - 1]} ${y}`;
+  }
+  const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${enMonths[m - 1]} ${d}, ${y}`;
+}
 
 const STATUS_STEPS = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'finished'];
 
@@ -21,6 +31,7 @@ const STATUS_ICONS: Record<string, typeof Clock> = {
 
 export default function OrderStatusPage() {
   const t = useTranslations('orderStatus');
+  const locale = useLocale();
   const params = useParams();
   const token = params.token as string;
 
@@ -185,7 +196,7 @@ export default function OrderStatusPage() {
       </div>
 
       <p className="text-xs text-muted-foreground text-center mt-4">
-        {t('rentalPeriod')}: {order.rental_period.start} — {order.rental_period.end} ({order.rental_period.days} {t('days')})
+        {t('rentalPeriod')}: {formatDate(order.rental_period.start, locale)} — {formatDate(order.rental_period.end, locale)} ({order.rental_period.days} {t('days')})
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
@@ -19,8 +19,19 @@ const THAI_PROVINCES = [
   { code: 'HYI', name: 'Hat Yai' },
 ];
 
+function formatDate(dateStr: string, locale: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (locale === 'th') {
+    const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d} ${thMonths[m - 1]} ${y}`;
+  }
+  const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${enMonths[m - 1]} ${d}, ${y}`;
+}
+
 export default function CartPage() {
   const t = useTranslations('cart');
+  const locale = useLocale();
   const router = useRouter();
   const { items, removeItem, clearCart, getTotal, deliveryMethod, customerCoords } = useCartStore();
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
@@ -207,7 +218,7 @@ export default function CartPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium truncate">{item.product_name}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {item.rental_days} {t('days')} &bull; {t('from')} {item.rental_start}
+                    {item.rental_days} {t('days')} &bull; {t('from')} {formatDate(item.rental_start, locale)}
                   </p>
                   <p className="text-sm text-muted-foreground">{t('size')}: {item.size}</p>
                                       {item.color && <p className="text-sm text-muted-foreground capitalize">{t('color')}: {item.color}</p>}

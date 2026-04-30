@@ -18,7 +18,10 @@
   },
   "home": {
     "hero": {
-            "title": "Wear the\ndream dress,\nkeep the budget.",
+      "title": "Wear the dream dress, keep the budget.",
+      "titleLine1": "Wear the",
+      "titleLine2": "dream dress,",
+      "titleLine3": "keep the budget.",
       "subtitle": "Rent beautiful dresses at affordable prices — premium brand dresses, delivered to your door, easy returns",
       "cta": "Start Renting",
       "ctaFeatured": "View Featured"
@@ -40,10 +43,13 @@
     "newArrivals": {
       "title": "Just arrived"
     },
-        "banner": "NEW ARRIVAL — New dresses this week",
-        "recommended": "Recommended",
-        "perDay": "/day",
-        "newBadge": "NEW",
+    "banner": {
+      "newArrival": "NEW ARRIVAL — New dresses this week"
+    },
+    "popup": {
+      "recommended": "Recommended",
+      "perDay": "/day"
+    },
     "profile": {
       "title": "Your Profile",
       "subtitle": "Manage your profile and shipping addresses",
@@ -101,6 +107,7 @@
       "viewDetails": "View Details",
       "outOfStock": "Out of Stock",
       "popular": "Popular",
+      "new": "New",
       "rented": "times rented"
     },
     "detail": {
@@ -174,7 +181,9 @@
     "available": "Available",
     "booked": "Booked",
     "cleaning": "Cleaning",
-    "selectEndDate": "Click another date to set end date"
+    "selectEndDate": "Click another date to set end date",
+    "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
   },
   "cart": {
     "title": "Shopping Cart",

@@ -1,10 +1,20 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type CustomerProfile, type CustomerOrder } from '@/lib/api';
 import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
+
+function formatDate(dateStr: string, loc: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (loc === 'th') {
+    const thMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d} ${thMonths[m - 1]} ${y}`;
+  }
+  const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${enMonths[m - 1]} ${d}, ${y}`;
+}
 
 const TOKEN_KEY = 'cb_customer_token';
 
@@ -29,6 +39,7 @@ interface EditForm {
 
 export default function ProfilePage() {
   const t = useTranslations('profile');
+  const locale = useLocale();
   const queryClient = useQueryClient();
 
   const [token, setToken] = useState<string | null>(null);
@@ -460,7 +471,7 @@ export default function ProfilePage() {
                         <div>
                           <span className="text-sm font-medium text-cb-heading">{order.order_number}</span>
                           <span className="text-xs text-cb-secondary ml-2">
-                            {order.rental_start} → {order.rental_end}
+                            {formatDate(order.rental_start, locale)} → {formatDate(order.rental_end, locale)}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">

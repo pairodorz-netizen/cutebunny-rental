@@ -62,13 +62,13 @@ export function Header() {
           >
             <Search className="h-5 w-5" />
           </button>
-          <button
-            type="button"
+          <Link
+            href="/products?wishlist=true"
             className="p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
             aria-label="Wishlist"
           >
             <Heart className="h-5 w-5" />
-          </button>
+          </Link>
           <Link
             href="/cart"
             className="relative p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"

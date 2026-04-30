@@ -696,19 +696,19 @@ export function OrdersPage() {
       <div className="px-4 py-2">
         <div className="flex items-center gap-2 flex-wrap">
           <Input
-            placeholder="เลขที่ออเดอร์ (ORD-...)"
+            placeholder={t('orders.searchOrderNumber')}
             value={searchOrderNumber}
             onChange={(e) => { setSearchOrderNumber(e.target.value); setPage(1); }}
             className="h-7 text-xs w-36 min-w-0"
           />
           <Input
-            placeholder="SKU สินค้า"
+            placeholder={t('orders.searchSku')}
             value={searchSku}
             onChange={(e) => { setSearchSku(e.target.value); setPage(1); }}
             className="h-7 text-xs w-28 min-w-0"
           />
           <Input
-            placeholder="ชื่อ"
+            placeholder={t('orders.searchCustomerName')}
             value={searchCustomerName}
             onChange={(e) => { setSearchCustomerName(e.target.value); setPage(1); }}
             className="h-7 text-xs w-32 min-w-0"

@@ -1,12 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 
 interface AvailabilityCalendarProps {
   productId: string;
@@ -17,7 +17,14 @@ interface AvailabilityCalendarProps {
 
 export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor }: AvailabilityCalendarProps) {
   const t = useTranslations('calendar');
+  const locale = useLocale();
   const now = new Date();
+  const dayNames: string[] = locale === 'th'
+    ? ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames: string[] = locale === 'th'
+    ? ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
+    : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
@@ -31,7 +38,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
 
   const days = data?.data?.days ?? [];
   const firstDayOfMonth = new Date(year, month - 1, 1).getDay();
-  const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
+  const monthName = monthNames[month - 1];
 
   // Today's date string for past-date comparison
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -139,7 +146,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       </div>
 
       <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2">
-        {DAYS_EN.map((d) => (
+        {dayNames.map((d) => (
           <div key={d} className="font-medium text-muted-foreground py-1">
             {d}
           </div>

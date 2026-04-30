@@ -40,7 +40,7 @@ export function ProductCard({ product, badge }: ProductCardProps) {
         )}
         {badge === 'new' && (
           <span className="absolute top-3 left-3 bg-cb-blue-100 text-cb-heading text-[10px] font-bold uppercase px-2.5 py-1 rounded-full tracking-wide">
-            New
+            {t('card.new')}
           </span>
         )}
         {!badge && product.is_popular && (
