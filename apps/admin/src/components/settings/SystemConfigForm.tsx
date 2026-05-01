@@ -26,6 +26,7 @@ type FormState = {
   max_rental_days: string;
   booking_buffer_days: string;
   min_advance_booking_days: string;
+  rental_terms: string;
 };
 
 const DEFAULTS: FormState = {
@@ -38,6 +39,7 @@ const DEFAULTS: FormState = {
   max_rental_days: '14',
   booking_buffer_days: '1',
   min_advance_booking_days: '0',
+  rental_terms: '',
 };
 
 function asString(value: unknown): string | null {
@@ -64,6 +66,7 @@ function buildInitialState(configs: ConfigItem[]): FormState {
     max_rental_days: byKey.get('max_rental_days') ?? DEFAULTS.max_rental_days,
     booking_buffer_days: byKey.get('booking_buffer_days') ?? DEFAULTS.booking_buffer_days,
     min_advance_booking_days: byKey.get('min_advance_booking_days') ?? DEFAULTS.min_advance_booking_days,
+    rental_terms: byKey.get('rental_terms') ?? DEFAULTS.rental_terms,
   };
 }
 
@@ -143,6 +146,7 @@ export function SystemConfigForm() {
     max_rental_days: form.max_rental_days,
     booking_buffer_days: form.booking_buffer_days,
     min_advance_booking_days: form.min_advance_booking_days,
+    rental_terms: form.rental_terms,
     ...Object.fromEntries(
       THAI_PROVINCES.map((p) => [`shipping_days_${p.code}`, form.shipping_days[p.code] ?? String(p.flashDefaultDays)]),
     ),
@@ -157,6 +161,7 @@ export function SystemConfigForm() {
     max_rental_days: initialState.max_rental_days,
     booking_buffer_days: initialState.booking_buffer_days,
     min_advance_booking_days: initialState.min_advance_booking_days,
+    rental_terms: initialState.rental_terms,
     ...Object.fromEntries(
       THAI_PROVINCES.map((p) => [`shipping_days_${p.code}`, initialState.shipping_days[p.code] ?? String(p.flashDefaultDays)]),
     ),
@@ -529,6 +534,22 @@ export function SystemConfigForm() {
             className="w-40"
           />
         </Field>
+        <div className="pt-4 border-t">
+          <label htmlFor="cfg-rental-terms" className="text-sm font-medium block">
+            {t('settings.systemConfig.rentalTermsLabel')}
+          </label>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+            {t('settings.systemConfig.rentalTermsHelper')}
+          </p>
+          <textarea
+            id="cfg-rental-terms"
+            value={form.rental_terms}
+            onChange={(e) => setForm((s) => ({ ...s, rental_terms: e.target.value }))}
+            rows={8}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            placeholder={t('settings.systemConfig.rentalTermsPlaceholder')}
+          />
+        </div>
       </SectionCard>
 
       {/* Sticky Save bar ------------------------------------------------- */}

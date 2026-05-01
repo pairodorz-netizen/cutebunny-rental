@@ -286,6 +286,8 @@ export const api = {
       request<{ data: ShippingFeeToggle }>('/api/v1/settings/shipping/fee-toggle'),
     messenger: () =>
       request<{ data: MessengerSettings }>('/api/v1/settings/messenger'),
+    rentalTerms: () =>
+      request<{ data: { rental_terms: string } }>('/api/v1/settings/rental-terms'),
   },
   customer: {
     login: (email: string, password: string) =>

@@ -31,6 +31,23 @@ settings.get('/messenger', async (c) => {
   });
 });
 
+// GET /api/v1/settings/rental-terms — returns the editable rental terms
+// text for the customer checkout page. No auth required.
+settings.get('/rental-terms', async (c) => {
+  const db = getDb();
+  const row = await db.systemConfig.findUnique({ where: { key: 'rental_terms' } });
+  let terms = '';
+  if (row?.value) {
+    const raw = row.value;
+    if (typeof raw === 'string') {
+      try { terms = JSON.parse(raw); } catch { terms = raw; }
+    } else {
+      terms = String(raw);
+    }
+  }
+  return success(c, { rental_terms: terms });
+});
+
 // GET /api/v1/settings/storefront — returns the storefront URL from
 // system_configs. Falls back to the hardcoded Vercel deployment URL when
 // the config row hasn't been seeded yet.

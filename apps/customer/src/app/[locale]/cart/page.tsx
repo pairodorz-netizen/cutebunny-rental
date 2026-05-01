@@ -187,6 +187,9 @@ export default function CartPage() {
   const [uploadedDocs, setUploadedDocs] = useState<Array<{ url: string; doc_type: string; name: string }>>([]);
   const [uploading, setUploading] = useState(false);
 
+  // Dynamic rental terms fetched from API
+  const [rentalTerms, setRentalTerms] = useState<string | null>(null);
+
   // Order confirmation state (step 4)
   const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
 
@@ -200,6 +203,16 @@ export default function CartPage() {
         if (!cancelled) setShippingFeeEnabled(result.data.enabled);
       } catch {
         if (!cancelled) setShippingFeeEnabled(true);
+      }
+    })();
+    (async () => {
+      try {
+        const result = await api.settings.rentalTerms();
+        if (!cancelled && result.data.rental_terms) {
+          setRentalTerms(result.data.rental_terms);
+        }
+      } catch {
+        // Fallback to hardcoded terms from translations
       }
     })();
     return () => {
@@ -357,15 +370,21 @@ export default function CartPage() {
           {/* Terms & Conditions */}
           <div className="rounded-lg border p-4">
             <h3 className="font-semibold text-sm mb-2">{t('termsTitle')}</h3>
-            <div className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto bg-muted/30 rounded p-3 mb-3">
-              <p>{t('termsIntro')}</p>
-              <p>{t('termDeposit')}</p>
-              <p>{t('termDamage')}</p>
-              <p>{t('termReturn')}</p>
-              <p>{t('termIdVerification')}</p>
-              <p>{t('termCleaning')}</p>
-              <p>{t('termCancellation')}</p>
-              <p>{t('termRefusal')}</p>
+            <div className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto bg-muted/30 rounded p-3 mb-3 whitespace-pre-line">
+              {rentalTerms ? (
+                <p>{rentalTerms}</p>
+              ) : (
+                <>
+                  <p>{t('termsIntro')}</p>
+                  <p>{t('termDeposit')}</p>
+                  <p>{t('termDamage')}</p>
+                  <p>{t('termReturn')}</p>
+                  <p>{t('termIdVerification')}</p>
+                  <p>{t('termCleaning')}</p>
+                  <p>{t('termCancellation')}</p>
+                  <p>{t('termRefusal')}</p>
+                </>
+              )}
             </div>
             <label className="flex items-start gap-2 cursor-pointer">
               <input

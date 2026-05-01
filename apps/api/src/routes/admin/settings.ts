@@ -140,6 +140,8 @@ export const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }
   // when "false", all orders compute shipping_cost = 0 while shipping_days
   // stays unchanged.
   shipping_fee_enabled: { label: 'Charge Shipping Fee', group: 'shipping' },
+  // Editable rental terms displayed on customer checkout Step 2.
+  rental_terms: { label: 'Rental Terms', group: 'customer_ux' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
