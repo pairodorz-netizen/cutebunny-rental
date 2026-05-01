@@ -5,8 +5,10 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
-import { api, OrderResponse } from '@/lib/api';
+import { api, OrderResponse, CustomerProfile } from '@/lib/api';
 import { Trash2, Upload, FileCheck, X, Bike, Check } from 'lucide-react';
+
+const TOKEN_KEY = 'cb_customer_token';
 
 const THAI_PROVINCES = [
   { code: 'BKK', name: 'กรุงเทพมหานคร' },
@@ -190,6 +192,10 @@ export default function CartPage() {
   // Dynamic rental terms fetched from API
   const [rentalTerms, setRentalTerms] = useState<string | null>(null);
 
+  // Customer auth state
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [customerEmail, setCustomerEmail] = useState<string | undefined>(undefined);
+
   // Order confirmation state (step 4)
   const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
 
@@ -218,6 +224,29 @@ export default function CartPage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Auto-fill checkout form from logged-in customer profile
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+    if (!token) return;
+    setAuthToken(token);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.customer.me(token);
+        if (cancelled) return;
+        const p = res.data;
+        setCustomerEmail(p.email);
+        if (!name && p.first_name) setName(`${p.first_name} ${p.last_name}`.trim());
+        if (!phone && p.phone) setPhone(p.phone);
+      } catch {
+        // Token invalid — continue as guest
+        setAuthToken(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleDocUpload(file: File, docType: string) {
@@ -277,13 +306,13 @@ export default function CartPage() {
       const docUrls = uploadedDocs.length > 0 ? uploadedDocs.map((d) => ({ url: d.url, doc_type: d.doc_type })) : undefined;
       const result = await api.orders.create({
         cart_token: cartResult.data.cart_token,
-        customer: { name, phone },
+        customer: { name, phone, ...(customerEmail ? { email: customerEmail } : {}) },
         shipping_address: { province_code: province, line1: address, postal_code: postalCode },
         credit_applied: creditApplied,
         document_urls: docUrls,
         delivery_method: deliveryMethod,
         ...(deliveryMethod === 'messenger' && customerCoords ? { customer_coords: customerCoords } : {}),
-      });
+      }, authToken ?? undefined);
 
       clearCart();
       setOrderResult(result.data);
