@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { verify } from 'hono/jwt';
 import { createClient } from '@supabase/supabase-js';
 
 import { getDb } from '../lib/db';
@@ -9,6 +10,10 @@ import { confirmHolds, createLifecycleBlocks, releaseTentativeHolds } from '../l
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
 import { getCartStore } from './cart';
+
+function getJwtSecret(): string {
+  return getEnv().JWT_SECRET || 'dev-secret-change-in-production';
+}
 
 function getSupabaseClient() {
   const env = getEnv();
@@ -142,33 +147,52 @@ orders.post('/', async (c) => {
     messengerFeeReturn = returnEstimate.available ? returnEstimate.fee : 0;
   }
 
-  // Find or create customer (email is optional — look up by email first, then by phone)
-  let customer = parsed.data.customer.email
-    ? await db.customer.findUnique({ where: { email: parsed.data.customer.email } })
-    : null;
-
-  if (!customer) {
-    // Try phone lookup as fallback
-    customer = await db.customer.findFirst({ where: { phone: parsed.data.customer.phone } });
+  // If a valid customer JWT is present, use the registered customer directly.
+  // Otherwise, fall through to the guest checkout find-or-create flow.
+  let customer: { id: string; creditBalance: number } | null = null;
+  const authHeader = c.req.header('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = await verify(authHeader.slice(7), getJwtSecret(), 'HS256');
+      if (decoded.type === 'customer' && typeof decoded.sub === 'string') {
+        const existing = await db.customer.findUnique({ where: { id: decoded.sub } });
+        if (existing) {
+          customer = existing;
+        }
+      }
+    } catch {
+      // Invalid/expired token — fall through to guest flow
+    }
   }
 
   if (!customer) {
-    const nameParts = parsed.data.customer.name.split(' ');
-    customer = await db.customer.create({
-      data: {
-        email: parsed.data.customer.email ?? `${Date.now()}@no-email.cutebunny.rental`,
-        firstName: nameParts[0] ?? parsed.data.customer.name,
-        lastName: nameParts.slice(1).join(' ') || '-',
-        phone: parsed.data.customer.phone,
-        address: {
-          line1: parsed.data.shipping_address.line1,
-          city: parsed.data.shipping_address.city ?? '',
-          postalCode: parsed.data.shipping_address.postal_code ?? '',
-          provinceCode: parsed.data.shipping_address.province_code,
-          country: 'Thailand',
+    // Guest checkout: find by email, then phone, then create
+    customer = parsed.data.customer.email
+      ? await db.customer.findUnique({ where: { email: parsed.data.customer.email } })
+      : null;
+
+    if (!customer) {
+      customer = await db.customer.findFirst({ where: { phone: parsed.data.customer.phone } });
+    }
+
+    if (!customer) {
+      const nameParts = parsed.data.customer.name.split(' ');
+      customer = await db.customer.create({
+        data: {
+          email: parsed.data.customer.email ?? `${Date.now()}@no-email.cutebunny.rental`,
+          firstName: nameParts[0] ?? parsed.data.customer.name,
+          lastName: nameParts.slice(1).join(' ') || '-',
+          phone: parsed.data.customer.phone,
+          address: {
+            line1: parsed.data.shipping_address.line1,
+            city: parsed.data.shipping_address.city ?? '',
+            postalCode: parsed.data.shipping_address.postal_code ?? '',
+            provinceCode: parsed.data.shipping_address.province_code,
+            country: 'Thailand',
+          },
         },
-      },
-    });
+      });
+    }
   }
 
   const subtotal = cartData.items.reduce((sum, i) => sum + i.subtotal, 0);

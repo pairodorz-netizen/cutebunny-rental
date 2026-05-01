@@ -250,10 +250,11 @@ export const api = {
       document_urls?: Array<{ url: string; doc_type: string }>;
       delivery_method?: 'standard' | 'messenger';
       customer_coords?: { lat: number; lng: number };
-    }) =>
+    }, authToken?: string) =>
       request<{ data: OrderResponse }>('/api/v1/orders', {
         method: 'POST',
         body: JSON.stringify(body),
+        ...(authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : {}),
       }),
     customerLookup: (email: string) =>
       request<{ data: { found: boolean; name?: string; phone?: string; credit_balance: number } }>(`/api/v1/orders/customer/lookup?email=${encodeURIComponent(email)}`),
