@@ -308,6 +308,93 @@ function ExpandedPaymentSlips({ orderId, orderStatus, onVerified }: { orderId: s
   );
 }
 
+function ExpandedCustomerDocuments({ orderId }: { orderId: string }) {
+  const { t } = useTranslation();
+  const [fullImageUrl, setFullImageUrl] = useState<string | null>(null);
+
+  const { data: detailData } = useQuery({
+    queryKey: ['admin-order-detail', orderId],
+    queryFn: () => adminApi.orders.detail(orderId),
+    enabled: !!orderId,
+  });
+
+  const documents = detailData?.data?.customer?.documents ?? [];
+
+  // Filter out payment_slip doc_type since those are shown in ExpandedPaymentSlips
+  const customerDocs = documents.filter((doc) => doc.doc_type !== 'payment_slip');
+
+  if (customerDocs.length === 0) {
+    return (
+      <div className="mt-3 border-t pt-3">
+        <label className="text-xs font-semibold text-foreground mb-2 block">{t('orders.customerDocuments')}</label>
+        <p className="text-xs text-muted-foreground">{t('orders.noDocuments')}</p>
+      </div>
+    );
+  }
+
+  const docTypeLabel = (docType: string) => {
+    const labels: Record<string, string> = {
+      id_card_front: 'ID Card (Front)',
+      id_card_back: 'ID Card (Back)',
+      facebook: 'Facebook',
+      instagram: 'Instagram',
+      selfie_with_id: 'Selfie with ID',
+    };
+    return labels[docType] ?? docType;
+  };
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <label className="text-xs font-semibold text-foreground mb-2 block">{t('orders.customerDocuments')}</label>
+      <div className="flex flex-wrap gap-3">
+        {customerDocs.map((doc) => {
+          const hasImage = doc.storage_key && (doc.storage_key.startsWith('http') || doc.storage_key.startsWith('/'));
+          return (
+            <div key={doc.id} className="flex flex-col items-center gap-1">
+              {hasImage ? (
+                <button onClick={() => setFullImageUrl(doc.storage_key)} className="shrink-0">
+                  <img
+                    src={doc.storage_key}
+                    alt={docTypeLabel(doc.doc_type)}
+                    className="w-16 h-16 rounded object-cover border hover:opacity-80"
+                  />
+                </button>
+              ) : (
+                <div className="w-16 h-16 rounded bg-muted flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                  {docTypeLabel(doc.doc_type)}
+                </div>
+              )}
+              <span className="text-[10px] text-muted-foreground text-center max-w-[70px] truncate">
+                {docTypeLabel(doc.doc_type)}
+              </span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                doc.verified ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {doc.verified ? 'verified' : 'pending'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Full-size image modal */}
+      {fullImageUrl && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[70]" onClick={() => setFullImageUrl(null)}>
+          <div className="relative max-w-3xl max-h-[90vh]">
+            <img src={fullImageUrl} alt="Customer document" className="max-w-full max-h-[85vh] rounded-lg" />
+            <button
+              onClick={() => setFullImageUrl(null)}
+              className="absolute top-2 right-2 bg-white/80 rounded-full p-1 hover:bg-white"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function OrdersPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -943,6 +1030,8 @@ export function OrdersPage() {
                           queryClient.invalidateQueries({ queryKey: [ADMIN_ORDERS_COUNTS_QUERY_KEY] });
                         }}
                       />
+                      {/* Customer Documents Section */}
+                      <ExpandedCustomerDocuments orderId={order.id} />
                       {/* Quick action buttons in expanded view */}
                       <div className="flex gap-2 mt-3">
                         {ALL_TRANSITIONS[order.status]?.length > 0 && (

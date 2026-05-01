@@ -197,7 +197,11 @@ adminOrders.get('/:id', async (c) => {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
-      customer: true,
+      customer: {
+        include: {
+          documents: true,
+        },
+      },
       items: {
         include: {
           product: {
@@ -258,6 +262,13 @@ adminOrders.get('/:id', async (c) => {
       phone: order.customer.phone,
       email: order.customer.email,
       address: order.customer.address,
+      documents: order.customer.documents.map((doc) => ({
+        id: doc.id,
+        doc_type: doc.docType,
+        storage_key: doc.storageKey,
+        verified: doc.verified,
+        created_at: doc.createdAt.toISOString(),
+      })),
     },
     items: order.items.map((item) => {
       const rentalDays = Math.ceil(

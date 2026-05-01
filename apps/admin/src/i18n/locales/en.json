@@ -110,6 +110,8 @@
     "approve": "Approve",
     "reject": "Reject",
     "paymentSlips": "Payment Slips",
+    "customerDocuments": "Customer Documents",
+    "noDocuments": "No documents",
     "creditApplied": "Credit Applied",
     "statusHistory": "Status History",
     "rentalDays": "Days",
