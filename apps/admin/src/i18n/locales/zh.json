@@ -687,7 +687,10 @@
       "errInvalidNumber": "请输入有效的数字。",
       "errMinZero": "值必须大于或等于 0。",
       "errMinOne": "值必须大于或等于 1。",
-      "errMustBeInteger": "值必须是整数。"
+      "errMustBeInteger": "值必须是整数。",
+      "rentalTermsLabel": "租赁条款",
+      "rentalTermsHelper": "结账时显示给顾客的条款和条件。支持多行文本。",
+      "rentalTermsPlaceholder": "在此输入租赁条款…"
     },
     "messengerTitle": "即时快递",
     "messengerDesc": "配置摩托车当日送达定价和店铺位置",

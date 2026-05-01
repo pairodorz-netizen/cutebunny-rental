@@ -687,7 +687,10 @@
       "errInvalidNumber": "Enter a valid number.",
       "errMinZero": "Value must be 0 or greater.",
       "errMinOne": "Value must be 1 or greater.",
-      "errMustBeInteger": "Value must be a whole number."
+      "errMustBeInteger": "Value must be a whole number.",
+      "rentalTermsLabel": "Rental Terms (เงื่อนไขการเช่า)",
+      "rentalTermsHelper": "Terms & conditions displayed to customers at checkout. Supports multi-line text.",
+      "rentalTermsPlaceholder": "Enter rental terms text here…"
     },
     "messengerTitle": "Messenger Delivery",
     "messengerDesc": "Configure motorcycle same-day delivery pricing and origin.",

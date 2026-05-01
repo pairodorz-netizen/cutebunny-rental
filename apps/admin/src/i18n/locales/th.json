@@ -687,7 +687,10 @@
       "errInvalidNumber": "กรอกตัวเลขให้ถูกต้อง",
       "errMinZero": "ค่าต้องไม่น้อยกว่า 0",
       "errMinOne": "ค่าต้องไม่น้อยกว่า 1",
-      "errMustBeInteger": "ค่าต้องเป็นจำนวนเต็ม"
+      "errMustBeInteger": "ค่าต้องเป็นจำนวนเต็ม",
+      "rentalTermsLabel": "เงื่อนไขการเช่า",
+      "rentalTermsHelper": "ข้อความเงื่อนไขที่แสดงให้ลูกค้าเห็นตอนชำระเงิน รองรับหลายบรรทัด",
+      "rentalTermsPlaceholder": "พิมพ์เงื่อนไขการเช่าที่นี่…"
     },
     "messengerTitle": "แมสเซนเจอร์",
     "messengerDesc": "ตั้งค่าราคาจัดส่งมอเตอร์ไซค์และตำแหน่งร้าน",
