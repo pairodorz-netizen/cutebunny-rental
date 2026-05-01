@@ -327,22 +327,32 @@ orders.post('/', async (c) => {
 
   // Store customer documents linked to the order's customer
   if (parsed.data.document_urls && parsed.data.document_urls.length > 0) {
-    const docTypeMap: Record<string, 'id_card_front' | 'id_card_back' | 'facebook' | 'instagram' | 'selfie_with_id' | 'payment_slip'> = {
+    const docTypeMap: Record<string, 'id_card_front' | 'id_card_back' | 'facebook' | 'instagram' | 'selfie_with_id'> = {
       id_card: 'id_card_front',
       social_media: 'facebook',
-      payment_slip: 'payment_slip',
     };
     for (const doc of parsed.data.document_urls) {
       try {
-        const mappedType = docTypeMap[doc.doc_type] ?? 'id_card_front';
-        await db.customerDocument.create({
-          data: {
-            customerId: customer.id,
-            docType: mappedType,
-            storageKey: doc.url,
-            verified: false,
-          },
-        });
+        if (doc.doc_type === 'payment_slip') {
+          await db.paymentSlip.create({
+            data: {
+              orderId: order.id,
+              storageKey: doc.url,
+              declaredAmount: 0,
+              verificationStatus: 'pending',
+            },
+          });
+        } else {
+          const mappedType = docTypeMap[doc.doc_type] ?? 'id_card_front';
+          await db.customerDocument.create({
+            data: {
+              customerId: customer.id,
+              docType: mappedType,
+              storageKey: doc.url,
+              verified: false,
+            },
+          });
+        }
       } catch {
         // Non-critical — continue if document creation fails
       }
