@@ -110,6 +110,8 @@
     "approve": "อนุมัติ",
     "reject": "ปฏิเสธ",
     "paymentSlips": "สลิปการชำระเงิน",
+    "customerDocuments": "เอกสารลูกค้า",
+    "noDocuments": "ไม่มีเอกสาร",
     "creditApplied": "เครดิตที่ใช้",
     "statusHistory": "ประวัติสถานะ",
     "rentalDays": "วัน",

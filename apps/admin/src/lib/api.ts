@@ -196,6 +196,13 @@ export interface AdminOrderDetail {
     phone: string;
     email: string;
     address: Record<string, unknown> | null;
+    documents: Array<{
+      id: string;
+      doc_type: string;
+      storage_key: string;
+      verified: boolean;
+      created_at: string;
+    }>;
   };
   items: Array<{
     id: string;
