@@ -77,6 +77,17 @@ export default function ProductDetailPage() {
 
   const product = data?.data;
 
+  // BUG-502: auto-select the first available size/color when product
+  // data arrives so the UI always reflects what will be added to cart.
+  useEffect(() => {
+    if (product?.size?.length && !selectedSize) {
+      setSelectedSize(product.size[0]);
+    }
+    if (product?.color?.length && !selectedColor) {
+      setSelectedColor(product.color[0]);
+    }
+  }, [product, selectedSize, selectedColor]);
+
   // Fetch similar/recommended products
   const similarQuery = useQuery({
     queryKey: ['products', 'similar', product?.category, locale],

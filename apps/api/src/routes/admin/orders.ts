@@ -22,7 +22,8 @@ const adminOrders = new Hono();
 // mirrors `apps/api/src/routes/admin/products.ts` (BUG-404-A01) and
 // guarantees every error path returns `application/json` with a
 // redacted envelope: no stack, no raw DB text, no PII.
-adminOrders.onError((_err, c) => {
+adminOrders.onError((err, c) => {
+  console.error('[admin-orders] unhandled error:', err);
   return c.json(
     { error: { code: 'internal_error', message: 'Unexpected server error' } },
     500,
@@ -64,83 +65,88 @@ adminOrders.get('/', async (c) => {
     search_customer_phone: c.req.query('search_customer_phone'),
   });
 
-  const [orders, total] = await Promise.all([
-    db.order.findMany({
-      where,
-      include: {
-        customer: {
-          select: { firstName: true, lastName: true, email: true, phone: true },
-        },
-        items: {
-          select: {
-            id: true,
-            productName: true,
-            size: true,
-            quantity: true,
-            status: true,
-            subtotal: true,
-            lateFee: true,
-            damageFee: true,
-            product: { select: { sku: true, thumbnailUrl: true } },
+  try {
+    const [orders, total] = await Promise.all([
+      db.order.findMany({
+        where,
+        include: {
+          customer: {
+            select: { firstName: true, lastName: true, email: true, phone: true },
+          },
+          items: {
+            select: {
+              id: true,
+              productName: true,
+              size: true,
+              quantity: true,
+              status: true,
+              subtotal: true,
+              lateFee: true,
+              damageFee: true,
+              product: { select: { sku: true, thumbnailUrl: true } },
+            },
+          },
+          paymentSlips: {
+            select: { verificationStatus: true },
+            take: 1,
+            orderBy: { createdAt: 'desc' },
           },
         },
-        paymentSlips: {
-          select: { verificationStatus: true },
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.order.count({ where }),
+    ]);
+
+    const data = orders.map((o) => ({
+      id: o.id,
+      order_number: o.orderNumber,
+      status: o.status,
+      customer: {
+        name: `${o.customer.firstName} ${o.customer.lastName}`,
+        email: o.customer.email,
+        phone: o.customer.phone,
       },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.order.count({ where }),
-  ]);
+      items: o.items.map((item) => ({
+        id: item.id,
+        product_name: item.productName,
+        sku: item.product?.sku ?? '',
+        size: item.size,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+        late_fee: item.lateFee,
+        damage_fee: item.damageFee,
+        item_status: item.status,
+        thumbnail: item.product?.thumbnailUrl ?? null,
+      })),
+      tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
+      total_amount: o.totalAmount,
+      credit_applied: o.creditApplied ?? 0,
+      delivery_method: o.deliveryMethod,
+      return_method: o.returnMethod,
+      payment_status: o.paymentSlips[0]?.verificationStatus ?? 'no_slip',
+      rental_period: {
+        start: o.rentalStartDate.toISOString().split('T')[0],
+        end: o.rentalEndDate.toISOString().split('T')[0],
+      },
+      created_at: o.createdAt.toISOString(),
+    }));
 
-  const data = orders.map((o) => ({
-    id: o.id,
-    order_number: o.orderNumber,
-    status: o.status,
-    customer: {
-      name: `${o.customer.firstName} ${o.customer.lastName}`,
-      email: o.customer.email,
-      phone: o.customer.phone,
-    },
-    items: o.items.map((item) => ({
-      id: item.id,
-      product_name: item.productName,
-      sku: item.product?.sku ?? '',
-      size: item.size,
-      quantity: item.quantity,
-      subtotal: item.subtotal,
-      late_fee: item.lateFee,
-      damage_fee: item.damageFee,
-      item_status: item.status,
-      thumbnail: item.product?.thumbnailUrl ?? null,
-    })),
-    tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
-    total_amount: o.totalAmount,
-    credit_applied: o.creditApplied ?? 0,
-    delivery_method: o.deliveryMethod,
-    return_method: o.returnMethod,
-    payment_status: o.paymentSlips[0]?.verificationStatus ?? 'no_slip',
-    rental_period: {
-      start: o.rentalStartDate.toISOString().split('T')[0],
-      end: o.rentalEndDate.toISOString().split('T')[0],
-    },
-    created_at: o.createdAt.toISOString(),
-  }));
-
-  const pagination = computePagination({ total, page, pageSize });
-  return success(c, data, {
-    page,
-    per_page: pageSize,
-    page_size: pageSize,
-    total,
-    total_pages: pagination.totalPages,
-    has_more: pagination.hasMore,
-    include_stale: includeStale,
-  });
+    const pagination = computePagination({ total, page, pageSize });
+    return success(c, data, {
+      page,
+      per_page: pageSize,
+      page_size: pageSize,
+      total,
+      total_pages: pagination.totalPages,
+      has_more: pagination.hasMore,
+      include_stale: includeStale,
+    });
+  } catch (err) {
+    console.error('[admin-orders] list query failed:', err);
+    return error(c, 500, 'query_failed', 'Failed to fetch orders');
+  }
 });
 
 // GET /api/v1/admin/orders/counts — Tab-badge counts.
@@ -172,21 +178,26 @@ adminOrders.get('/counts', async (c) => {
     search_customer_phone: c.req.query('search_customer_phone'),
   });
 
-  const [groups, total] = await Promise.all([
-    db.order.groupBy({
-      by: ['status'],
-      where,
-      _count: { _all: true },
-    }),
-    db.order.count({ where }),
-  ]);
+  try {
+    const [groups, total] = await Promise.all([
+      db.order.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      }),
+      db.order.count({ where }),
+    ]);
 
-  const byStatus: Record<string, number> = {};
-  for (const g of groups) {
-    byStatus[g.status] = g._count._all;
+    const byStatus: Record<string, number> = {};
+    for (const g of groups) {
+      byStatus[g.status] = g._count._all;
+    }
+
+    return success(c, { total, by_status: byStatus });
+  } catch (err) {
+    console.error('[admin-orders] counts query failed:', err);
+    return error(c, 500, 'query_failed', 'Failed to fetch order counts');
   }
-
-  return success(c, { total, by_status: byStatus });
 });
 
 // GET /api/v1/admin/orders/:id — Order detail
