@@ -25,7 +25,7 @@
 // badges match the filtered row count, always" — is pinned at the
 // function level, not the handler level.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../lib/orders-query';
 import {
   buildOrdersWindowFilter,
@@ -36,6 +36,14 @@ import {
 const NOW = new Date('2026-04-24T12:00:00.000Z');
 
 describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   it('include_stale=true with bounds STILL applies createdAt bounds but skips archive cutoff', () => {
     // Rescoped in BUG-ORDERS-DATE-FILTER-01: include_stale=true means
     // "show archived rows within the selected window", not "drop the
