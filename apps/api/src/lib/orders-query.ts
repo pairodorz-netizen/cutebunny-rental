@@ -59,7 +59,15 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
     dateFrom: dateFrom ?? undefined,
     dateTo: dateTo ?? undefined,
   });
-  if (windowFilter.createdAt) where.createdAt = windowFilter.createdAt;
+  // BUG-501: pass ISO strings instead of Date objects to work around
+  // Prisma Neon-adapter date-serialisation edge cases that can surface
+  // as "Conversion failed: expected a string … found {}" at runtime.
+  if (windowFilter.createdAt) {
+    const ca: { gte?: string; lte?: string } = {};
+    if (windowFilter.createdAt.gte) ca.gte = windowFilter.createdAt.gte.toISOString();
+    if (windowFilter.createdAt.lte) ca.lte = windowFilter.createdAt.lte.toISOString();
+    where.createdAt = ca;
+  }
 
   if (q.search) {
     where.OR = [
@@ -108,7 +116,7 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
     andConditions.push({
       OR: [
         { status: { notIn: [...ARCHIVED_STATUSES] as OrderStatus[] } },
-        { updatedAt: { gte: windowFilter.archiveCutoff } },
+        { updatedAt: { gte: windowFilter.archiveCutoff.toISOString() } },
       ],
     });
   }

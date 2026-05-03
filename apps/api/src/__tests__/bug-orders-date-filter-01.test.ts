@@ -246,11 +246,13 @@ describe('BUG-ORDERS-DATE-FILTER-01 · buildOrdersWhere delegation', () => {
     // The whole point of this atom: even with include_stale=true, the
     // route-level WHERE must still scope createdAt to the user's pill.
     expect(where.createdAt).toBeDefined();
-    expect((where.createdAt as { gte?: Date; lte?: Date }).gte).toEqual(
-      new Date(TODAY_YMD),
+    // BUG-501: buildOrdersWhere now emits ISO strings (not Date objects)
+    // to work around Prisma Neon-adapter date-serialisation edge cases.
+    expect((where.createdAt as { gte?: string; lte?: string }).gte).toBe(
+      new Date(TODAY_YMD).toISOString(),
     );
-    expect((where.createdAt as { gte?: Date; lte?: Date }).lte).toEqual(
-      new Date(`${TODAY_YMD}T23:59:59.999Z`),
+    expect((where.createdAt as { gte?: string; lte?: string }).lte).toBe(
+      new Date(`${TODAY_YMD}T23:59:59.999Z`).toISOString(),
     );
   });
 

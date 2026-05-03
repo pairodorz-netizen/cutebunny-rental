@@ -55,11 +55,13 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
       to: '2026-04-24',
     });
     expect(where.createdAt).toBeDefined();
-    expect((where.createdAt as { gte?: Date; lte?: Date }).gte).toEqual(
-      new Date('2026-03-25'),
+    // BUG-501: buildOrdersWhere now emits ISO strings (not Date objects)
+    // to work around Prisma Neon-adapter date-serialisation edge cases.
+    expect((where.createdAt as { gte?: string; lte?: string }).gte).toBe(
+      new Date('2026-03-25').toISOString(),
     );
-    expect((where.createdAt as { gte?: Date; lte?: Date }).lte).toEqual(
-      new Date('2026-04-24T23:59:59.999Z'),
+    expect((where.createdAt as { gte?: string; lte?: string }).lte).toBe(
+      new Date('2026-04-24T23:59:59.999Z').toISOString(),
     );
     // Archive cutoff must still be absent (that's the ONLY thing
     // include_stale=true bypasses under the new contract).
@@ -90,14 +92,17 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
       from: '2026-03-25',
       to: '2026-04-24',
     });
-    expect(where.createdAt).toEqual(
-      buildOrdersWindowFilter({
-        includeStale: false,
-        dateFrom: '2026-03-25',
-        dateTo: '2026-04-24',
-        now: NOW,
-      }).createdAt,
-    );
+    // BUG-501: buildOrdersWhere now emits ISO strings.
+    const windowCreatedAt = buildOrdersWindowFilter({
+      includeStale: false,
+      dateFrom: '2026-03-25',
+      dateTo: '2026-04-24',
+      now: NOW,
+    }).createdAt!;
+    expect(where.createdAt).toEqual({
+      gte: windowCreatedAt.gte!.toISOString(),
+      lte: windowCreatedAt.lte!.toISOString(),
+    });
     // And the archive-cutoff OR condition must be present in where.AND.
     const conds = (where.AND ?? []) as Array<Record<string, unknown>>;
     const cutoffCond = conds.find((c) =>
@@ -127,13 +132,17 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
       date_from: '2026-03-25',
       date_to: '2026-04-24',
     });
-    const expected = buildOrdersWindowFilter({
+    const windowCreatedAt = buildOrdersWindowFilter({
       includeStale: false,
       dateFrom: '2026-03-25',
       dateTo: '2026-04-24',
       now: NOW,
-    }).createdAt;
-    expect(where.createdAt).toEqual(expected);
+    }).createdAt!;
+    // BUG-501: buildOrdersWhere now emits ISO strings.
+    expect(where.createdAt).toEqual({
+      gte: windowCreatedAt.gte!.toISOString(),
+      lte: windowCreatedAt.lte!.toISOString(),
+    });
   });
 
   it('search field passthrough: search_sku / search_customer_phone land in where.AND', () => {
@@ -240,15 +249,17 @@ describe('BUG-ORDERS-ARCHIVE-01-COUNT-PARITY · buildOrdersWhere helper', () => 
     expect(cutoffCond).toBeDefined();
     // We can't pin `now` from here, but we can pin the window length:
     // the cutoff must use DEFAULT_ARCHIVE_WINDOW_DAYS.
-    const or = (cutoffCond as { OR: Array<{ updatedAt?: { gte: Date } }> }).OR;
-    const gte = or.find((b) => b.updatedAt)?.updatedAt?.gte;
-    expect(gte).toBeInstanceOf(Date);
+    // BUG-501: buildOrdersWhere now emits ISO strings for dates.
+    const or = (cutoffCond as { OR: Array<{ updatedAt?: { gte: string } }> }).OR;
+    const gteStr = or.find((b) => b.updatedAt)?.updatedAt?.gte;
+    expect(typeof gteStr).toBe('string');
+    const gteMs = new Date(gteStr!).getTime();
     const nowGuess = Date.now();
-    const deltaDays = (nowGuess - (gte as Date).getTime()) / 86_400_000;
+    const deltaDays = (nowGuess - gteMs) / 86_400_000;
     expect(deltaDays).toBeGreaterThan(DEFAULT_ARCHIVE_WINDOW_DAYS - 1);
     expect(deltaDays).toBeLessThan(DEFAULT_ARCHIVE_WINDOW_DAYS + 1);
     // Sanity: matches shared computeArchiveCutoff for "approximately now".
     const expected = computeArchiveCutoff(new Date(nowGuess), DEFAULT_ARCHIVE_WINDOW_DAYS);
-    expect(Math.abs((gte as Date).getTime() - expected.getTime())).toBeLessThan(1000);
+    expect(Math.abs(gteMs - expected.getTime())).toBeLessThan(1000);
   });
 });
