@@ -32,7 +32,7 @@ export default function HomePage() {
 
   const popularProducts: ProductListItem[] = popularQuery.data?.data ?? [];
   const newProducts: ProductListItem[] = newArrivalsQuery.data?.data ?? [];
-  const totalCount = allProductsQuery.data?.meta?.total ?? 0;
+  const totalCount = allProductsQuery.data?.meta?.total ?? popularQuery.data?.meta?.total ?? newArrivalsQuery.data?.meta?.total ?? 0;
 
   const popularScrollRef = useRef<HTMLDivElement>(null);
   const newScrollRef = useRef<HTMLDivElement>(null);
@@ -132,7 +132,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <div className="inline-flex items-center gap-3 rounded-full bg-white shadow-sm border border-border px-6 py-3">
               <span className="text-lg">👗</span>
-              <span className="text-xl font-bold text-cb-heading">{allProductsQuery.isLoading ? '—' : totalCount}</span>
+              <span className="text-xl font-bold text-cb-heading">{allProductsQuery.isLoading && popularQuery.isLoading && newArrivalsQuery.isLoading ? '—' : totalCount}</span>
               <span className="text-sm text-cb-secondary">{t('home.stats.totalDresses')}</span>
             </div>
             <div className="inline-flex items-center gap-3 rounded-full bg-white shadow-sm border border-border px-6 py-3">
