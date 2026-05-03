@@ -18,10 +18,10 @@
   },
   "home": {
     "hero": {
-      "title": "ใส่ชุดในฝัน ไม่เกินงบ",
-      "titleLine1": "ใส่ชุด",
-      "titleLine2": "ในฝัน",
-      "titleLine3": "ไม่เกินงบ",
+            "title": "Wear the dream dress, keep the budget.",
+            "titleLine1": "Wear the",
+            "titleLine2": "dream dress,",
+            "titleLine3": "keep the budget.",
       "subtitle": "เช่าชุดสวย ในราคาที่คุณเอื้อมถึง — ชุดแบรนด์เนมพรีเมียม จัดส่งถึงบ้าน คืนง่าย ไม่ยุ่งยาก",
       "cta": "เริ่มเช่าชุด",
       "ctaFeatured": "ดูชิ้นเด่น"
