@@ -213,7 +213,7 @@ export default function CartPage() {
     })();
     (async () => {
       try {
-        const result = await api.settings.rentalTerms();
+        const result = await api.settings.rentalTerms(locale);
         if (!cancelled && result.data.rental_terms) {
           setRentalTerms(result.data.rental_terms);
         }
@@ -224,7 +224,8 @@ export default function CartPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   // Auto-fill checkout form from logged-in customer profile
   useEffect(() => {
