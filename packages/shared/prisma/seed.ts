@@ -540,7 +540,24 @@ async function main() {
       data: {
         key: 'rental_terms',
         value: JSON.stringify('เงื่อนไขการเช่าชุด CuteBunny Rental:\n1. ลูกค้าต้องวางมัดจำตามจำนวนที่กำหนดก่อนรับชุด\n2. หากชุดเสียหายหรือสูญหาย ลูกค้าต้องรับผิดชอบค่าเสียหายตามราคาที่กำหนด\n3. ต้องส่งคืนชุดภายในวันที่กำหนด หากส่งคืนล่าช้าจะมีค่าปรับรายวัน\n4. ลูกค้าต้องแนบสำเนาบัตรประชาชนและ/หรือหน้า Social Media เพื่อยืนยันตัวตน\n5. ชุดที่เช่าต้องซักแห้งก่อนส่งคืน หรือชำระค่าซักเพิ่มเติม\n6. การยกเลิกคำสั่งเช่าหลังจากชำระเงินแล้ว จะหักค่าธรรมเนียม 20%\n7. CuteBunny Rental ขอสงวนสิทธิ์ในการปฏิเสธการให้เช่าหากพิจารณาแล้วเห็นว่าไม่เหมาะสม'),
-        label: 'Rental Terms',
+        label: 'Rental Terms (Thai)',
+        group: 'customer_ux',
+      },
+    }),
+    // BUG-503: per-locale rental terms
+    prisma.systemConfig.create({
+      data: {
+        key: 'rental_terms_en',
+        value: JSON.stringify('CuteBunny Rental Terms & Conditions:\n1. A deposit must be paid as specified before receiving the dress.\n2. If the dress is damaged or lost, the customer is responsible for the cost as specified.\n3. The dress must be returned by the due date. Late returns will incur a daily penalty fee.\n4. Customers must provide a copy of their ID card and/or social media profile for identity verification.\n5. Rented dresses must be dry-cleaned before return, or an additional cleaning fee will apply.\n6. Cancellations after payment will incur a 20% fee.\n7. CuteBunny Rental reserves the right to refuse rental service if deemed inappropriate.'),
+        label: 'Rental Terms (English)',
+        group: 'customer_ux',
+      },
+    }),
+    prisma.systemConfig.create({
+      data: {
+        key: 'rental_terms_zh',
+        value: JSON.stringify('CuteBunny Rental 租赁条款与条件：\n1. 顾客必须在收到礼服前支付规定的押金。\n2. 如礼服损坏或丢失，顾客须按规定价格承担赔偿责任。\n3. 礼服必须在规定日期前归还，逾期将按日收取罚款。\n4. 顾客须提供身份证副本和/或社交媒体账号截图进行身份验证。\n5. 租借的礼服须干洗后归还，否则将收取额外清洗费用。\n6. 付款后取消订单将收取20%的手续费。\n7. CuteBunny Rental 保留在认为不适当时拒绝提供租赁服务的权利。'),
+        label: 'Rental Terms (Chinese)',
         group: 'customer_ux',
       },
     }),

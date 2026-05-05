@@ -33,9 +33,21 @@ settings.get('/messenger', async (c) => {
 
 // GET /api/v1/settings/rental-terms — returns the editable rental terms
 // text for the customer checkout page. No auth required.
+// BUG-503: accepts ?locale=th|en|zh to return per-locale terms.
+// Looks up rental_terms_{locale} first, falls back to rental_terms (Thai).
 settings.get('/rental-terms', async (c) => {
   const db = getDb();
-  const row = await db.systemConfig.findUnique({ where: { key: 'rental_terms' } });
+  const locale = (c.req.query('locale') || 'th').toLowerCase();
+  const SUPPORTED_LOCALES = ['th', 'en', 'zh'];
+  const effectiveLocale = SUPPORTED_LOCALES.includes(locale) ? locale : 'th';
+
+  // Try locale-specific key first (e.g. rental_terms_en), fall back to rental_terms
+  const localeKey = effectiveLocale === 'th' ? 'rental_terms' : `rental_terms_${effectiveLocale}`;
+  let row = await db.systemConfig.findUnique({ where: { key: localeKey } });
+  if (!row && localeKey !== 'rental_terms') {
+    row = await db.systemConfig.findUnique({ where: { key: 'rental_terms' } });
+  }
+
   let terms = '';
   if (row?.value) {
     const raw = row.value;

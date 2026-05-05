@@ -141,7 +141,10 @@ export const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }
   // stays unchanged.
   shipping_fee_enabled: { label: 'Charge Shipping Fee', group: 'shipping' },
   // Editable rental terms displayed on customer checkout Step 2.
-  rental_terms: { label: 'Rental Terms', group: 'customer_ux' },
+  // BUG-503: per-locale keys so admins can edit each language independently.
+  rental_terms: { label: 'Rental Terms (Thai)', group: 'customer_ux' },
+  rental_terms_en: { label: 'Rental Terms (English)', group: 'customer_ux' },
+  rental_terms_zh: { label: 'Rental Terms (Chinese)', group: 'customer_ux' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
