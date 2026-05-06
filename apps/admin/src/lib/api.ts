@@ -463,6 +463,12 @@ export interface FinanceReport {
   }>;
 }
 
+export interface DashboardSummary {
+  stats: DashboardStats;
+  overview: DashboardOverview;
+  lowStock: Array<{ id: string; sku: string; name: string; thumbnail_url: string | null; stock_on_hand: number; low_stock_threshold: number }>;
+}
+
 export interface DashboardOverview {
   total_products: number;
   total_orders: number;
@@ -662,6 +668,7 @@ export const adminApi = {
     overview: () => request<{ data: DashboardOverview }>('/api/v1/admin/dashboard/overview'),
     lowStock: (limit = 10) => request<{ data: Array<{ id: string; sku: string; name: string; thumbnail_url: string | null; stock_on_hand: number; low_stock_threshold: number }> }>(`/api/v1/admin/dashboard/low-stock?limit=${limit}`),
     lowStockDigest: () => request<{ data: { generated_at: string; total_low_stock: number; products: Array<{ sku: string; name: string; stock_on_hand: number; threshold: number }>; email_sent: boolean; message: string } }>('/api/v1/admin/dashboard/low-stock-digest', { method: 'POST' }),
+    summary: () => request<{ data: DashboardSummary }>('/api/v1/admin/dashboard/summary'),
   },
   orders: {
     list: (params: Record<string, string>) => {
