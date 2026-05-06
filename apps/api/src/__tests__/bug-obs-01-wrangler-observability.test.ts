@@ -72,7 +72,7 @@ describe('BUG-OBS-01 — wrangler.toml observability config', () => {
 
   it('preserves the worker manifest essentials (gate #4 — regression guard)', () => {
     expect(manifest).toMatch(/^name\s*=\s*"cutebunny-api"\s*$/m);
-    expect(manifest).toMatch(/^main\s*=\s*"src\/index\.ts"\s*$/m);
+    expect(manifest).toMatch(/^main\s*=\s*"src\/worker\.ts"\s*$/m);
     expect(manifest).toMatch(/^compatibility_date\s*=\s*"\d{4}-\d{2}-\d{2}"\s*$/m);
   });
 

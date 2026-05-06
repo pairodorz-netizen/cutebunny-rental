@@ -8,6 +8,7 @@ import { sendOrderStatusNotification } from '../../lib/notifications';
 import { createLifecycleBlocks } from '../../lib/availability';
 import { computePagination } from '@cutebunny/shared/orders-archive-window';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
+import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -131,6 +132,8 @@ adminOrders.get('/', async (c) => {
         end: o.rentalEndDate.toISOString().split('T')[0],
       },
       created_at: o.createdAt.toISOString(),
+      // BUG-505: derived UI flags (computed, not stored)
+      flags: computeDerivedFlags(o.status, o.rentalStartDate, o.rentalEndDate),
     }));
 
     const pagination = computePagination({ total, page, pageSize });
@@ -330,6 +333,8 @@ adminOrders.get('/:id', async (c) => {
       created_at: log.createdAt.toISOString(),
     })),
     created_at: order.createdAt.toISOString(),
+    // BUG-505: derived UI flags (computed, not stored)
+    flags: computeDerivedFlags(order.status, order.rentalStartDate, order.rentalEndDate),
   };
 
   return success(c, data);
@@ -1504,6 +1509,30 @@ adminOrders.post('/backfill-lifecycle-blocks', async (c) => {
     wash_duration_days: washDurationDays,
     errors,
   });
+});
+
+// ─── BUG-505: Backfill stale orders (one-shot, idempotent) ─────────────
+//
+// POST /api/v1/admin/orders/backfill-auto-advance
+// Body: { dry_run?: boolean }
+// Targets stale orders (e.g. ORD-26050507: paid_locked with rental already ended)
+// and advances them per the auto-advance rules.
+adminOrders.post('/backfill-auto-advance', async (c) => {
+  const db = getDb();
+
+  const bodySchema = z.object({
+    dry_run: z.boolean().optional().default(true),
+  });
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid backfill request', parsed.error.flatten());
+  }
+
+  const result = await backfillStaleOrders(db, parsed.data.dry_run);
+
+  return success(c, result);
 });
 
 export default adminOrders;
