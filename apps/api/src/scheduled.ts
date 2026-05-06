@@ -3,7 +3,7 @@
  *
  * Runs hourly via cron trigger. Transitions:
  *   paid_locked → shipped  (when rental_start_date <= today_BKK AND inventory verified)
- *   returned → cleaning    (when rental_end_date + buffer_days <= today_BKK)
+ *   returned → cleaning    (when returned_at + buffer_days <= today_BKK)
  *
  * Manual gates (NOT auto-advanced):
  *   shipped → returned     (admin confirms physical return)
@@ -48,7 +48,8 @@ export interface Alert {
     | 'stale_paid_locked'
     | 'stale_shipped'
     | 'inventory_unavailable_at_shipping'
-    | 'calendar_drift';
+    | 'calendar_drift'
+    | 'legacy_returned_no_log';
   order_id: string;
   order_number: string;
   detail: string;
@@ -374,6 +375,27 @@ async function advanceReturnedToCleaning(
 
     for (const order of orders) {
       try {
+        // Look up returned_at from status log (anchor for buffer)
+        const returnedLog = await db.orderStatusLog.findFirst({
+          where: { orderId: order.id, toStatus: 'returned' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        });
+
+        if (!returnedLog) {
+          // Legacy order without status log — skip and alert
+          metrics.alerts.push({
+            type: 'legacy_returned_no_log',
+            order_id: order.id,
+            order_number: order.orderNumber,
+            detail: 'No OrderStatusLog entry with toStatus=returned; skipping auto-advance',
+          });
+          metrics.returned_to_cleaning.skipped++;
+          continue;
+        }
+
+        const returnedAt = returnedLog.createdAt;
+
         // Determine buffer days (per-product override or default)
         const productIds = order.items.map((i) => i.productId);
         let bufferDays = config.default_buffer_days;
@@ -383,8 +405,10 @@ async function advanceReturnedToCleaning(
           }
         }
 
-        // Check if buffer period has passed
-        const bufferCutoff = new Date(order.rentalEndDate);
+        // Buffer anchored to returned_at, not rentalEndDate
+        const returnedAtDateStr = todayBangkok(returnedAt);
+        const returnedAtDate = dateOnly(returnedAtDateStr);
+        const bufferCutoff = new Date(returnedAtDate);
         bufferCutoff.setDate(bufferCutoff.getDate() + bufferDays);
 
         if (todayDate.getTime() < bufferCutoff.getTime()) {
@@ -409,7 +433,7 @@ async function advanceReturnedToCleaning(
               orderId: order.id,
               fromStatus: 'returned',
               toStatus: 'cleaning',
-              note: `system-auto-advance: returned → cleaning (buffer ${bufferDays}d after rental_end)`,
+              note: `system-auto-advance: returned → cleaning (buffer ${bufferDays}d after returned_at ${returnedAtDateStr})`,
               changedBy: null,
             },
           });
@@ -688,6 +712,26 @@ export async function backfillStaleOrders(
 
   // Process returned → cleaning
   for (const order of staleReturned) {
+    // Look up returned_at from status log
+    const returnedLog = await db.orderStatusLog.findFirst({
+      where: { orderId: order.id, toStatus: 'returned' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    if (!returnedLog) {
+      result.skipped.push({
+        order_id: order.id,
+        order_number: order.orderNumber,
+        reason: 'Legacy order: no OrderStatusLog entry with toStatus=returned',
+      });
+      continue;
+    }
+
+    const returnedAt = returnedLog.createdAt;
+    const returnedAtDateStr = todayBangkok(returnedAt);
+    const returnedAtDate = dateOnly(returnedAtDateStr);
+
     const productIds = order.items.map((i) => i.productId);
     let bufferDays = config.default_buffer_days;
     for (const pid of productIds) {
@@ -696,14 +740,14 @@ export async function backfillStaleOrders(
       }
     }
 
-    const bufferCutoff = new Date(order.rentalEndDate);
+    const bufferCutoff = new Date(returnedAtDate);
     bufferCutoff.setDate(bufferCutoff.getDate() + bufferDays);
 
     if (todayDate.getTime() < bufferCutoff.getTime()) {
       result.skipped.push({
         order_id: order.id,
         order_number: order.orderNumber,
-        reason: `Buffer not passed: end=${order.rentalEndDate.toISOString().split('T')[0]}, buffer=${bufferDays}d, cutoff=${bufferCutoff.toISOString().split('T')[0]}`,
+        reason: `Buffer not passed: returned_at=${returnedAtDateStr}, buffer=${bufferDays}d, cutoff=${bufferCutoff.toISOString().split('T')[0]}`,
       });
       continue;
     }
@@ -714,7 +758,7 @@ export async function backfillStaleOrders(
         order_number: order.orderNumber,
         from_status: 'returned',
         to_status: 'cleaning',
-        reason: `Buffer passed: end=${order.rentalEndDate.toISOString().split('T')[0]}, buffer=${bufferDays}d`,
+        reason: `Buffer passed: returned_at=${returnedAtDateStr}, buffer=${bufferDays}d`,
       });
     } else {
       try {
@@ -730,7 +774,7 @@ export async function backfillStaleOrders(
               orderId: order.id,
               fromStatus: 'returned',
               toStatus: 'cleaning',
-              note: `system-backfill: returned → cleaning (BUG-505, buffer ${bufferDays}d)`,
+              note: `system-backfill: returned → cleaning (BUG-505, buffer ${bufferDays}d after returned_at ${returnedAtDateStr})`,
               changedBy: null,
             },
           });

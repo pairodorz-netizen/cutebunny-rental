@@ -218,8 +218,18 @@ function createTestDb() {
     },
     orderStatusLog: {
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
-        statusLogs.push(args.data);
+        statusLogs.push({ ...args.data, createdAt: new Date() });
         return { id: 'log-' + statusLogs.length };
+      }),
+      findFirst: vi.fn(async (args?: { where?: Record<string, unknown>; orderBy?: unknown; select?: unknown }) => {
+        const match = statusLogs.filter((l) => {
+          if (!args?.where) return true;
+          if (args.where.orderId && l.orderId !== args.where.orderId) return false;
+          if (args.where.toStatus && l.toStatus !== args.where.toStatus) return false;
+          return true;
+        });
+        // Return latest (last added) to mimic orderBy: { createdAt: 'desc' }
+        return match.length > 0 ? match[match.length - 1] : null;
       }),
     },
     availabilityCalendar: {
@@ -279,6 +289,18 @@ function createTestDb() {
       };
       products.push(product);
       return product;
+    },
+    addStatusLog: (orderId: string, fromStatus: string, toStatus: string, createdAt?: Date) => {
+      const log = {
+        orderId,
+        fromStatus,
+        toStatus,
+        note: `test: ${fromStatus} → ${toStatus}`,
+        changedBy: null,
+        createdAt: createdAt ?? new Date(),
+      };
+      statusLogs.push(log);
+      return log;
     },
   };
 }
@@ -427,14 +449,16 @@ describe('BUG-505: processOrderAutoAdvance', () => {
   });
 
   describe('returned → cleaning', () => {
-    it('advances after buffer period (default 1 day)', async () => {
-      testDb.addOrder({
+    it('advances after buffer period (default 1 day) anchored to returned_at', async () => {
+      const order = testDb.addOrder({
         status: 'returned',
         rentalEndDate: new Date('2026-05-04T00:00:00.000Z'),
         items: [{ productId: 'prod-1' }],
       });
+      // Admin marked returned on May 4 (Bangkok time)
+      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-04T10:00:00.000Z'));
 
-      // May 6 Bangkok: 2 days after end = past buffer of 1 day
+      // May 6 Bangkok: 2 days after returned_at = past buffer of 1 day
       const now = new Date('2026-05-06T10:00:00.000Z');
       const metrics = await processOrderAutoAdvance(testDb.db, now);
 
@@ -442,14 +466,16 @@ describe('BUG-505: processOrderAutoAdvance', () => {
       expect(testDb.orders[0].status).toBe('cleaning');
     });
 
-    it('does NOT advance before buffer period', async () => {
-      testDb.addOrder({
+    it('does NOT advance before buffer period (anchored to returned_at)', async () => {
+      const order = testDb.addOrder({
         status: 'returned',
-        rentalEndDate: new Date('2026-05-05T00:00:00.000Z'),
+        rentalEndDate: new Date('2026-05-03T00:00:00.000Z'),
         items: [{ productId: 'prod-1' }],
       });
+      // Returned on May 5 (Bangkok time)
+      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-05T10:00:00.000Z'));
 
-      // May 5 Bangkok: same day as end = before buffer of 1 day
+      // May 5 Bangkok: same day as returned_at = before buffer of 1 day
       const now = new Date('2026-05-05T10:00:00.000Z');
       const metrics = await processOrderAutoAdvance(testDb.db, now);
 
@@ -457,12 +483,14 @@ describe('BUG-505: processOrderAutoAdvance', () => {
       expect(testDb.orders[0].status).toBe('returned');
     });
 
-    it('respects per-product buffer override from config', async () => {
-      testDb.addOrder({
+    it('respects per-product buffer override from config (anchored to returned_at)', async () => {
+      const order = testDb.addOrder({
         status: 'returned',
-        rentalEndDate: new Date('2026-05-04T00:00:00.000Z'),
+        rentalEndDate: new Date('2026-05-02T00:00:00.000Z'),
         items: [{ productId: 'prod-1' }],
       });
+      // Returned on May 4 (Bangkok time)
+      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-04T10:00:00.000Z'));
 
       // Set up config with 3-day buffer for prod-1
       testDb.db.systemConfig.findUnique = vi.fn(async () => ({
@@ -473,12 +501,52 @@ describe('BUG-505: processOrderAutoAdvance', () => {
         },
       }));
 
-      // May 6 Bangkok: 2 days after end. Buffer is 3 days → should NOT advance
+      // May 6 Bangkok: 2 days after returned_at (May 4). Buffer is 3 days → should NOT advance
       const now = new Date('2026-05-06T10:00:00.000Z');
       const metrics = await processOrderAutoAdvance(testDb.db, now);
 
       expect(metrics.returned_to_cleaning.skipped).toBe(1);
       expect(testDb.orders[0].status).toBe('returned');
+    });
+
+    it('late return: buffer anchored to returned_at, not rentalEndDate', async () => {
+      // rentalEndDate=May 1, but actually returned 5 days late on May 6
+      // buffer=1d → cleaning eligible at May 7, NOT May 2
+      const order = testDb.addOrder({
+        status: 'returned',
+        rentalEndDate: new Date('2026-05-01T00:00:00.000Z'),
+        items: [{ productId: 'prod-1' }],
+      });
+      // Late return: marked returned on May 6 (Bangkok time)
+      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-06T10:00:00.000Z'));
+
+      // May 6 Bangkok: same day as returned_at, buffer=1d → NOT eligible yet
+      const now1 = new Date('2026-05-06T10:00:00.000Z');
+      const metrics1 = await processOrderAutoAdvance(testDb.db, now1);
+      expect(metrics1.returned_to_cleaning.skipped).toBe(1);
+      expect(testDb.orders[0].status).toBe('returned');
+
+      // May 7 Bangkok: 1 day after returned_at → eligible
+      const now2 = new Date('2026-05-07T10:00:00.000Z');
+      const metrics2 = await processOrderAutoAdvance(testDb.db, now2);
+      expect(metrics2.returned_to_cleaning.processed).toBe(1);
+      expect(testDb.orders[0].status).toBe('cleaning');
+    });
+
+    it('legacy order without status log: skipped + legacy_returned_no_log alert', async () => {
+      testDb.addOrder({
+        status: 'returned',
+        rentalEndDate: new Date('2026-04-01T00:00:00.000Z'),
+        items: [{ productId: 'prod-1' }],
+      });
+      // No status log added — legacy order
+
+      const now = new Date('2026-05-06T10:00:00.000Z');
+      const metrics = await processOrderAutoAdvance(testDb.db, now);
+
+      expect(metrics.returned_to_cleaning.skipped).toBe(1);
+      expect(testDb.orders[0].status).toBe('returned');
+      expect(metrics.alerts.some((a) => a.type === 'legacy_returned_no_log')).toBe(true);
     });
 
     it('preserves manual gates: does NOT auto-advance shipped→returned', async () => {
