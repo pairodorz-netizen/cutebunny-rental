@@ -6,6 +6,7 @@ import { cors } from 'hono/cors';
 import { getDb, resetDb } from './lib/db';
 import { setEnv, type Env } from './lib/env';
 import { requireAuth } from './middleware/auth';
+import { cpuTimer } from './middleware/cpu-timer';
 import products from './routes/products';
 import categories from './routes/categories';
 import cart from './routes/cart';
@@ -95,6 +96,9 @@ app.route('/api/v1/customer/auth', customerAuth);
 // ─── Admin APIs (v1) ───────────────────────────────────────────────────
 // Auth (public, rate-limited)
 app.route('/api/v1/admin/auth', adminAuth);
+
+// CPU-time logging on admin dashboard routes
+app.use('/api/v1/admin/dashboard/*', cpuTimer);
 
 // Protected admin routes
 app.use('/api/v1/admin/dashboard/*', requireAuth);

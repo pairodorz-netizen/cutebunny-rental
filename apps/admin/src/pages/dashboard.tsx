@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
 import { ShoppingCart, DollarSign, Truck, AlertTriangle, Clock, TrendingUp, Package, Users } from 'lucide-react';
-import { adminApi } from '@/lib/api';
 import { useState } from 'react';
+import { useDashboardSummary } from '@/lib/hooks/useDashboard';
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: '#ef4444',
@@ -43,30 +42,13 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'stats' | 'overview'>('stats');
 
-  const statsQuery = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: () => adminApi.dashboard.stats(),
-    refetchInterval: 60000,
-  });
+  const summaryQuery = useDashboardSummary();
+  const summary = summaryQuery.data?.data;
+  const stats = summary?.stats;
+  const overview = summary?.overview;
+  const lowStockProducts = summary?.lowStock ?? [];
 
-  const overviewQuery = useQuery({
-    queryKey: ['dashboard-overview'],
-    queryFn: () => adminApi.dashboard.overview(),
-    refetchInterval: 60000,
-  });
-
-  // C2: Low stock widget query
-  const lowStockQuery = useQuery({
-    queryKey: ['dashboard-low-stock'],
-    queryFn: () => adminApi.dashboard.lowStock(10),
-    refetchInterval: 60000,
-  });
-
-  const stats = statsQuery.data?.data;
-  const overview = overviewQuery.data?.data;
-  const lowStockProducts = lowStockQuery.data?.data ?? [];
-
-  if (statsQuery.isLoading && overviewQuery.isLoading) {
+  if (summaryQuery.isLoading) {
     return (
       <div>
         <h1 className="text-2xl font-bold mb-6">{t('dashboard.title')}</h1>
