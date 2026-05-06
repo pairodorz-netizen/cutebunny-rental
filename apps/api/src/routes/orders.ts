@@ -7,6 +7,7 @@ import { getDb } from '../lib/db';
 import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
 import { confirmHolds, createLifecycleBlocks, releaseTentativeHolds } from '../lib/availability';
+import { computeDerivedFlags } from '../scheduled';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
 import { getCartStore } from './cart';
@@ -672,6 +673,8 @@ orders.get('/:order_token', async (c) => {
     })),
     shipping: order.shippingSnapshot,
     created_at: order.createdAt.toISOString(),
+    // BUG-505: derived UI flags for customer-facing order status
+    flags: computeDerivedFlags(order.status, order.rentalStartDate, order.rentalEndDate),
   });
 });
 
