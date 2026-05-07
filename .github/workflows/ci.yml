@@ -138,16 +138,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cutebunny/shared db:generate
-      - name: Enable uuid-ossp extension
-        run: |
-          PGPASSWORD=prisma psql -h localhost -U prisma -d drift_check \
-            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-        env:
-          PGPASSWORD: prisma
       - name: Push schema to shadow DB
         run: |
           cd packages/shared
-          npx prisma db push --accept-data-loss --force-reset
+          # First attempt will fail on uuid_generate_v4() because uuid-ossp
+          # isn't loaded yet. Reset the DB to a clean state, then install
+          # the extension manually, then push schema without reset.
+          npx prisma db push --accept-data-loss --force-reset 2>/dev/null || true
+          PGPASSWORD=prisma psql -h localhost -U prisma -d drift_check \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+          npx prisma db push --accept-data-loss
       - name: Verify schema matches datamodel
         run: |
           cd packages/shared
