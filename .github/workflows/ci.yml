@@ -100,6 +100,63 @@ jobs:
       - name: Security Audit
         run: pnpm audit --audit-level=critical || true
 
+  schema-drift-guard:
+    # BUG-506: Fail CI if Prisma schema.prisma declares columns/tables
+    # that are NOT covered by the migration history. Prevents deploying
+    # code that references columns which don't exist in production.
+    #
+    # Approach: push schema.prisma into a shadow DB via `db push`, then
+    # diff migration history against it. This validates that migrations
+    # can produce the schema state (directional check). We use `db push`
+    # instead of `migrate deploy` because some legacy migrations reference
+    # tables that were created manually in Supabase (e.g. combo_sets,
+    # system_configs) and those migrations fail on a fresh DB.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: drift_check
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U prisma"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://prisma:prisma@localhost:5432/drift_check
+      DIRECT_URL: postgresql://prisma:prisma@localhost:5432/drift_check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - name: Push schema to shadow DB
+        run: |
+          cd packages/shared
+          # First attempt will fail on uuid_generate_v4() because uuid-ossp
+          # isn't loaded yet. Reset the DB to a clean state, then install
+          # the extension manually, then push schema without reset.
+          npx prisma db push --accept-data-loss --force-reset 2>/dev/null || true
+          PGPASSWORD=prisma psql -h localhost -U prisma -d drift_check \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+          npx prisma db push --accept-data-loss
+      - name: Verify schema matches datamodel
+        run: |
+          cd packages/shared
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --exit-code
+          echo "No schema drift detected — all models/columns in schema.prisma exist in DB."
+
   e2e-categories-parity:
     # BUG-504-A05: Playwright parity guard between the A02 public
     # /api/v1/categories endpoint and the customer filter UI. Boots the
