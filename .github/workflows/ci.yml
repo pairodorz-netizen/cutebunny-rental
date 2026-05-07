@@ -121,6 +121,7 @@ jobs:
           --health-retries=5
     env:
       SHADOW_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/drift_check
+      DIRECT_URL: postgresql://prisma:prisma@localhost:5432/drift_check
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -130,6 +131,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @cutebunny/shared db:generate
+      - name: Enable uuid-ossp extension
+        run: |
+          PGPASSWORD=prisma psql -h localhost -U prisma -d drift_check \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+        env:
+          PGPASSWORD: prisma
       - name: Apply migrations to shadow DB
         run: |
           cd packages/shared
