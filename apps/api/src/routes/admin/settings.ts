@@ -7,6 +7,7 @@ import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
 import { getAdmin, requireRole } from '../../middleware/auth';
 import { sendCustomNotification } from '../../lib/notifications';
+import { isPrismaSchemaError, tagPrismaError } from '../../lib/prisma-errors';
 
 const adminSettings = new Hono();
 
@@ -14,8 +15,10 @@ const adminSettings = new Hono();
 async function safeAuditLog(db: ReturnType<typeof getDb>, data: Parameters<ReturnType<typeof getDb>['auditLog']['create']>[0]['data']) {
   try {
     await db.auditLog.create({ data });
-  } catch {
-    // Audit log is non-critical; swallow errors from schema drift (e.g. missing ip_address column)
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
   }
 }
 
@@ -601,8 +604,12 @@ adminSettings.get('/audit-log', requireRole('superadmin'), async (c) => {
       count: total,
       total_pages: Math.ceil(total / perPage),
     });
-  } catch {
-    // Schema drift: return empty audit log rather than crashing
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs fetch degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    } else {
+      console.error('Failed to fetch audit logs:', auditErr instanceof Error ? auditErr.message : auditErr);
+    }
     return success(c, [], {
       page,
       per_page: perPage,

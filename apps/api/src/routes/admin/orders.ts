@@ -9,6 +9,7 @@ import { createLifecycleBlocks } from '../../lib/availability';
 import { computePagination } from '@cutebunny/shared/orders-archive-window';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
 import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
+import { isPrismaSchemaError, tagPrismaError } from '../../lib/prisma-errors';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -251,7 +252,12 @@ adminOrders.get('/:id', async (c) => {
       },
     });
   } catch (e) {
-    console.error('Failed to fetch audit logs:', e instanceof Error ? e.message : e);
+    if (isPrismaSchemaError(e)) {
+      const errTag = tagPrismaError(e);
+      console.error(`[${errTag.tag}] audit_logs fetch degraded:`, JSON.stringify(errTag));
+    } else {
+      console.error('Failed to fetch audit logs:', e instanceof Error ? e.message : e);
+    }
   }
 
   const data = {
@@ -446,7 +452,11 @@ adminOrders.patch('/:id/edit', async (c) => {
         },
       });
     }
-  } catch { /* audit failure should not block */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return success(c, { id: orderId, changes });
 });
@@ -516,7 +526,11 @@ adminOrders.post('/:id/items', async (c) => {
         details: { product_name: product.name, sku: product.sku, size: parsed.data.size, subtotal: parsed.data.subtotal },
       },
     });
-  } catch { /* audit failure should not block */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return created(c, {
     item: {
@@ -577,7 +591,11 @@ adminOrders.delete('/:id/items/:itemId', async (c) => {
         details: { product_name: item.productName, size: item.size, subtotal: item.subtotal, refund: refundAmount },
       },
     });
-  } catch { /* audit failure should not block */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return success(c, {
     deleted: true,
@@ -780,7 +798,11 @@ adminOrders.patch('/:id/status', async (c) => {
         },
       });
     }
-  } catch { /* audit-log failure is non-blocking */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return success(c, {
     id: updatedOrder.id,
@@ -918,7 +940,11 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
         },
       });
     }
-  } catch { /* audit failure should not block */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return success(c, {
     slip_id: slip.id,
@@ -1398,7 +1424,11 @@ adminOrders.post('/', async (c) => {
         details: { order_number: orderNumber, customer_name, items_count: items.length, total: totalAmount },
       },
     });
-  } catch { /* audit failure should not block */ }
+  } catch (auditErr) {
+    if (isPrismaSchemaError(auditErr)) {
+      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
+    }
+  }
 
   return created(c, {
     id: order.id,

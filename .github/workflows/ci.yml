@@ -100,6 +100,49 @@ jobs:
       - name: Security Audit
         run: pnpm audit --audit-level=critical || true
 
+  schema-drift-guard:
+    # BUG-506: Fail CI if Prisma schema.prisma declares columns/tables
+    # that are NOT covered by the migration history. Prevents deploying
+    # code that references columns which don't exist in production.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: prisma
+          POSTGRES_PASSWORD: prisma
+          POSTGRES_DB: drift_check
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U prisma"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      SHADOW_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/drift_check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cutebunny/shared db:generate
+      - name: Apply migrations to shadow DB
+        run: |
+          cd packages/shared
+          DATABASE_URL=$SHADOW_DATABASE_URL npx prisma migrate deploy
+      - name: Check for schema drift
+        run: |
+          cd packages/shared
+          npx prisma migrate diff \
+            --from-url "$SHADOW_DATABASE_URL" \
+            --to-schema-datamodel ./prisma/schema.prisma \
+            --exit-code
+          echo "No schema drift detected."
+
   e2e-categories-parity:
     # BUG-504-A05: Playwright parity guard between the A02 public
     # /api/v1/categories endpoint and the customer filter UI. Boots the
