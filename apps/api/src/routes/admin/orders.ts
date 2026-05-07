@@ -243,6 +243,7 @@ adminOrders.get('/:id', async (c) => {
 
   // Fetch audit logs separately so a missing/misconfigured table doesn't break the detail endpoint
   let auditLogEntries: Array<{ id: string; action: string; resource: string | null; details: unknown; adminId: string; createdAt: Date; admin?: { name: string | null; email: string } | null }> = [];
+  let auditLogsDegraded = false;
   try {
     auditLogEntries = await db.auditLog.findMany({
       where: { orderId },
@@ -252,6 +253,7 @@ adminOrders.get('/:id', async (c) => {
       },
     });
   } catch (e) {
+    auditLogsDegraded = true;
     if (isPrismaSchemaError(e)) {
       const errTag = tagPrismaError(e);
       console.error(`[${errTag.tag}] audit_logs fetch degraded:`, JSON.stringify(errTag));
@@ -341,6 +343,7 @@ adminOrders.get('/:id', async (c) => {
     created_at: order.createdAt.toISOString(),
     // BUG-505: derived UI flags (computed, not stored)
     flags: computeDerivedFlags(order.status, order.rentalStartDate, order.rentalEndDate),
+    _meta: auditLogsDegraded ? { warning: 'audit_logs_unavailable' } : undefined,
   };
 
   return success(c, data);

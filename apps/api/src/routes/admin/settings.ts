@@ -618,6 +618,7 @@ adminSettings.get('/audit-log', requireRole('superadmin'), async (c) => {
       total: 0,
       count: 0,
       total_pages: 0,
+      _meta: { warning: 'audit_logs_unavailable' },
     });
   }
 });

@@ -199,9 +199,10 @@ describe('BUG-506: GET /api/v1/admin/orders/:id — P2022 resilience', () => {
     );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: { audit_logs: unknown[] } };
+    const body = await res.json() as { data: { audit_logs: unknown[]; _meta?: { warning: string } } };
     expect(body.data.audit_logs).toEqual([]);
     expect(body.data).toHaveProperty('order_number', 'ORD-TEST-506');
+    expect(body.data._meta).toEqual({ warning: 'audit_logs_unavailable' });
   });
 
   it('returns 200 with populated audit_logs when no error', async () => {
@@ -222,8 +223,9 @@ describe('BUG-506: GET /api/v1/admin/orders/:id — P2022 resilience', () => {
     );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: { audit_logs: unknown[] } };
+    const body = await res.json() as { data: { audit_logs: unknown[]; _meta?: { warning: string } } };
     expect(body.data.audit_logs).toHaveLength(1);
+    expect(body.data._meta).toBeUndefined();
   });
 });
 
@@ -243,8 +245,9 @@ describe('BUG-506: GET /api/v1/admin/settings/audit-log — P2022 resilience', (
     );
 
     expect(res.status).toBe(200);
-    const body = await res.json() as { data: unknown[]; meta: { total: number } };
+    const body = await res.json() as { data: unknown[]; meta: { total: number; _meta?: { warning: string } } };
     expect(body.data).toEqual([]);
     expect(body.meta.total).toBe(0);
+    expect(body.meta._meta).toEqual({ warning: 'audit_logs_unavailable' });
   });
 });
