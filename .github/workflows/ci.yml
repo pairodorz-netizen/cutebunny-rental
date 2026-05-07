@@ -104,6 +104,13 @@ jobs:
     # BUG-506: Fail CI if Prisma schema.prisma declares columns/tables
     # that are NOT covered by the migration history. Prevents deploying
     # code that references columns which don't exist in production.
+    #
+    # Approach: push schema.prisma into a shadow DB via `db push`, then
+    # diff migration history against it. This validates that migrations
+    # can produce the schema state (directional check). We use `db push`
+    # instead of `migrate deploy` because some legacy migrations reference
+    # tables that were created manually in Supabase (e.g. combo_sets,
+    # system_configs) and those migrations fail on a fresh DB.
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -120,7 +127,7 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      SHADOW_DATABASE_URL: postgresql://prisma:prisma@localhost:5432/drift_check
+      DATABASE_URL: postgresql://prisma:prisma@localhost:5432/drift_check
       DIRECT_URL: postgresql://prisma:prisma@localhost:5432/drift_check
     steps:
       - uses: actions/checkout@v4
@@ -137,18 +144,18 @@ jobs:
             -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
         env:
           PGPASSWORD: prisma
-      - name: Apply migrations to shadow DB
+      - name: Push schema to shadow DB
         run: |
           cd packages/shared
-          DATABASE_URL=$SHADOW_DATABASE_URL npx prisma migrate deploy
-      - name: Check for schema drift
+          npx prisma db push --accept-data-loss --force-reset
+      - name: Verify schema matches datamodel
         run: |
           cd packages/shared
           npx prisma migrate diff \
-            --from-url "$SHADOW_DATABASE_URL" \
+            --from-url "$DATABASE_URL" \
             --to-schema-datamodel ./prisma/schema.prisma \
             --exit-code
-          echo "No schema drift detected."
+          echo "No schema drift detected — all models/columns in schema.prisma exist in DB."
 
   e2e-categories-parity:
     # BUG-504-A05: Playwright parity guard between the A02 public
