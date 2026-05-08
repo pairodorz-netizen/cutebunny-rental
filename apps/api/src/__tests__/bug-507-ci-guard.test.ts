@@ -107,4 +107,41 @@ describe('BUG-507: INET migration', () => {
     expect(schema).toContain('@db.Inet');
     expect(schema).toContain('ipAddress');
   });
+
+  it('migration SQL includes safe USING CASE clause', () => {
+    const sql = readFileSync(join(migDir, 'migration.sql'), 'utf-8');
+    expect(sql).toContain('CASE');
+    expect(sql).toContain('ELSE NULL');
+  });
+
+  it('migration SQL includes down migration comment', () => {
+    const sql = readFileSync(join(migDir, 'migration.sql'), 'utf-8');
+    expect(sql).toContain('DOWN (rollback)');
+    expect(sql).toContain('host(ip_address)::text');
+  });
+});
+
+// ─── system_logs migration guard ────────────────────────────────────────
+
+describe('BUG-507: system_logs migration', () => {
+  const sysLogMigDir = join(REPO_ROOT, 'packages', 'shared', 'prisma', 'migrations', '20260508_160_system_logs');
+
+  it('migration directory exists', () => {
+    expect(existsSync(sysLogMigDir)).toBe(true);
+  });
+
+  it('migration SQL creates system_logs table', () => {
+    const sql = readFileSync(join(sysLogMigDir, 'migration.sql'), 'utf-8');
+    expect(sql).toContain('system_logs');
+    expect(sql).toContain('CREATE TABLE');
+  });
+
+  it('schema.prisma declares SystemLog model', () => {
+    const schema = readFileSync(
+      join(REPO_ROOT, 'packages', 'shared', 'prisma', 'schema.prisma'),
+      'utf-8',
+    );
+    expect(schema).toContain('model SystemLog');
+    expect(schema).toContain('system_logs');
+  });
 });

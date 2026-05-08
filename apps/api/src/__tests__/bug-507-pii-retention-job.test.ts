@@ -9,6 +9,9 @@ function createMockDb() {
   return {
     $queryRawUnsafe: vi.fn(),
     $executeRawUnsafe: vi.fn(),
+    systemLog: {
+      create: vi.fn().mockResolvedValue({ id: 'log-1' }),
+    },
   };
 }
 
@@ -158,5 +161,48 @@ describe('BUG-507: processPiiRetention()', () => {
       expect.stringContaining('SET ip_address = NULL'),
       'c1',
     );
+  });
+
+  it('writes compliance proof to system_logs on success', async () => {
+    db.$queryRawUnsafe.mockResolvedValue([]);
+    db.$executeRawUnsafe.mockResolvedValue(0);
+
+    await processPiiRetention(db as never);
+
+    expect(db.systemLog.create).toHaveBeenCalledTimes(1);
+    const call = db.systemLog.create.mock.calls[0][0];
+    expect(call.data.job).toBe('pii_retention');
+    expect(call.data.status).toBe('success');
+    expect(call.data.details).toMatchObject({
+      masked: 0,
+      deleted: 0,
+      message: expect.stringContaining('Retention policy for'),
+    });
+  });
+
+  it('writes partial status to system_logs on alert', async () => {
+    db.$queryRawUnsafe
+      .mockRejectedValueOnce(new Error('db timeout'))
+      .mockRejectedValueOnce(new Error('db timeout'))
+      .mockRejectedValueOnce(new Error('db timeout'));
+    db.$executeRawUnsafe.mockResolvedValue(0);
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await processPiiRetention(db as never);
+
+    expect(db.systemLog.create).toHaveBeenCalledTimes(1);
+    const call = db.systemLog.create.mock.calls[0][0];
+    expect(call.data.status).toBe('partial');
+    consoleSpy.mockRestore();
+  });
+
+  it('writes system_log every time cron runs (compliance proof)', async () => {
+    db.$queryRawUnsafe.mockResolvedValue([]);
+    db.$executeRawUnsafe.mockResolvedValue(0);
+
+    await processPiiRetention(db as never);
+    await processPiiRetention(db as never);
+
+    expect(db.systemLog.create).toHaveBeenCalledTimes(2);
   });
 });

@@ -578,6 +578,16 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model SystemLog {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  job       String
+  status    String
+  details   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("system_logs")
+}
+
 model ComboSet {
   id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   sku             String   @unique

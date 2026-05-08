@@ -2,7 +2,7 @@
  * BUG-507 — Unit tests for IP masking and client IP extraction.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { maskIP, getClientIP } from '../lib/ip-mask';
 
 // ─── maskIP() ───────────────────────────────────────────────────────────
@@ -109,53 +109,94 @@ describe('BUG-507: getClientIP()', () => {
     };
   }
 
-  it('prefers CF-Connecting-IP over X-Forwarded-For', () => {
-    const headers = makeHeaders({
-      'CF-Connecting-IP': '1.2.3.4',
-      'X-Forwarded-For': '5.6.7.8, 9.10.11.12',
+  describe('trusted Cloudflare requests (CF-Ray present)', () => {
+    it('uses CF-Connecting-IP when CF-Ray present (trusted)', () => {
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '1.2.3.4',
+        'CF-Ray': '8a1b2c3d4e5f-LAX',
+        'X-Forwarded-For': '5.6.7.8, 9.10.11.12',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBe('1.2.3.4');
+      expect(result.trusted).toBe(true);
     });
-    expect(getClientIP(headers)).toBe('1.2.3.4');
+
+    it('trims whitespace from CF-Connecting-IP', () => {
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '  1.2.3.4  ',
+        'CF-Ray': 'abc123-SIN',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBe('1.2.3.4');
+      expect(result.trusted).toBe(true);
+    });
+
+    it('handles IPv6 CF-Connecting-IP', () => {
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '2001:db8::1',
+        'CF-Ray': 'abc123-BKK',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBe('2001:db8::1');
+      expect(result.trusted).toBe(true);
+    });
   });
 
-  it('falls back to X-Forwarded-For leftmost when no CF-Connecting-IP', () => {
-    const headers = makeHeaders({
-      'X-Forwarded-For': '5.6.7.8, 9.10.11.12',
+  describe('spoofed CF-Connecting-IP (no CF-Ray)', () => {
+    it('ignores CF-Connecting-IP when CF-Ray absent, falls back to XFF', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '203.0.113.1',
+        'X-Forwarded-For': '10.0.0.1, 192.168.1.1',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBe('10.0.0.1');
+      expect(result.trusted).toBe(false);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('CF-Connecting-IP present without CF-Ray'),
+      );
+      warnSpy.mockRestore();
     });
-    expect(getClientIP(headers)).toBe('5.6.7.8');
+
+    it('ignores spoofed CF-Connecting-IP without XFF fallback', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '203.0.113.1',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBeNull();
+      expect(result.trusted).toBe(false);
+      warnSpy.mockRestore();
+    });
   });
 
-  it('returns null when no headers present', () => {
-    const headers = makeHeaders({});
-    expect(getClientIP(headers)).toBeNull();
+  describe('fallback to X-Forwarded-For', () => {
+    it('falls back to XFF leftmost when no CF headers', () => {
+      const headers = makeHeaders({
+        'X-Forwarded-For': '5.6.7.8, 9.10.11.12',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBe('5.6.7.8');
+      expect(result.trusted).toBe(false);
+    });
   });
 
-  it('ignores spoofed XFF when CF-Connecting-IP is present', () => {
-    const headers = makeHeaders({
-      'CF-Connecting-IP': '203.0.113.1',
-      'X-Forwarded-For': '10.0.0.1, 192.168.1.1',
+  describe('no IP available', () => {
+    it('returns null when no headers present', () => {
+      const headers = makeHeaders({});
+      const result = getClientIP(headers);
+      expect(result.ip).toBeNull();
+      expect(result.trusted).toBe(false);
     });
-    expect(getClientIP(headers)).toBe('203.0.113.1');
-  });
 
-  it('trims whitespace from CF-Connecting-IP', () => {
-    const headers = makeHeaders({
-      'CF-Connecting-IP': '  1.2.3.4  ',
+    it('returns null for empty CF-Connecting-IP and empty XFF', () => {
+      const headers = makeHeaders({
+        'CF-Connecting-IP': '',
+        'X-Forwarded-For': '',
+      });
+      const result = getClientIP(headers);
+      expect(result.ip).toBeNull();
+      expect(result.trusted).toBe(false);
     });
-    expect(getClientIP(headers)).toBe('1.2.3.4');
-  });
-
-  it('returns null for empty CF-Connecting-IP and empty XFF', () => {
-    const headers = makeHeaders({
-      'CF-Connecting-IP': '',
-      'X-Forwarded-For': '',
-    });
-    expect(getClientIP(headers)).toBeNull();
-  });
-
-  it('handles IPv6 CF-Connecting-IP', () => {
-    const headers = makeHeaders({
-      'CF-Connecting-IP': '2001:db8::1',
-    });
-    expect(getClientIP(headers)).toBe('2001:db8::1');
   });
 });

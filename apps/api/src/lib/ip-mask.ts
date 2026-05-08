@@ -99,22 +99,56 @@ function padHexGroup(g: string): string {
 }
 
 /**
- * Extract the client IP from a Cloudflare Worker request.
+ * Check if a request genuinely came through Cloudflare's edge network.
  *
- * Trust order (per spec):
- *   1. CF-Connecting-IP (set by Cloudflare edge, cannot be spoofed)
- *   2. X-Forwarded-For leftmost (only if CF-Connecting-IP absent)
- *   3. null
+ * CF-Ray is a unique identifier added by Cloudflare's edge and cannot
+ * be reliably forged by external clients. Its presence indicates the
+ * request traversed CF infrastructure, making CF-Connecting-IP trustworthy.
  */
-export function getClientIP(headers: { get(name: string): string | null }): string | null {
-  const cfIP = headers.get('CF-Connecting-IP');
-  if (cfIP && cfIP.trim()) return cfIP.trim();
+function isCloudflareRequest(headers: { get(name: string): string | null }): boolean {
+  const cfRay = headers.get('CF-Ray');
+  return !!cfRay && cfRay.trim().length > 0;
+}
 
+/**
+ * Extract the client IP from a request.
+ *
+ * Trust order:
+ *   1. If request came through Cloudflare (CF-Ray present):
+ *      → use CF-Connecting-IP (set by CF edge, trustworthy)
+ *   2. If CF-Connecting-IP is present but CF-Ray is absent:
+ *      → header may be spoofed; log as untrusted, fallback to XFF
+ *   3. X-Forwarded-For leftmost (fallback)
+ *   4. null
+ *
+ * Returns `{ ip, trusted }` where `trusted` indicates whether the IP
+ * came from a verified Cloudflare source.
+ */
+export interface ClientIPResult {
+  ip: string | null;
+  trusted: boolean;
+}
+
+export function getClientIP(headers: { get(name: string): string | null }): ClientIPResult {
+  const isCF = isCloudflareRequest(headers);
+  const cfIP = headers.get('CF-Connecting-IP');
+
+  // Trusted path: request came through Cloudflare
+  if (isCF && cfIP && cfIP.trim()) {
+    return { ip: cfIP.trim(), trusted: true };
+  }
+
+  // Spoofed CF-Connecting-IP (present without CF-Ray) — ignore it
+  if (!isCF && cfIP) {
+    console.warn('[ip-extraction] CF-Connecting-IP present without CF-Ray — ignoring (possible spoof)');
+  }
+
+  // Fallback: X-Forwarded-For leftmost
   const xff = headers.get('X-Forwarded-For');
   if (xff) {
     const first = xff.split(',')[0]?.trim();
-    if (first) return first;
+    if (first) return { ip: first, trusted: false };
   }
 
-  return null;
+  return { ip: null, trusted: false };
 }

@@ -946,5 +946,31 @@ export async function processPiiRetention(
   }
 
   metrics.duration_ms = Date.now() - start;
+
+  // Write compliance proof to system_logs
+  const status = metrics.alert ? 'partial' : metrics.errors.length > 0 ? 'partial' : 'success';
+  try {
+    await db.systemLog.create({
+      data: {
+        job: 'pii_retention',
+        status,
+        details: {
+          masked: metrics.masked,
+          deleted: metrics.deleted,
+          duration_ms: metrics.duration_ms,
+          date_range: {
+            mask_from: day30Ago.toISOString(),
+            mask_to: day90Ago.toISOString(),
+            delete_before: day90Ago.toISOString(),
+          },
+          errors: metrics.errors,
+          message: `Retention policy for ${now.toISOString().split('T')[0]} applied`,
+        },
+      },
+    });
+  } catch (logErr) {
+    console.error('[pii_retention] Failed to write system_log:', logErr);
+  }
+
   return metrics;
 }
