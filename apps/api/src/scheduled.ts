@@ -18,6 +18,7 @@
  */
 
 import type { PrismaClient } from '@prisma/client';
+import { maskIP } from './lib/ip-mask';
 
 // ─── Timezone helpers ──────────────────────────────────────────────────
 
@@ -803,4 +804,147 @@ export async function backfillStaleOrders(
   }
 
   return result;
+}
+
+// ─── BUG-507: PII Retention Job ─────────────────────────────────────────
+
+const PII_BATCH_SIZE = 1000;
+const PII_MAX_CONSECUTIVE_FAILURES = 3;
+
+export interface PiiRetentionMetrics {
+  job: 'pii_retention';
+  masked: number;
+  deleted: number;
+  duration_ms: number;
+  errors: string[];
+  alert: boolean;
+}
+
+/**
+ * Daily PII retention job — runs at 03:00 Asia/Bangkok.
+ *
+ * Step A: Mask IPs for rows aged 30–90 days (IPv4 /24, IPv6 /48).
+ * Step B: Delete (NULL) IPs for rows aged >90 days.
+ *
+ * Idempotent: already-masked IPs (containing /24 or /48) are skipped in Step A.
+ * Already-NULL IPs are excluded by the WHERE clause in Step B.
+ */
+export async function processPiiRetention(
+  db: PrismaClient,
+  now: Date = new Date(),
+): Promise<PiiRetentionMetrics> {
+  const start = Date.now();
+  const metrics: PiiRetentionMetrics = {
+    job: 'pii_retention',
+    masked: 0,
+    deleted: 0,
+    duration_ms: 0,
+    errors: [],
+    alert: false,
+  };
+
+  const day30Ago = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const day90Ago = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  let consecutiveFailures = 0;
+
+  // Step A: Mask rows aged 30–90 days
+  let hasMoreA = true;
+  while (hasMoreA) {
+    try {
+      const rows = await db.$queryRawUnsafe<
+        Array<{ id: string; ip_address: string }>
+      >(
+        `SELECT id, host(ip_address)::text AS ip_address
+         FROM audit_logs
+         WHERE created_at <= $1
+           AND created_at > $2
+           AND ip_address IS NOT NULL
+           AND host(ip_address)::text NOT LIKE '%/24'
+           AND host(ip_address)::text NOT LIKE '%/48'
+           AND host(ip_address)::text NOT LIKE '%.0'
+         LIMIT $3`,
+        day30Ago,
+        day90Ago,
+        PII_BATCH_SIZE,
+      );
+
+      if (rows.length === 0) {
+        hasMoreA = false;
+        break;
+      }
+
+      for (const row of rows) {
+        const masked = maskIP(row.ip_address);
+        if (masked) {
+          await db.$executeRawUnsafe(
+            `UPDATE audit_logs SET ip_address = $1::inet WHERE id = $2::uuid`,
+            masked,
+            row.id,
+          );
+          metrics.masked++;
+        } else {
+          // Invalid IP — null it out
+          await db.$executeRawUnsafe(
+            `UPDATE audit_logs SET ip_address = NULL WHERE id = $1::uuid`,
+            row.id,
+          );
+          metrics.masked++;
+        }
+      }
+      consecutiveFailures = 0;
+    } catch (e) {
+      consecutiveFailures++;
+      metrics.errors.push(
+        `Step A batch fail: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      if (consecutiveFailures >= PII_MAX_CONSECUTIVE_FAILURES) {
+        metrics.alert = true;
+        console.error(
+          `[pii_retention] ALERT: ${consecutiveFailures} consecutive Step A failures, aborting`,
+        );
+        hasMoreA = false;
+      }
+    }
+  }
+
+  // Step B: Delete (NULL) IPs for rows aged >90 days
+  consecutiveFailures = 0;
+  let hasMoreB = true;
+  while (hasMoreB) {
+    try {
+      const result = await db.$executeRawUnsafe(
+        `UPDATE audit_logs
+         SET ip_address = NULL
+         WHERE id IN (
+           SELECT id FROM audit_logs
+           WHERE created_at <= $1
+             AND ip_address IS NOT NULL
+           LIMIT $2
+         )`,
+        day90Ago,
+        PII_BATCH_SIZE,
+      );
+
+      metrics.deleted += result;
+      if (result < PII_BATCH_SIZE) {
+        hasMoreB = false;
+      }
+      consecutiveFailures = 0;
+    } catch (e) {
+      consecutiveFailures++;
+      metrics.errors.push(
+        `Step B batch fail: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      if (consecutiveFailures >= PII_MAX_CONSECUTIVE_FAILURES) {
+        metrics.alert = true;
+        console.error(
+          `[pii_retention] ALERT: ${consecutiveFailures} consecutive Step B failures, aborting`,
+        );
+        hasMoreB = false;
+      }
+    }
+  }
+
+  metrics.duration_ms = Date.now() - start;
+  return metrics;
 }

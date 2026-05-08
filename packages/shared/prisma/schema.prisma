@@ -569,7 +569,7 @@ model AuditLog {
   resource   String?
   resourceId String?  @map("resource_id")
   details    Json?    @db.JsonB
-  ipAddress  String?  @map("ip_address")
+  ipAddress  String?  @map("ip_address") @db.Inet
   createdAt  DateTime @default(now()) @map("created_at")
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
