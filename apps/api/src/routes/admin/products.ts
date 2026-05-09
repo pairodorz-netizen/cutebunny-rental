@@ -684,6 +684,11 @@ adminProducts.post('/', async (c) => {
       quantity: z.number().int().min(1),
       unit_cost: z.number().int().min(0).default(0),
       note: z.string().optional(),
+      // FEAT-510: Multi-size initial stock entries
+      entries: z.array(z.object({
+        size: z.string().nullable().optional().default(null),
+        quantity: z.number().int().min(1),
+      })).optional(),
     }).optional(),
   }).refine(
     (d) => d.category_id || d.category,
@@ -801,34 +806,60 @@ adminProducts.post('/', async (c) => {
   });
 
   // Initial stock: create stock log + calendar entries if provided
-  let stockResult: { stock_on_hand: number; log_id: string } | null = null;
+  // FEAT-510: Supports multi-size entries via `entries` array, backward compatible
+  let stockResult: { stock_on_hand: number; log_ids: string[]; entries: Array<{ size: string | null; quantity: number }> } | null = null;
   if (parsed.data.initial_stock) {
-    const { quantity, unit_cost, note } = parsed.data.initial_stock;
-    const totalCost = quantity * unit_cost;
+    const { unit_cost, note, entries: sizeEntries } = parsed.data.initial_stock;
 
-    const [updatedProduct, stockLog] = await db.$transaction([
-      db.product.update({
-        where: { id: product.id },
-        data: { stockOnHand: { increment: quantity } },
-      }),
+    // FEAT-510: Build entries array from multi-size or legacy single quantity
+    const resolvedEntries: Array<{ size: string | null; quantity: number }> = sizeEntries && sizeEntries.length > 0
+      ? sizeEntries
+      : [{ size: null, quantity: parsed.data.initial_stock.quantity }];
+
+    // FEAT-510 / Gemini QC Fix 1: Server-side size validation for initial stock
+    const productSizes: string[] = parsed.data.size ?? [];
+    if (productSizes.length > 0) {
+      const invalidSizes = resolvedEntries
+        .filter((e) => e.size !== null && !productSizes.includes(e.size))
+        .map((e) => e.size as string);
+      if (invalidSizes.length > 0) {
+        return error(c, 400, 'SIZE_NOT_IN_CATALOG', `Size(s) not in product catalog: ${invalidSizes.join(', ')}. Allowed: ${productSizes.join(', ')}`);
+      }
+    }
+
+    const totalQuantity = resolvedEntries.reduce((sum, e) => sum + e.quantity, 0);
+
+    const stockLogCreates = resolvedEntries.map((entry) =>
       db.productStockLog.create({
         data: {
           productId: product.id,
           type: 'purchase',
-          quantity,
+          quantity: entry.quantity,
+          size: entry.size,
           unitCost: unit_cost,
-          totalCost,
+          totalCost: entry.quantity * unit_cost,
           note: note ?? 'Initial stock',
           createdBy: admin.sub,
         },
       }),
+    );
+
+    const txResult = await db.$transaction([
+      db.product.update({
+        where: { id: product.id },
+        data: { stockOnHand: { increment: totalQuantity } },
+      }),
+      ...stockLogCreates,
     ]);
+
+    const updatedProduct = txResult[0] as { stockOnHand: number };
+    const stockLogs = txResult.slice(1) as Array<{ id: string }>;
 
     // Auto-populate availability_calendar for new units (90-day forward)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const calendarRows: { productId: string; calendarDate: Date; slotStatus: 'available'; unitIndex: number }[] = [];
-    for (let unitIdx = 1; unitIdx <= quantity; unitIdx++) {
+    for (let unitIdx = 1; unitIdx <= totalQuantity; unitIdx++) {
       for (let dayOffset = 0; dayOffset < 90; dayOffset++) {
         const date = new Date(today);
         date.setDate(date.getDate() + dayOffset);
@@ -847,7 +878,7 @@ adminProducts.post('/', async (c) => {
       });
     }
 
-    stockResult = { stock_on_hand: updatedProduct.stockOnHand, log_id: stockLog.id };
+    stockResult = { stock_on_hand: updatedProduct.stockOnHand, log_ids: stockLogs.map((l) => l.id), entries: resolvedEntries };
   }
 
   return created(c, {
@@ -1666,21 +1697,62 @@ adminProducts.post('/:id/inventory-units', async (c) => {
 // ─── Stock Management ─────────────────────────────────────────────────────
 
 // POST /api/v1/admin/products/:id/stock — Add stock (transactional)
+// FEAT-510: Supports multi-size entries via `entries` array, backward compatible with legacy single-entry body
 adminProducts.post('/:id/stock', async (c) => {
   const db = getDb();
   const id = c.req.param('id');
   const admin = getAdmin(c);
 
-  const bodySchema = z.object({
+  // FEAT-510: Multi-size entry schema
+  const entrySchema = z.object({
+    size: z.string().nullable().optional().default(null),
+    quantity: z.number().int().min(1),
+  });
+
+  const multiSizeSchema = z.object({
+    entries: z.array(entrySchema).min(1),
+    unit_cost: z.number().int().min(0).default(0),
+    note: z.string().optional(),
+  });
+
+  // Legacy single-entry schema (backward compatible)
+  const legacySchema = z.object({
     quantity: z.number().int().min(1),
     unit_cost: z.number().int().min(0).default(0),
     note: z.string().optional(),
   });
 
   const body = await c.req.json().catch(() => null);
-  const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) {
-    return error(c, 400, 'VALIDATION_ERROR', 'Invalid stock data', parsed.error.flatten());
+
+  // Try multi-size first, fall back to legacy
+  const multiParsed = multiSizeSchema.safeParse(body);
+  const legacyParsed = legacySchema.safeParse(body);
+
+  let entries: Array<{ size: string | null; quantity: number }>;
+  let unitCost: number;
+  let note: string | undefined;
+
+  if (multiParsed.success) {
+    entries = multiParsed.data.entries;
+    unitCost = multiParsed.data.unit_cost;
+    note = multiParsed.data.note;
+  } else if (legacyParsed.success) {
+    // Backward compatible: legacy body → single entry with size=null
+    entries = [{ size: null, quantity: legacyParsed.data.quantity }];
+    unitCost = legacyParsed.data.unit_cost;
+    note = legacyParsed.data.note;
+  } else {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid stock data', multiParsed.error.flatten());
+  }
+
+  // FEAT-510: Validate no duplicate sizes in entries
+  const sizesSeen = new Set<string | null>();
+  for (const entry of entries) {
+    const key = entry.size ?? '__null__';
+    if (sizesSeen.has(key)) {
+      return error(c, 400, 'VALIDATION_ERROR', `Duplicate size "${entry.size ?? 'unspecified'}" in entries`);
+    }
+    sizesSeen.add(key);
   }
 
   const product = await db.product.findUnique({ where: { id } });
@@ -1692,37 +1764,56 @@ adminProducts.post('/:id/stock', async (c) => {
     return error(c, 400, 'PRODUCT_DELETED', 'Cannot add stock to a deleted product');
   }
 
-  const { quantity, unit_cost, note } = parsed.data;
-  const totalCost = quantity * unit_cost;
+  // FEAT-510 / Gemini QC Fix 1: Server-side size validation
+  const catalogSizes: string[] = product.size ?? [];
+  if (catalogSizes.length > 0) {
+    const invalidSizes = entries
+      .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+      .map((e) => e.size as string);
+    if (invalidSizes.length > 0) {
+      return error(c, 400, 'SIZE_NOT_IN_CATALOG', `Size(s) not in product catalog: ${invalidSizes.join(', ')}. Allowed: ${catalogSizes.join(', ')}`);
+    }
+  }
+
+  const totalQuantity = entries.reduce((sum, e) => sum + e.quantity, 0);
+  const totalCost = totalQuantity * unitCost;
 
   // BUG-402: Get current stock count before increment to know which unit indices are new
   const previousStock = product.stockOnHand;
 
-  // Atomic: update stock + create log in transaction
-  const [updatedProduct, stockLog] = await db.$transaction([
-    db.product.update({
-      where: { id },
-      data: { stockOnHand: { increment: quantity } },
-    }),
+  // FEAT-510: Create one stock log per size entry + update product stock atomically
+  const stockLogCreates = entries.map((entry) =>
     db.productStockLog.create({
       data: {
         productId: id,
         type: 'purchase',
-        quantity,
-        unitCost: unit_cost,
-        totalCost,
+        quantity: entry.quantity,
+        size: entry.size,
+        unitCost,
+        totalCost: entry.quantity * unitCost,
         note: note ?? null,
         createdBy: admin.sub,
       },
     }),
+  );
+
+  const txResult = await db.$transaction([
+    db.product.update({
+      where: { id },
+      data: { stockOnHand: { increment: totalQuantity } },
+    }),
+    ...stockLogCreates,
   ]);
 
+  const updatedProduct = txResult[0] as { stockOnHand: number };
+  const stockLogs = txResult.slice(1) as Array<{ id: string }>;
+
   // BUG-402: Auto-populate availability_calendar for new unit indices (90-day forward)
-  // New units are previousStock+1 .. previousStock+quantity
+  // New units are previousStock+1 .. previousStock+totalQuantity
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const calendarRows: { productId: string; calendarDate: Date; slotStatus: 'available'; unitIndex: number }[] = [];
-  for (let unitIdx = previousStock + 1; unitIdx <= previousStock + quantity; unitIdx++) {
+  for (let unitIdx = previousStock + 1; unitIdx <= previousStock + totalQuantity; unitIdx++) {
     for (let dayOffset = 0; dayOffset < 90; dayOffset++) {
       const date = new Date(today);
       date.setDate(date.getDate() + dayOffset);
@@ -1743,9 +1834,10 @@ adminProducts.post('/:id/stock', async (c) => {
 
   return created(c, {
     stock_on_hand: updatedProduct.stockOnHand,
-    log_id: stockLog.id,
-    quantity,
-    unit_cost,
+    log_ids: stockLogs.map((l) => l.id),
+    entries: entries.map((e) => ({ size: e.size, quantity: e.quantity })),
+    total_quantity: totalQuantity,
+    unit_cost: unitCost,
     total_cost: totalCost,
   });
 });
@@ -1803,6 +1895,7 @@ adminProducts.get('/:id/stock-logs', async (c) => {
       id: l.id,
       type: l.type,
       quantity: l.quantity,
+      size: l.size ?? null,
       unit_cost: l.unitCost,
       total_cost: l.totalCost,
       note: l.note,
@@ -1828,6 +1921,7 @@ adminProducts.get('/:id/stock-logs', async (c) => {
       id: l.id,
       type: l.type,
       quantity: l.quantity,
+      size: l.size ?? null,
       unit_cost: l.unitCost,
       total_cost: l.totalCost,
       note: l.note,
@@ -1851,6 +1945,7 @@ adminProducts.get('/:id/stock-logs', async (c) => {
     id: l.id,
     type: l.type,
     quantity: l.quantity,
+    size: l.size ?? null,
     unit_cost: l.unitCost,
     total_cost: l.totalCost,
     note: l.note,

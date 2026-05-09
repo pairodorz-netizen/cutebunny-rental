@@ -126,10 +126,10 @@ describe('Stock Management', () => {
       expect(res.status).toBe(201);
       const body = await res.json();
       expect(body.data.stock_on_hand).toBe(10);
-      expect(body.data.quantity).toBe(5);
+      expect(body.data.total_quantity).toBe(5);
       expect(body.data.unit_cost).toBe(500);
       expect(body.data.total_cost).toBe(2500);
-      expect(body.data.log_id).toBe('log-1');
+      expect(body.data.log_ids).toContain('log-1');
 
       // Verify $transaction was called (atomic operation)
       expect(mockDb.$transaction).toHaveBeenCalledTimes(1);
@@ -1140,7 +1140,7 @@ describe('Stock Management', () => {
       expect(addRes.status).toBe(201);
       const addBody = await addRes.json();
       expect(addBody.data.stock_on_hand).toBe(8);
-      expect(addBody.data.log_id).toBe(logId);
+      expect(addBody.data.log_ids).toContain(logId);
 
       // Now GET stock-logs should return the new entry (simulate fresh query after invalidation)
       mockDb.productStockLog.findMany.mockResolvedValue([

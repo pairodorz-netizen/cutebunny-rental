@@ -321,7 +321,18 @@
     "currentStock": "当前库存",
     "adding": "添加",
     "newTotal": "新总数",
-    "runningBalance": "余额"
+    "runningBalance": "余额",
+    "size": "尺码",
+    "multiSizeMode": "多尺码模式",
+    "sizeBreakdown": "按尺码分列",
+    "sizePlaceholder": "尺码",
+    "addRow": "添加行",
+    "duplicateSize": "尺码 \"{{size}}\" 重复",
+    "totalLabel": "合计",
+    "units": "件",
+    "newSizeConfirmTitle": "添加新尺码到目录？",
+    "newSizeConfirmMessage": "尺码 {{sizes}} 不在此产品目录中。是否添加到产品尺码并继续？",
+    "confirmAddSizes": "添加并继续"
   },
   "lowStockWidget": {
     "title": "低库存警报",

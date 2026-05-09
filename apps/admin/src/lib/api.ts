@@ -253,6 +253,7 @@ export interface StockLog {
   id: string;
   type: string;
   quantity: number;
+  size: string | null;
   unit_cost: number;
   total_cost: number;
   note: string | null;
@@ -787,8 +788,8 @@ export const adminApi = {
       }),
     detail: (id: string) =>
       request<{ data: AdminProductDetail }>(`/api/v1/admin/products/${id}/detail`),
-    addStock: (id: string, body: { quantity: number; unit_cost: number; note?: string }) =>
-      request<{ data: { stock_on_hand: number; log_id: string; quantity: number; unit_cost: number; total_cost: number } }>(`/api/v1/admin/products/${id}/stock`, {
+    addStock: (id: string, body: { entries: Array<{ size: string | null; quantity: number }>; unit_cost: number; note?: string }) =>
+      request<{ data: { stock_on_hand: number; log_ids: string[]; entries: Array<{ size: string | null; quantity: number }>; total_quantity: number; unit_cost: number; total_cost: number } }>(`/api/v1/admin/products/${id}/stock`, {
         method: 'POST',
         body: JSON.stringify(body),
       }),

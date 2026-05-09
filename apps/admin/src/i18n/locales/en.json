@@ -321,7 +321,18 @@
     "currentStock": "Current Stock",
     "adding": "Adding",
     "newTotal": "New Total",
-    "runningBalance": "Balance"
+    "runningBalance": "Balance",
+    "size": "Size",
+    "multiSizeMode": "Multi-size mode",
+    "sizeBreakdown": "Size breakdown",
+    "sizePlaceholder": "Size",
+    "addRow": "Add row",
+    "duplicateSize": "Duplicate size \"{{size}}\" in entries",
+    "totalLabel": "Total",
+    "units": "units",
+    "newSizeConfirmTitle": "Add new size to catalog?",
+    "newSizeConfirmMessage": "Size(s) {{sizes}} are not in this product's catalog. Add them to the product sizes and continue?",
+    "confirmAddSizes": "Add & Continue"
   },
   "lowStockWidget": {
     "title": "Low Stock Alert",
