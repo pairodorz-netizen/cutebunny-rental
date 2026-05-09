@@ -43,6 +43,7 @@ import {
   type AdminCrudOutcome,
 } from '@cutebunny/shared/diagnostics';
 import { getDb } from '../../lib/db';
+import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 import { success, created, error } from '../../lib/response';
 import { getAdmin, requireRole } from '../../middleware/auth';
 
@@ -140,11 +141,7 @@ async function safeAuditLog(
   db: ReturnType<typeof getDb>,
   data: Parameters<ReturnType<typeof getDb>['auditLog']['create']>[0]['data'],
 ): Promise<void> {
-  try {
-    await db.auditLog.create({ data });
-  } catch {
-    // Audit log is non-critical; swallow errors from schema drift.
-  }
+  await safeAuditLogCreate(db, data);
 }
 
 /**

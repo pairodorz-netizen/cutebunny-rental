@@ -9,7 +9,7 @@ import { createLifecycleBlocks } from '../../lib/availability';
 import { computePagination } from '@cutebunny/shared/orders-archive-window';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
 import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
-import { isPrismaSchemaError, tagPrismaError } from '../../lib/prisma-errors';
+import { safeAuditLogCreate, safeAuditLogQuery } from '../../lib/safe-audit-log';
 import type { OrderStatus, Prisma } from '@prisma/client';
 
 const adminOrders = new Hono();
@@ -241,26 +241,19 @@ adminOrders.get('/:id', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Order not found');
   }
 
-  // Fetch audit logs separately so a missing/misconfigured table doesn't break the detail endpoint
-  let auditLogEntries: Array<{ id: string; action: string; resource: string | null; details: unknown; adminId: string; createdAt: Date; admin?: { name: string | null; email: string } | null }> = [];
-  let auditLogsDegraded = false;
-  try {
-    auditLogEntries = await db.auditLog.findMany({
+  // Fetch audit logs with BUG-508 resilience wrapper
+  const auditResult = await safeAuditLogQuery<{ id: string; action: string; resource: string | null; details: unknown; adminId: string; createdAt: Date; admin?: { name: string | null; email: string } | null }>(
+    db,
+    {
       where: { orderId },
       orderBy: { createdAt: 'desc' },
       include: {
         admin: { select: { id: true, name: true, email: true } },
       },
-    });
-  } catch (e) {
-    auditLogsDegraded = true;
-    if (isPrismaSchemaError(e)) {
-      const errTag = tagPrismaError(e);
-      console.error(`[${errTag.tag}] audit_logs fetch degraded:`, JSON.stringify(errTag));
-    } else {
-      console.error('Failed to fetch audit logs:', e instanceof Error ? e.message : e);
-    }
-  }
+    },
+  );
+  const auditLogEntries = auditResult.data;
+  const auditLogsDegraded = auditResult.degraded;
 
   const data = {
     id: order.id,
@@ -441,25 +434,15 @@ adminOrders.patch('/:id/edit', async (c) => {
     changes.push(`status: ${order.status} -> ${toStatus}`);
   }
 
-  // Audit log
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          orderId,
-          adminId: admin.sub,
-          action: 'EDIT',
-          resource: 'order',
-          resourceId: orderId,
-          details: { changes },
-        },
-      });
-    }
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'EDIT',
+    resource: 'order',
+    resourceId: orderId,
+    details: { changes },
+  });
 
   return success(c, { id: orderId, changes });
 });
@@ -518,22 +501,15 @@ adminOrders.post('/:id/items', async (c) => {
   });
 
   // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        orderId,
-        adminId: admin.sub,
-        action: 'ADD_ITEM',
-        resource: 'order_item',
-        resourceId: newItem.id,
-        details: { product_name: product.name, sku: product.sku, size: parsed.data.size, subtotal: parsed.data.subtotal },
-      },
-    });
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'ADD_ITEM',
+    resource: 'order_item',
+    resourceId: newItem.id,
+    details: { product_name: product.name, sku: product.sku, size: parsed.data.size, subtotal: parsed.data.subtotal },
+  });
 
   return created(c, {
     item: {
@@ -583,22 +559,15 @@ adminOrders.delete('/:id/items/:itemId', async (c) => {
   });
 
   // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        orderId,
-        adminId: admin.sub,
-        action: 'REMOVE_ITEM',
-        resource: 'order_item',
-        resourceId: itemId,
-        details: { product_name: item.productName, size: item.size, subtotal: item.subtotal, refund: refundAmount },
-      },
-    });
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'REMOVE_ITEM',
+    resource: 'order_item',
+    resourceId: itemId,
+    details: { product_name: item.productName, size: item.size, subtotal: item.subtotal, refund: refundAmount },
+  });
 
   return success(c, {
     deleted: true,
@@ -788,24 +757,15 @@ adminOrders.patch('/:id/status', async (c) => {
   } catch { /* notification failure is non-blocking */ }
 
   // Admin audit log (individually isolated).
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          orderId,
-          adminId: admin.sub,
-          action: 'STATUS_CHANGE',
-          resource: 'order',
-          resourceId: orderId,
-          details: { from: order.status, to: toStatus, tracking_number: parsed.data.tracking_number },
-        },
-      });
-    }
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'STATUS_CHANGE',
+    resource: 'order',
+    resourceId: orderId,
+    details: { from: order.status, to: toStatus, tracking_number: parsed.data.tracking_number },
+  });
 
   return success(c, {
     id: updatedOrder.id,
@@ -929,25 +889,15 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
     }
   }
 
-  // Audit log for payment verification (non-blocking)
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          orderId,
-          adminId: admin.sub,
-          action: parsed.data.verified ? 'VERIFY' : 'REJECT',
-          resource: 'payment_slip',
-          resourceId: slip.id,
-          details: { order_id: orderId, slip_id: slip.id, verified: parsed.data.verified, note: parsed.data.note, credit_added: creditAdded },
-        },
-      });
-    }
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: parsed.data.verified ? 'VERIFY' : 'REJECT',
+    resource: 'payment_slip',
+    resourceId: slip.id,
+    details: { order_id: orderId, slip_id: slip.id, verified: parsed.data.verified, note: parsed.data.note, credit_added: creditAdded },
+  });
 
   return success(c, {
     slip_id: slip.id,
@@ -989,18 +939,15 @@ adminOrders.patch('/:id/payment-slips/:slipId', async (c) => {
   });
 
   // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        orderId,
-        adminId: admin.sub,
-        action: 'EDIT',
-        resource: 'payment_slip',
-        resourceId: slipId,
-        details: { old_amount: slip.declaredAmount, new_amount: parsed.data.declared_amount },
-      },
-    });
-  } catch { /* non-blocking */ }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'EDIT',
+    resource: 'payment_slip',
+    resourceId: slipId,
+    details: { old_amount: slip.declaredAmount, new_amount: parsed.data.declared_amount },
+  });
 
   return success(c, { slip_id: slipId, declared_amount: parsed.data.declared_amount });
 });
@@ -1416,22 +1363,15 @@ adminOrders.post('/', async (c) => {
   });
 
   // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        orderId: order.id,
-        adminId: admin.sub,
-        action: 'CREATE_ORDER',
-        resource: 'order',
-        resourceId: order.id,
-        details: { order_number: orderNumber, customer_name, items_count: items.length, total: totalAmount },
-      },
-    });
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  // BUG-508 resilient
+  await safeAuditLogCreate(db, {
+    orderId: order.id,
+    adminId: admin.sub,
+    action: 'CREATE_ORDER',
+    resource: 'order',
+    resourceId: order.id,
+    details: { order_number: orderNumber, customer_name, items_count: items.length, total: totalAmount },
+  });
 
   return created(c, {
     id: order.id,

@@ -5,6 +5,7 @@ import { success, created, error } from '../../lib/response';
 import { parseLocale, localizeField } from '../../lib/i18n';
 import { getAdmin } from '../../middleware/auth';
 import { Prisma } from '@prisma/client';
+import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 
 const adminProducts = new Hono();
 
@@ -785,27 +786,19 @@ adminProducts.post('/', async (c) => {
     );
   }
 
-  // Audit log for product creation (non-blocking)
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          adminId: admin.sub,
-          action: 'CREATE',
-          resource: 'product',
-          resourceId: product.id,
-          details: {
-            sku: product.sku,
-            name: product.name,
-            // BUG-504-A06 commit 3 — audit log records the canonical
-            // slug echoed from the resolver, plus the FK id.
-            category: resolvedSlug,
-            category_id: product.categoryId,
-          },
-        },
-      });
-    }
-  } catch { /* audit failure should not block */ }
+  // Audit log for product creation (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'CREATE',
+    resource: 'product',
+    resourceId: product.id,
+    details: {
+      sku: product.sku,
+      name: product.name,
+      category: resolvedSlug,
+      category_id: product.categoryId,
+    },
+  });
 
   // Initial stock: create stock log + calendar entries if provided
   let stockResult: { stock_on_hand: number; log_id: string } | null = null;
@@ -973,20 +966,14 @@ adminProducts.patch('/:id', async (c) => {
     data: updateData,
   });
 
-  // Audit log for product update (non-blocking)
-  try {
-    if (db.auditLog?.create) {
-      await db.auditLog.create({
-        data: {
-          adminId: admin.sub,
-          action: 'UPDATE',
-          resource: 'product',
-          resourceId: id,
-          details: { sku: product.sku, changes: parsed.data },
-        },
-      });
-    }
-  } catch { /* audit failure should not block */ }
+  // Audit log for product update (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'product',
+    resourceId: id,
+    details: { sku: product.sku, changes: parsed.data },
+  });
 
   // Handle image URLs if provided
   if (parsed.data.image_urls && parsed.data.image_urls.length > 0) {
@@ -1458,18 +1445,14 @@ adminProducts.delete('/:id', async (c) => {
     },
   });
 
-  // Audit log (non-blocking)
-  try {
-    await db.auditLog.create({
-      data: {
-        adminId: admin.sub,
-        action: 'DELETE',
-        resource: 'product',
-        resourceId: id,
-        details: { sku: product.sku, name: product.name, orphaned_combo_sets: orphanedComboSetIds },
-      },
-    });
-  } catch { /* audit failure should not block */ }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'DELETE',
+    resource: 'product',
+    resourceId: id,
+    details: { sku: product.sku, name: product.name, orphaned_combo_sets: orphanedComboSetIds },
+  });
 
   return success(c, { id, deleted: true, orphaned_combo_sets: orphanedComboSetIds.length });
 });
@@ -1527,18 +1510,14 @@ adminProducts.post('/:id/restore', async (c) => {
     }
   }
 
-  // Audit log (non-blocking)
-  try {
-    await db.auditLog.create({
-      data: {
-        adminId: admin.sub,
-        action: 'RESTORE',
-        resource: 'product',
-        resourceId: id,
-        details: { sku: product.sku, name: product.name },
-      },
-    });
-  } catch { /* audit failure should not block */ }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'RESTORE',
+    resource: 'product',
+    resourceId: id,
+    details: { sku: product.sku, name: product.name },
+  });
 
   return success(c, { id, restored: true });
 });

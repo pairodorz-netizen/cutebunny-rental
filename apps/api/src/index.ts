@@ -29,6 +29,42 @@ import customerAuth from './routes/customer-auth';
 
 const app = new Hono<{ Bindings: Env }>();
 
+// BUG-508 — Global error handler: catch unhandled errors (including Prisma/Neon
+// adapter failures that bypass sub-router onError handlers) and return a
+// CORS-safe 500 JSON response instead of letting the Worker crash.
+app.onError((err, c) => {
+  const route = c.req.path;
+  const method = c.req.method;
+  const errName = err instanceof Error ? err.name : 'Error';
+  const errMsg = err instanceof Error ? err.message : String(err);
+  const prismaCode = (err as { code?: string }).code ?? null;
+
+  console.error(JSON.stringify({
+    type: 'unhandled_error',
+    route,
+    method,
+    errorName: errName,
+    errorMessage: errMsg,
+    prismaCode,
+  }));
+
+  // Detect schema drift on audit_logs
+  if (
+    prismaCode === 'P2022' ||
+    /audit_logs\.ip_address|column.*does not exist/i.test(errMsg)
+  ) {
+    console.error(JSON.stringify({
+      type: 'schema_drift_detected',
+      guidance: 'Run prisma migrate deploy to apply pending migrations',
+    }));
+  }
+
+  return c.json(
+    { error: { code: 'internal_error', message: 'Unexpected server error' } },
+    500,
+  );
+});
+
 // Initialize env from Workers bindings on every request
 app.use('*', async (c, next) => {
   if (c.env?.DATABASE_URL) {
