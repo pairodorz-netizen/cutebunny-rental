@@ -5,7 +5,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { adminApi, type AdminProductDetail, type PerUnitCalendarResponse } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter } from 'lucide-react';
+import { ArrowLeft, Image, ChevronLeft, ChevronRight, Plus, Package, AlertCircle, Loader2, RotateCcw, Filter, Trash2 } from 'lucide-react';
 import { UnitSwitcher } from '@/components/ui/unit-switcher';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -62,6 +62,11 @@ export function ProductDetailPage() {
   const [stockNote, setStockNote] = useState('');
   const [stockError, setStockError] = useState<string | null>(null);
   const [stockSuccess, setStockSuccess] = useState<string | null>(null);
+
+  // FEAT-510: Multi-size stock entries
+  type SizeEntry = { size: string; quantity: string };
+  const [stockEntries, setStockEntries] = useState<SizeEntry[]>([{ size: '', quantity: '1' }]);
+  const [multiSizeMode, setMultiSizeMode] = useState(false);
 
   // B2: Stock log filters
   const [logTypeFilter, setLogTypeFilter] = useState<string>('');
@@ -151,22 +156,21 @@ export function ProductDetailPage() {
 
   // FEAT-401: Unit switcher extracted to reusable <UnitSwitcher /> component
 
-  // Add stock mutation
+  // Add stock mutation — FEAT-510: multi-size entries
   const addStockMutation = useMutation({
-    mutationFn: (body: { quantity: number; unit_cost: number; note?: string }) =>
+    mutationFn: (body: { entries: Array<{ size: string | null; quantity: number }>; unit_cost: number; note?: string }) =>
       adminApi.products.addStock(id!, body),
     onSuccess: (res) => {
-      setStockSuccess(`Added ${stockQty} units. New stock: ${res.data.stock_on_hand}`);
+      const totalQty = res.data.total_quantity;
+      setStockSuccess(`Added ${totalQty} units. New stock: ${res.data.stock_on_hand}`);
       setStockQty('');
       setStockUnitCost('');
       setStockNote('');
-      // BUG-401: Reset (not just invalidate) stock-logs to avoid duplication from page-shift
-      // invalidateQueries refetches ALL cached pages — if new item shifted offsets, duplicates appear.
-      // resetQueries clears the cache entirely, so only page 1 is fetched fresh.
+      setStockEntries([{ size: '', quantity: '1' }]);
       queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
       queryClient.resetQueries({ queryKey: ['stock-logs', id] });
       setTimeout(() => { setShowAddStock(false); setStockSuccess(null); }, 2000);
-            },
+    },
     onError: (err: Error) => setStockError(err.message),
   });
 
@@ -180,12 +184,31 @@ export function ProductDetailPage() {
   });
 
   function handleAddStock() {
-    const qty = parseInt(stockQty, 10);
     const cost = parseInt(stockUnitCost || '0', 10);
-    if (!qty || qty < 1) { setStockError(t('stock.invalidQuantity')); return; }
     setStockError(null);
     setStockSuccess(null);
-    addStockMutation.mutate({ quantity: qty, unit_cost: cost, note: stockNote || undefined });
+
+    if (multiSizeMode) {
+      // FEAT-510: Multi-size mode — build entries from rows
+      const entries: Array<{ size: string | null; quantity: number }> = [];
+      const seenSizes = new Set<string>();
+      for (const entry of stockEntries) {
+        const qty = parseInt(entry.quantity, 10);
+        if (!qty || qty < 1) { setStockError(t('stock.invalidQuantity')); return; }
+        const size = entry.size.trim() || null;
+        const key = size ?? '__null__';
+        if (seenSizes.has(key)) { setStockError(t('stock.duplicateSize', { size: size ?? 'unspecified' })); return; }
+        seenSizes.add(key);
+        entries.push({ size, quantity: qty });
+      }
+      if (entries.length === 0) { setStockError(t('stock.invalidQuantity')); return; }
+      addStockMutation.mutate({ entries, unit_cost: cost, note: stockNote || undefined });
+    } else {
+      // Legacy single-entry mode
+      const qty = parseInt(stockQty, 10);
+      if (!qty || qty < 1) { setStockError(t('stock.invalidQuantity')); return; }
+      addStockMutation.mutate({ entries: [{ size: null, quantity: qty }], unit_cost: cost, note: stockNote || undefined });
+    }
   }
 
     // Create product mutation
@@ -554,22 +577,95 @@ export function ProductDetailPage() {
           </Button>
         </div>
 
-        {/* Add Stock Dialog */}
+        {/* Add Stock Dialog — FEAT-510: Multi-size mode */}
         {showAddStock && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-xl">
               <h3 className="text-lg font-semibold mb-4">{t('stock.addStock')}</h3>
               <div className="space-y-3">
-                <div>
-                  <label className="text-sm text-muted-foreground">{t('stock.quantity')}</label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={stockQty}
-                    onChange={(e) => setStockQty(e.target.value)}
-                    placeholder="e.g. 5"
-                  />
-                </div>
+                {/* FEAT-510: Multi-size toggle */}
+                {product.size && product.size.length > 1 && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={multiSizeMode}
+                      onChange={(e) => {
+                        setMultiSizeMode(e.target.checked);
+                        if (e.target.checked) {
+                          setStockEntries(product.size.map((s) => ({ size: s, quantity: '1' })));
+                        } else {
+                          setStockEntries([{ size: '', quantity: '1' }]);
+                        }
+                      }}
+                      className="rounded border-gray-300"
+                    />
+                    <span>{t('stock.multiSizeMode')}</span>
+                  </label>
+                )}
+
+                {multiSizeMode ? (
+                  <>
+                    {/* Size breakdown rows */}
+                    <div className="space-y-2">
+                      <label className="text-sm text-muted-foreground">{t('stock.sizeBreakdown')}</label>
+                      {stockEntries.map((entry, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <Input
+                            value={entry.size}
+                            onChange={(e) => {
+                              const next = [...stockEntries];
+                              next[idx] = { ...next[idx], size: e.target.value };
+                              setStockEntries(next);
+                            }}
+                            placeholder={t('stock.sizePlaceholder')}
+                            className="w-24"
+                          />
+                          <Input
+                            type="number"
+                            min="1"
+                            value={entry.quantity}
+                            onChange={(e) => {
+                              const next = [...stockEntries];
+                              next[idx] = { ...next[idx], quantity: e.target.value };
+                              setStockEntries(next);
+                            }}
+                            placeholder={t('stock.quantity')}
+                            className="w-20"
+                          />
+                          {stockEntries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setStockEntries(stockEntries.filter((_, i) => i !== idx))}
+                              className="text-red-400 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setStockEntries([...stockEntries, { size: '', quantity: '1' }])}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> {t('stock.addRow')}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label className="text-sm text-muted-foreground">{t('stock.quantity')}</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={stockQty}
+                      onChange={(e) => setStockQty(e.target.value)}
+                      placeholder="e.g. 5"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="text-sm text-muted-foreground">{t('stock.unitCost')} (THB)</label>
                   <Input
@@ -588,29 +684,43 @@ export function ProductDetailPage() {
                     placeholder={t('stock.notePlaceholder')}
                   />
                 </div>
-                {/* Live preview: show projected stock after add */}
-                {stockQty && parseInt(stockQty, 10) > 0 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm" data-testid="add-stock-preview">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">{t('stock.currentStock')}</span>
-                      <span className="font-medium">{product.stock_on_hand ?? 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">+ {t('stock.adding')}</span>
-                      <span className="font-medium text-green-600">+{parseInt(stockQty, 10)}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-t border-blue-200 pt-1 mt-1">
-                      <span className="font-semibold">{t('stock.newTotal')}</span>
-                      <span className="font-bold text-blue-700">{(product.stock_on_hand ?? 0) + parseInt(stockQty, 10)}</span>
-                    </div>
-                    {stockUnitCost && parseInt(stockUnitCost, 10) > 0 && (
-                      <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                        <span>{t('stock.totalCost')}</span>
-                        <span>{(parseInt(stockQty, 10) * parseInt(stockUnitCost, 10)).toLocaleString()} THB</span>
+                {/* Live preview */}
+                {(() => {
+                  const previewQty = multiSizeMode
+                    ? stockEntries.reduce((sum, e) => sum + (parseInt(e.quantity, 10) || 0), 0)
+                    : parseInt(stockQty, 10) || 0;
+                  return previewQty > 0 ? (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm" data-testid="add-stock-preview">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">{t('stock.currentStock')}</span>
+                        <span className="font-medium">{product.stock_on_hand ?? 0}</span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {multiSizeMode && stockEntries.map((e, i) => {
+                        const qty = parseInt(e.quantity, 10) || 0;
+                        return qty > 0 ? (
+                          <div key={i} className="flex justify-between items-center text-xs">
+                            <span className="text-muted-foreground">+ {e.size || '?'}</span>
+                            <span className="text-green-600">+{qty}</span>
+                          </div>
+                        ) : null;
+                      })}
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">+ {t('stock.adding')}</span>
+                        <span className="font-medium text-green-600">+{previewQty}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-blue-200 pt-1 mt-1">
+                        <span className="font-semibold">{t('stock.newTotal')}</span>
+                        <span className="font-bold text-blue-700">{(product.stock_on_hand ?? 0) + previewQty}</span>
+                      </div>
+                      {stockUnitCost && parseInt(stockUnitCost, 10) > 0 && (
+                        <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+                          <span>{t('stock.totalCost')}</span>
+                          <span>{(previewQty * parseInt(stockUnitCost, 10)).toLocaleString()} THB</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
                 {stockError && (
                   <div className="p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
                     <AlertCircle className="inline h-4 w-4 mr-1" /> {stockError}
@@ -674,6 +784,7 @@ export function ProductDetailPage() {
             <thead className="sticky top-0 bg-white z-10">
               <tr className="border-b bg-muted/50">
                 <th className="text-left p-3 text-xs font-medium">{t('stock.logType')}</th>
+                <th className="text-left p-3 text-xs font-medium">{t('stock.size')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.quantity')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.runningBalance')}</th>
                 <th className="text-right p-3 text-xs font-medium">{t('stock.unitCost')}</th>
@@ -684,7 +795,7 @@ export function ProductDetailPage() {
             </thead>
             <tbody className="divide-y">
               {allStockLogs.length === 0 && !isLoadingLogs ? (
-                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
+                <tr><td colSpan={8} className="p-6 text-center text-muted-foreground text-sm">{t('stock.noLogs')}</td></tr>
               ) : allStockLogs.map((log, idx) => {
                 // Running balance: start from current stock, subtract quantities going back in time
                 // Logs are ordered desc (newest first), so balance = current - sum(quantities of logs before this one)
@@ -704,6 +815,7 @@ export function ProductDetailPage() {
                       {t(`stock.type_${log.type}`)}
                     </span>
                   </td>
+                  <td className="p-3 text-xs text-muted-foreground">{log.size ?? '-'}</td>
                   <td className={`p-3 text-sm text-right font-medium ${log.quantity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {log.quantity >= 0 ? '+' : ''}{log.quantity}
                   </td>

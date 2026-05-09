@@ -755,6 +755,10 @@ function ProductForm({
   const [initialStockQty, setInitialStockQty] = useState('1');
   const [initialStockCost, setInitialStockCost] = useState('0');
   const [initialStockNote, setInitialStockNote] = useState('');
+  // FEAT-510: Multi-size initial stock
+  type InitialSizeEntry = { size: string; quantity: string };
+  const [initialStockEntries, setInitialStockEntries] = useState<InitialSizeEntry[]>([{ size: '', quantity: '1' }]);
+  const [initialMultiSizeMode, setInitialMultiSizeMode] = useState(false);
 
   // BUG-504-A04: cut the product-create dropdown over from the legacy
   // SystemConfig.product_categories JSON blob (adminApi.settings.categories)
@@ -949,12 +953,26 @@ function ProductForm({
     if (allUrls.length > 0) body.image_urls = allUrls;
 
     // Include initial stock if enabled (create mode only)
-    if (mode === 'create' && showInitialStock && Number(initialStockQty) > 0) {
-      body.initial_stock = {
-        quantity: Number(initialStockQty),
-        unit_cost: Number(initialStockCost) || 0,
-        ...(initialStockNote ? { note: initialStockNote } : {}),
-      };
+    // FEAT-510: Supports multi-size entries
+    if (mode === 'create' && showInitialStock) {
+      if (initialMultiSizeMode && initialStockEntries.some((e) => parseInt(e.quantity, 10) > 0)) {
+        const entries = initialStockEntries
+          .filter((e) => parseInt(e.quantity, 10) > 0)
+          .map((e) => ({ size: e.size.trim() || null, quantity: parseInt(e.quantity, 10) }));
+        const totalQty = entries.reduce((sum, e) => sum + e.quantity, 0);
+        body.initial_stock = {
+          quantity: totalQty,
+          unit_cost: Number(initialStockCost) || 0,
+          entries,
+          ...(initialStockNote ? { note: initialStockNote } : {}),
+        };
+      } else if (Number(initialStockQty) > 0) {
+        body.initial_stock = {
+          quantity: Number(initialStockQty),
+          unit_cost: Number(initialStockCost) || 0,
+          ...(initialStockNote ? { note: initialStockNote } : {}),
+        };
+      }
     }
     diagHandle?.markSerializationEnd();
 
@@ -1199,19 +1217,107 @@ function ProductForm({
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-emerald-700">
-                      {t('products.stockQuantity', 'Quantity')}
-                    </label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={initialStockQty}
-                      onChange={(e) => setInitialStockQty(e.target.value)}
-                      className="h-8 text-sm"
-                    />
+
+                {/* FEAT-510: Multi-size toggle for initial stock */}
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={initialMultiSizeMode}
+                    onChange={(e) => {
+                      setInitialMultiSizeMode(e.target.checked);
+                      if (e.target.checked) {
+                        const sizes = (size ?? '').split(',').map((s: string) => s.trim()).filter(Boolean);
+                        setInitialStockEntries(sizes.length > 0 ? sizes.map((s: string) => ({ size: s, quantity: '1' })) : [{ size: '', quantity: '1' }]);
+                      } else {
+                        setInitialStockEntries([{ size: '', quantity: '1' }]);
+                      }
+                    }}
+                    className="rounded border-gray-300"
+                  />
+                  <span className="text-emerald-700">{t('stock.multiSizeMode', 'Multi-size mode')}</span>
+                </label>
+
+                {initialMultiSizeMode ? (
+                  <div className="space-y-2">
+                    <label className="text-xs text-emerald-700">{t('stock.sizeBreakdown', 'Size breakdown')}</label>
+                    {initialStockEntries.map((entry, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Input
+                          value={entry.size}
+                          onChange={(e) => {
+                            const next = [...initialStockEntries];
+                            next[idx] = { ...next[idx], size: e.target.value };
+                            setInitialStockEntries(next);
+                          }}
+                          placeholder={t('stock.sizePlaceholder', 'Size')}
+                          className="h-8 text-sm w-20"
+                        />
+                        <Input
+                          type="number"
+                          min="1"
+                          value={entry.quantity}
+                          onChange={(e) => {
+                            const next = [...initialStockEntries];
+                            next[idx] = { ...next[idx], quantity: e.target.value };
+                            setInitialStockEntries(next);
+                          }}
+                          placeholder={t('stock.quantity', 'Qty')}
+                          className="h-8 text-sm w-16"
+                        />
+                        {initialStockEntries.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setInitialStockEntries(initialStockEntries.filter((_, i) => i !== idx))}
+                            className="text-red-400 hover:text-red-600"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setInitialStockEntries([...initialStockEntries, { size: '', quantity: '1' }])}
+                    >
+                      <Plus className="h-3 w-3 mr-1" /> {t('stock.addRow', 'Add row')}
+                    </Button>
+                    <p className="text-xs text-emerald-600">
+                      {t('stock.totalLabel', 'Total')}: {initialStockEntries.reduce((sum, e) => sum + (parseInt(e.quantity, 10) || 0), 0)} {t('stock.units', 'units')}
+                    </p>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-emerald-700">
+                        {t('products.stockQuantity', 'Quantity')}
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={initialStockQty}
+                        onChange={(e) => setInitialStockQty(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-emerald-700">
+                        {t('products.unitCost', 'Unit Cost (THB)')}
+                      </label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={initialStockCost}
+                        onChange={(e) => setInitialStockCost(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {initialMultiSizeMode && (
                   <div>
                     <label className="text-xs text-emerald-700">
                       {t('products.unitCost', 'Unit Cost (THB)')}
@@ -1224,7 +1330,7 @@ function ProductForm({
                       className="h-8 text-sm"
                     />
                   </div>
-                </div>
+                )}
                 <div>
                   <label className="text-xs text-emerald-700">
                     {t('products.stockNote', 'Note (optional)')}

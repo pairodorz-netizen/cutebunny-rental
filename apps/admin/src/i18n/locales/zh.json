@@ -321,7 +321,15 @@
     "currentStock": "当前库存",
     "adding": "添加",
     "newTotal": "新总数",
-    "runningBalance": "余额"
+    "runningBalance": "余额",
+    "size": "尺码",
+    "multiSizeMode": "多尺码模式",
+    "sizeBreakdown": "按尺码分列",
+    "sizePlaceholder": "尺码",
+    "addRow": "添加行",
+    "duplicateSize": "尺码 \"{{size}}\" 重复",
+    "totalLabel": "合计",
+    "units": "件"
   },
   "lowStockWidget": {
     "title": "低库存警报",

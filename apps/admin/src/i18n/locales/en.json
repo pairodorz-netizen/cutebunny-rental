@@ -321,7 +321,15 @@
     "currentStock": "Current Stock",
     "adding": "Adding",
     "newTotal": "New Total",
-    "runningBalance": "Balance"
+    "runningBalance": "Balance",
+    "size": "Size",
+    "multiSizeMode": "Multi-size mode",
+    "sizeBreakdown": "Size breakdown",
+    "sizePlaceholder": "Size",
+    "addRow": "Add row",
+    "duplicateSize": "Duplicate size \"{{size}}\" in entries",
+    "totalLabel": "Total",
+    "units": "units"
   },
   "lowStockWidget": {
     "title": "Low Stock Alert",

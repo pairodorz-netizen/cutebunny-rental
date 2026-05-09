@@ -321,7 +321,15 @@
     "currentStock": "สต็อกปัจจุบัน",
     "adding": "เพิ่ม",
     "newTotal": "ยอดรวมใหม่",
-    "runningBalance": "ยอดคงเหลือ"
+    "runningBalance": "ยอดคงเหลือ",
+    "size": "ไซส์",
+    "multiSizeMode": "โหมดหลายไซส์",
+    "sizeBreakdown": "แยกตามไซส์",
+    "sizePlaceholder": "ไซส์",
+    "addRow": "เพิ่มแถว",
+    "duplicateSize": "ไซส์ \"{{size}}\" ซ้ำกัน",
+    "totalLabel": "รวม",
+    "units": "ชุด"
   },
   "lowStockWidget": {
     "title": "แจ้งเตือนสต็อกต่ำ",

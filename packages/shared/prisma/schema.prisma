@@ -649,6 +649,7 @@ model ProductStockLog {
   productId String       @map("product_id") @db.Uuid
   type      StockLogType
   quantity  Int          // signed: positive = in, negative = out
+  size      String?      // FEAT-510: size for multi-size stock entries
   unitCost  Int          @default(0) @map("unit_cost")
   totalCost Int          @default(0) @map("total_cost")
   note      String?
@@ -658,5 +659,6 @@ model ProductStockLog {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, createdAt(sort: Desc)], name: "stock_log_product_date")
+  @@index([productId, size], name: "stock_log_product_size")
   @@map("product_stock_logs")
 }
