@@ -1,0 +1,37 @@
+# BUG-507 — Custom gitleaks rules for PII/GDPR compliance.
+#
+# Prevents raw IP addresses from being committed to the repository
+# (log fixtures, test data, hardcoded IPs, etc.).
+
+title = "CuteBunny PII Protection"
+
+# Rule: Raw IPv4 addresses (not masked to /24)
+# Matches dotted-quad where last octet != 0, e.g. 192.168.1.100
+# Allows: 192.168.1.0 (masked), 0.0.0.0, 127.0.0.1 (localhost)
+[[rules]]
+id = "raw-ipv4-address"
+description = "Raw IPv4 address detected (PII). Use masked IP (/24) or remove."
+regex = '''\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|[1-9]))\b'''
+tags = ["pii", "ip-address"]
+
+[rules.allowlist]
+# Allow test files, migration SQL, gitleaks config, this config itself,
+# privacy policy docs, and common non-PII patterns
+paths = [
+  '''\.test\.ts$''',
+  '''\.test\.tsx$''',
+  '''\.spec\.ts$''',
+  '''__tests__/''',
+  '''\.gitleaks\.toml$''',
+  '''migration\.sql$''',
+  '''pii_backfill\.ts$''',
+  '''ip-mask\.ts$''',
+  '''privacy-.*\.mdx$''',
+  '''AGENTS\.md$''',
+  '''\.md$''',
+]
+regexes = [
+  '''127\.0\.0\.1''',
+  '''0\.0\.0\.0''',
+  '''localhost''',
+]

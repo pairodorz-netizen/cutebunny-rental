@@ -53,13 +53,20 @@ invocation_logs = true
 # id = "<paste-from-wrangler-kv-namespace-create>"
 # preview_id = "<paste-from-wrangler-kv-namespace-create-preview>"
 
-# BUG-505 — Hourly cron trigger for order status auto-advance.
+# Cron triggers for scheduled jobs:
 #
-# Transitions (Asia/Bangkok timezone, date-only):
-#   paid_locked → shipped   (rental_start_date <= today AND inventory verified)
-#   returned → cleaning     (rental_end_date + buffer_days <= today)
+# BUG-505 — Hourly order status auto-advance.
+#   "0 * * * *" = every hour on the hour
+#   Transitions (Asia/Bangkok timezone, date-only):
+#     paid_locked → shipped   (rental_start_date <= today AND inventory verified)
+#     returned → cleaning     (rental_end_date + buffer_days <= today)
+#   Manual gates preserved: shipped→returned, cleaning→finished.
 #
-# Manual gates preserved: shipped→returned, cleaning→finished.
+# BUG-507 — Daily PII/GDPR IP retention at 03:00 Asia/Bangkok (20:00 UTC).
+#   "0 20 * * *" = daily at 20:00 UTC
+#   Step A: mask IPs aged 30–90 days to /24 (IPv4) or /48 (IPv6)
+#   Step B: NULL IPs aged >90 days
+#
 # See `apps/api/src/scheduled.ts` for full specification.
 [triggers]
-crons = ["0 * * * *"]
+crons = ["0 * * * *", "0 20 * * *"]

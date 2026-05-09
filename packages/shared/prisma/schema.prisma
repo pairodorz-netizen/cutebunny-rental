@@ -569,13 +569,23 @@ model AuditLog {
   resource   String?
   resourceId String?  @map("resource_id")
   details    Json?    @db.JsonB
-  ipAddress  String?  @map("ip_address")
+  ipAddress  String?  @map("ip_address") @db.Inet
   createdAt  DateTime @default(now()) @map("created_at")
 
   order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
   admin AdminUser @relation(fields: [adminId], references: [id])
 
   @@map("audit_logs")
+}
+
+model SystemLog {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  job       String
+  status    String
+  details   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("system_logs")
 }
 
 model ComboSet {
