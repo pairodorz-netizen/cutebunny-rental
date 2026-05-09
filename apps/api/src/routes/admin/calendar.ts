@@ -10,6 +10,7 @@ import {
   canTransition,
   type SlotState,
 } from '@cutebunny/shared/calendar-state-machine';
+import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 
 const adminCalendar = new Hono();
 
@@ -17,11 +18,7 @@ async function safeAuditLog(
   db: ReturnType<typeof getDb>,
   data: Parameters<ReturnType<typeof getDb>['auditLog']['create']>[0]['data'],
 ): Promise<void> {
-  try {
-    await db.auditLog.create({ data });
-  } catch {
-    // Audit log is non-critical; swallow errors from schema drift.
-  }
+  await safeAuditLogCreate(db, data);
 }
 
 // BUG-CAL-01 — Master calendar view, expanded one-row-per-inventory-unit.

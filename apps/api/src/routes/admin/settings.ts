@@ -8,18 +8,13 @@ import { success, created, error } from '../../lib/response';
 import { getAdmin, requireRole } from '../../middleware/auth';
 import { sendCustomNotification } from '../../lib/notifications';
 import { isPrismaSchemaError, tagPrismaError } from '../../lib/prisma-errors';
+import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 
 const adminSettings = new Hono();
 
-// Helper: log audit event without blocking the main operation (handles schema drift gracefully)
+// Helper: delegates to centralized BUG-508 resilience wrapper
 async function safeAuditLog(db: ReturnType<typeof getDb>, data: Parameters<ReturnType<typeof getDb>['auditLog']['create']>[0]['data']) {
-  try {
-    await db.auditLog.create({ data });
-  } catch (auditErr) {
-    if (isPrismaSchemaError(auditErr)) {
-      console.error(`[${tagPrismaError(auditErr).tag}] audit_logs write degraded:`, JSON.stringify(tagPrismaError(auditErr)));
-    }
-  }
+  await safeAuditLogCreate(db, data);
 }
 
 // ─── SYSTEM CONFIG ──────────────────────────────────────────────────────────

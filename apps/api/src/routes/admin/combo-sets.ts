@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, created, error } from '../../lib/response';
 import { getAdmin } from '../../middleware/auth';
+import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 
 const adminComboSets = new Hono();
 
@@ -220,18 +221,14 @@ adminComboSets.post('/', async (c) => {
     include: { items: true },
   });
 
-  // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        adminId: admin.sub,
-        action: 'CREATE',
-        resource: 'combo_set',
-        resourceId: comboSet.id,
-        details: { sku: comboSet.sku, name: comboSet.name, items_count: parsed.data.items.length },
-      },
-    });
-  } catch { /* audit failure should not block */ }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'CREATE',
+    resource: 'combo_set',
+    resourceId: comboSet.id,
+    details: { sku: comboSet.sku, name: comboSet.name, items_count: parsed.data.items.length },
+  });
 
   return created(c, {
     id: comboSet.id,
@@ -320,18 +317,14 @@ adminComboSets.patch('/:id', async (c) => {
     );
   }
 
-  // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        adminId: admin.sub,
-        action: 'UPDATE',
-        resource: 'combo_set',
-        resourceId: id,
-        details: { sku: cs.sku, changes: parsed.data },
-      },
-    });
-  } catch { /* audit failure should not block */ }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'UPDATE',
+    resource: 'combo_set',
+    resourceId: id,
+    details: { sku: cs.sku, changes: parsed.data },
+  });
 
   return success(c, { id, updated: true });
 });
@@ -364,18 +357,14 @@ adminComboSets.delete('/:id', async (c) => {
 
   await db.comboSet.delete({ where: { id } });
 
-  // Audit log
-  try {
-    await db.auditLog.create({
-      data: {
-        adminId: admin.sub,
-        action: 'DELETE',
-        resource: 'combo_set',
-        resourceId: id,
-        details: { sku: cs.sku, name: cs.name, mode: 'hard' },
-      },
-    });
-  } catch { /* audit failure should not block */ }
+  // Audit log (BUG-508 resilient)
+  await safeAuditLogCreate(db, {
+    adminId: admin.sub,
+    action: 'DELETE',
+    resource: 'combo_set',
+    resourceId: id,
+    details: { sku: cs.sku, name: cs.name, mode: 'hard' },
+  });
 
   return success(c, { id, deleted: true, mode: 'hard' });
 });
