@@ -329,7 +329,10 @@
     "addRow": "เพิ่มแถว",
     "duplicateSize": "ไซส์ \"{{size}}\" ซ้ำกัน",
     "totalLabel": "รวม",
-    "units": "ชุด"
+    "units": "ชุด",
+    "newSizeConfirmTitle": "เพิ่มไซส์ใหม่เข้าแคตตาล็อก?",
+    "newSizeConfirmMessage": "ไซส์ {{sizes}} ไม่อยู่ในแคตตาล็อกของสินค้านี้ ต้องการเพิ่มเข้าไซส์สินค้าแล้วดำเนินการต่อหรือไม่?",
+    "confirmAddSizes": "เพิ่มและดำเนินการต่อ"
   },
   "lowStockWidget": {
     "title": "แจ้งเตือนสต็อกต่ำ",

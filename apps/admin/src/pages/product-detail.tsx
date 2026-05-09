@@ -68,6 +68,9 @@ export function ProductDetailPage() {
   const [stockEntries, setStockEntries] = useState<SizeEntry[]>([{ size: '', quantity: '1' }]);
   const [multiSizeMode, setMultiSizeMode] = useState(false);
 
+  // FEAT-510 / Gemini QC Fix 1: Confirm dialog for new sizes not in catalog
+  const [sizeConfirmDialog, setSizeConfirmDialog] = useState<{ newSizes: string[]; pendingEntries: Array<{ size: string | null; quantity: number }>; unitCost: number; note?: string } | null>(null);
+
   // B2: Stock log filters
   const [logTypeFilter, setLogTypeFilter] = useState<string>('');
   const [logDateFrom, setLogDateFrom] = useState('');
@@ -183,6 +186,26 @@ export function ProductDetailPage() {
     },
   });
 
+  // FEAT-510 / Gemini QC Fix 1: Submit stock after optional size PATCH
+  function submitStock(entries: Array<{ size: string | null; quantity: number }>, unitCost: number, note?: string) {
+    addStockMutation.mutate({ entries, unit_cost: unitCost, note });
+  }
+
+  async function handleConfirmNewSizes() {
+    if (!sizeConfirmDialog || !product) return;
+    const { newSizes, pendingEntries, unitCost, note } = sizeConfirmDialog;
+    try {
+      const updatedSizes = [...(product.size || []), ...newSizes];
+      await adminApi.products.update(id!, { size: updatedSizes });
+      queryClient.invalidateQueries({ queryKey: ['product-detail', id] });
+      setSizeConfirmDialog(null);
+      submitStock(pendingEntries, unitCost, note);
+    } catch (err) {
+      setStockError(err instanceof Error ? err.message : 'Failed to update product sizes');
+      setSizeConfirmDialog(null);
+    }
+  }
+
   function handleAddStock() {
     const cost = parseInt(stockUnitCost || '0', 10);
     setStockError(null);
@@ -202,12 +225,24 @@ export function ProductDetailPage() {
         entries.push({ size, quantity: qty });
       }
       if (entries.length === 0) { setStockError(t('stock.invalidQuantity')); return; }
-      addStockMutation.mutate({ entries, unit_cost: cost, note: stockNote || undefined });
+
+      // Gemini QC Fix 1: Check sizes against product catalog
+      const catalogSizes: string[] = product?.size ?? [];
+      if (catalogSizes.length > 0) {
+        const newSizes = entries
+          .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+          .map((e) => e.size as string);
+        if (newSizes.length > 0) {
+          setSizeConfirmDialog({ newSizes, pendingEntries: entries, unitCost: cost, note: stockNote || undefined });
+          return;
+        }
+      }
+      submitStock(entries, cost, stockNote || undefined);
     } else {
       // Legacy single-entry mode
       const qty = parseInt(stockQty, 10);
       if (!qty || qty < 1) { setStockError(t('stock.invalidQuantity')); return; }
-      addStockMutation.mutate({ entries: [{ size: null, quantity: qty }], unit_cost: cost, note: stockNote || undefined });
+      submitStock([{ size: null, quantity: qty }], cost, stockNote || undefined);
     }
   }
 
@@ -739,6 +774,26 @@ export function ProductDetailPage() {
                 <Button size="sm" onClick={handleAddStock} disabled={addStockMutation.isPending}>
                   {addStockMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                   {t('stock.addStock')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FEAT-510 / Gemini QC Fix 1: Confirm dialog for new sizes */}
+        {sizeConfirmDialog && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
+              <h3 className="text-lg font-semibold mb-2">{t('stock.newSizeConfirmTitle')}</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {t('stock.newSizeConfirmMessage', { sizes: sizeConfirmDialog.newSizes.join(', ') })}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSizeConfirmDialog(null)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button size="sm" onClick={handleConfirmNewSizes}>
+                  {t('stock.confirmAddSizes')}
                 </Button>
               </div>
             </div>

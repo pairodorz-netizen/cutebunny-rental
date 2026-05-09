@@ -329,7 +329,10 @@
     "addRow": "Add row",
     "duplicateSize": "Duplicate size \"{{size}}\" in entries",
     "totalLabel": "Total",
-    "units": "units"
+    "units": "units",
+    "newSizeConfirmTitle": "Add new size to catalog?",
+    "newSizeConfirmMessage": "Size(s) {{sizes}} are not in this product's catalog. Add them to the product sizes and continue?",
+    "confirmAddSizes": "Add & Continue"
   },
   "lowStockWidget": {
     "title": "Low Stock Alert",

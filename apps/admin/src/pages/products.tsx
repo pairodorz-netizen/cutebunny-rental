@@ -959,6 +959,16 @@ function ProductForm({
         const entries = initialStockEntries
           .filter((e) => parseInt(e.quantity, 10) > 0)
           .map((e) => ({ size: e.size.trim() || null, quantity: parseInt(e.quantity, 10) }));
+
+        // Gemini QC Fix 1: Auto-expand product sizes if stock entries contain new sizes
+        const productSizes = (body.size as string[]) ?? [];
+        const newSizes = entries
+          .filter((e) => e.size !== null && !productSizes.includes(e.size))
+          .map((e) => e.size as string);
+        if (newSizes.length > 0) {
+          body.size = [...productSizes, ...newSizes];
+        }
+
         const totalQty = entries.reduce((sum, e) => sum + e.quantity, 0);
         body.initial_stock = {
           quantity: totalQty,

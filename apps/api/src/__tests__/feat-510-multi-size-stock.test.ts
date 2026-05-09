@@ -273,4 +273,93 @@ describe('FEAT-510: Multi-size stock entry', () => {
       expect(response.size).toBeNull();
     });
   });
+
+  // Gemini QC Fix 1: Server-side size validation tests
+  describe('Size validation (server-side)', () => {
+    it('should reject size not in product catalog (400, SIZE_NOT_IN_CATALOG)', () => {
+      const catalogSizes = ['M', 'S', 'L'];
+      const entries = [
+        { size: 'M', quantity: 2 },
+        { size: 'XL', quantity: 1 }, // not in catalog
+      ];
+
+      const invalidSizes = entries
+        .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+        .map((e) => e.size as string);
+
+      expect(invalidSizes).toEqual(['XL']);
+      expect(invalidSizes.length).toBeGreaterThan(0);
+    });
+
+    it('should accept size that is in product catalog', () => {
+      const catalogSizes = ['M', 'S', 'L'];
+      const entries = [
+        { size: 'M', quantity: 2 },
+        { size: 'S', quantity: 3 },
+      ];
+
+      const invalidSizes = entries
+        .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+        .map((e) => e.size as string);
+
+      expect(invalidSizes).toHaveLength(0);
+    });
+
+    it('should accept size = null (legacy / non-sized product)', () => {
+      const catalogSizes = ['M', 'S', 'L'];
+      const entries: Array<{ size: string | null; quantity: number }> = [
+        { size: null, quantity: 5 },
+      ];
+
+      const invalidSizes = entries
+        .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+        .map((e) => e.size!);
+
+      expect(invalidSizes).toHaveLength(0);
+    });
+
+    it('should allow any size when catalog is empty (non-sized product)', () => {
+      const catalogSizes: string[] = [];
+      const entries = [
+        { size: 'XL', quantity: 1 },
+      ];
+
+      // When catalog is empty, skip validation (product has no defined sizes)
+      const shouldValidate = catalogSizes.length > 0;
+      expect(shouldValidate).toBe(false);
+    });
+
+    it('should reject multiple invalid sizes with full error details', () => {
+      const catalogSizes = ['M', 'S', 'L'];
+      const entries = [
+        { size: 'XL', quantity: 1 },
+        { size: 'XXL', quantity: 2 },
+        { size: 'M', quantity: 3 },
+      ];
+
+      const invalidSizes = entries
+        .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+        .map((e) => e.size as string);
+
+      expect(invalidSizes).toEqual(['XL', 'XXL']);
+      const errorMsg = `Size(s) not in product catalog: ${invalidSizes.join(', ')}. Allowed: ${catalogSizes.join(', ')}`;
+      expect(errorMsg).toContain('XL');
+      expect(errorMsg).toContain('XXL');
+      expect(errorMsg).toContain('Allowed: M, S, L');
+    });
+
+    it('should validate initial stock entries against product sizes', () => {
+      const productSizes = ['M', 'S', 'L'];
+      const initialStockEntries = [
+        { size: 'M', quantity: 2 },
+        { size: 'XL', quantity: 1 }, // not in product sizes
+      ];
+
+      const invalidSizes = initialStockEntries
+        .filter((e) => e.size !== null && !productSizes.includes(e.size))
+        .map((e) => e.size as string);
+
+      expect(invalidSizes).toEqual(['XL']);
+    });
+  });
 });

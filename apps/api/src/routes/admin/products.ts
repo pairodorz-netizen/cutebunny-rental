@@ -816,6 +816,17 @@ adminProducts.post('/', async (c) => {
       ? sizeEntries
       : [{ size: null, quantity: parsed.data.initial_stock.quantity }];
 
+    // FEAT-510 / Gemini QC Fix 1: Server-side size validation for initial stock
+    const productSizes: string[] = parsed.data.size ?? [];
+    if (productSizes.length > 0) {
+      const invalidSizes = resolvedEntries
+        .filter((e) => e.size !== null && !productSizes.includes(e.size))
+        .map((e) => e.size as string);
+      if (invalidSizes.length > 0) {
+        return error(c, 400, 'SIZE_NOT_IN_CATALOG', `Size(s) not in product catalog: ${invalidSizes.join(', ')}. Allowed: ${productSizes.join(', ')}`);
+      }
+    }
+
     const totalQuantity = resolvedEntries.reduce((sum, e) => sum + e.quantity, 0);
 
     const stockLogCreates = resolvedEntries.map((entry) =>
@@ -1751,6 +1762,17 @@ adminProducts.post('/:id/stock', async (c) => {
 
   if (product.deletedAt) {
     return error(c, 400, 'PRODUCT_DELETED', 'Cannot add stock to a deleted product');
+  }
+
+  // FEAT-510 / Gemini QC Fix 1: Server-side size validation
+  const catalogSizes: string[] = product.size ?? [];
+  if (catalogSizes.length > 0) {
+    const invalidSizes = entries
+      .filter((e) => e.size !== null && !catalogSizes.includes(e.size))
+      .map((e) => e.size as string);
+    if (invalidSizes.length > 0) {
+      return error(c, 400, 'SIZE_NOT_IN_CATALOG', `Size(s) not in product catalog: ${invalidSizes.join(', ')}. Allowed: ${catalogSizes.join(', ')}`);
+    }
   }
 
   const totalQuantity = entries.reduce((sum, e) => sum + e.quantity, 0);
