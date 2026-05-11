@@ -177,7 +177,10 @@
     "items": "Items",
     "markAsPaid": "Mark as Paid",
     "total": "Total",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "feeEntryLabel": "Late Fee / Damage Fee (optional)",
+    "feeNote": "Fee Notes",
+    "feeNotePlaceholder": "Reason for fees (internal)"
   },
   "products": {
     "title": "Products",

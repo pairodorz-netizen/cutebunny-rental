@@ -461,6 +461,9 @@ export function OrdersPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [selectedCarrier, setSelectedCarrier] = useState('');
+  const [statusLateFee, setStatusLateFee] = useState('');
+  const [statusDamageFee, setStatusDamageFee] = useState('');
+  const [statusFeeNote, setStatusFeeNote] = useState('');
 
   // Slip verify modal
   const [showSlipModal, setShowSlipModal] = useState(false);
@@ -623,7 +626,7 @@ export function OrdersPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ orderId, body }: { orderId: string; body: { to_status: string; tracking_number?: string; note?: string } }) =>
+    mutationFn: ({ orderId, body }: { orderId: string; body: { to_status: string; tracking_number?: string; note?: string; late_fee?: number; damage_fee?: number; fee_note?: string } }) =>
       adminApi.orders.updateStatus(orderId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
@@ -762,6 +765,13 @@ export function OrdersPage() {
   const openStatusModal = useCallback((orderId: string, currentStatus: string) => {
     setStatusModalOrderId(orderId);
     setStatusModalCurrentStatus(currentStatus);
+    setNewStatus('');
+    setTrackingNumber('');
+    setStatusNote('');
+    setSelectedCarrier('');
+    setStatusLateFee('');
+    setStatusDamageFee('');
+    setStatusFeeNote('');
     setShowStatusModal(true);
   }, []);
 
@@ -1014,6 +1024,17 @@ export function OrdersPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {t('orders.rentalPeriod')}: {order.rental_period.start} — {order.rental_period.end}
                       </div>
+                      {/* Order-level fees (FEAT-512) */}
+                      {(order.late_fee > 0 || order.damage_fee > 0) && (
+                        <div className="mt-2 flex gap-4 text-xs">
+                          {order.late_fee > 0 && (
+                            <span className="text-orange-600 font-medium">{t('orders.lateFee')}: {order.late_fee.toLocaleString()} THB</span>
+                          )}
+                          {order.damage_fee > 0 && (
+                            <span className="text-red-600 font-medium">{t('orders.damageFee')}: {order.damage_fee.toLocaleString()} THB</span>
+                          )}
+                        </div>
+                      )}
                       {/* Credit Applied */}
                       {order.credit_applied > 0 && (
                         <div className="mt-1 text-xs text-green-600 font-medium">
@@ -1556,6 +1577,25 @@ export function OrdersPage() {
                   </div>
                 </>
               )}
+              {(newStatus === 'returned' || newStatus === 'finished') && (
+                <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                  <p className="text-xs font-medium text-muted-foreground">{t('orders.feeEntryLabel')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">{t('orders.lateFee')} (THB)</label>
+                      <Input type="number" min="0" value={statusLateFee} onChange={(e) => setStatusLateFee(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">{t('orders.damageFee')} (THB)</label>
+                      <Input type="number" min="0" value={statusDamageFee} onChange={(e) => setStatusDamageFee(e.target.value)} placeholder="0" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">{t('orders.feeNote')}</label>
+                    <Input value={statusFeeNote} onChange={(e) => setStatusFeeNote(e.target.value)} placeholder={t('orders.feeNotePlaceholder')} />
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium">{t('orders.note')}</label>
                 <Input value={statusNote} onChange={(e) => setStatusNote(e.target.value)} />
@@ -1563,10 +1603,22 @@ export function OrdersPage() {
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => { setShowStatusModal(false); setStatusModalOrderId(null); }}>{t('common.cancel')}</Button>
                 <Button
-                  onClick={() => statusMutation.mutate({
-                    orderId: statusModalOrderId,
-                    body: { to_status: newStatus, tracking_number: trackingNumber || undefined, note: statusNote || undefined },
-                  })}
+                  onClick={() => {
+                    const isFinal = newStatus === 'returned' || newStatus === 'finished';
+                    statusMutation.mutate({
+                      orderId: statusModalOrderId,
+                      body: {
+                        to_status: newStatus,
+                        tracking_number: trackingNumber || undefined,
+                        note: statusNote || undefined,
+                        ...(isFinal && {
+                          late_fee: statusLateFee ? Number(statusLateFee) : 0,
+                          damage_fee: statusDamageFee ? Number(statusDamageFee) : 0,
+                          ...(statusFeeNote ? { fee_note: statusFeeNote } : {}),
+                        }),
+                      },
+                    });
+                  }}
                   disabled={!newStatus || statusMutation.isPending}
                 >
                   {statusMutation.isPending ? t('common.loading') : t('common.save')}

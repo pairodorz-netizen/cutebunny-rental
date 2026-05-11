@@ -163,6 +163,8 @@ export interface AdminOrder {
   }>;
   tracking_number: string | null;
   total_amount: number;
+  late_fee: number;
+  damage_fee: number;
   credit_applied: number;
   delivery_method: string;
   return_method: string;
@@ -179,6 +181,8 @@ export interface AdminOrderDetail {
   order_number: string;
   status: string;
   total_amount: number;
+  late_fee: number;
+  damage_fee: number;
   deposit_total: number;
   delivery_fee: number;
   credit_applied: number;
@@ -700,7 +704,7 @@ export const adminApi = {
     },
     detail: (id: string) =>
       request<{ data: AdminOrderDetail }>(`/api/v1/admin/orders/${id}`),
-    updateStatus: (id: string, body: { to_status: string; tracking_number?: string; note?: string }) =>
+    updateStatus: (id: string, body: { to_status: string; tracking_number?: string; note?: string; late_fee?: number; damage_fee?: number; fee_note?: string }) =>
       request<{ data: unknown }>(`/api/v1/admin/orders/${id}/status`, {
         method: 'PATCH',
         body: JSON.stringify(body),
