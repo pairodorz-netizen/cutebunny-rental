@@ -635,6 +635,21 @@ adminOrders.patch('/:id/status', async (c) => {
   const enteredLateFee = isFinalStatus ? (parsed.data.late_fee ?? 0) : 0;
   const enteredDamageFee = isFinalStatus ? (parsed.data.damage_fee ?? 0) : 0;
 
+  // FEAT-512 Hard Fix 1: Max value guard — combined fees must not exceed 3× subtotal
+  if (isFinalStatus) {
+    const feeSum = enteredLateFee + enteredDamageFee;
+    const feeGuardLimit = order.subtotal * 3;
+    if (feeSum > feeGuardLimit) {
+      return error(c, 400, 'FEE_EXCEEDS_GUARD', `Combined fees (${feeSum}) exceed 3× subtotal guard (${feeGuardLimit})`, {
+        entered_late_fee: enteredLateFee,
+        entered_damage_fee: enteredDamageFee,
+        fee_sum: feeSum,
+        subtotal: order.subtotal,
+        guard_limit: feeGuardLimit,
+      });
+    }
+  }
+
   const updateData: Prisma.OrderUpdateInput = {
     status: toStatus,
     ...(parsed.data.tracking_number && {

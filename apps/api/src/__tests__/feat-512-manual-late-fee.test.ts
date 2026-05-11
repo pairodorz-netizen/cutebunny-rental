@@ -270,4 +270,40 @@ describe('FEAT-512: Manual Late Fee / Damage Fee on status change', () => {
     const res = await patchStatus(token, { to_status: 'returned', late_fee: -100 });
     expect(res.status).toBe(400);
   });
+
+  // Hard Fix 1: Fee guard — combined fees must not exceed 3× subtotal
+  it('rejects FEE_EXCEEDS_GUARD when combined fees > 3× subtotal', async () => {
+    // MOCK_ORDER.subtotal = 3500, so guard = 10500
+    const orderShipped = { ...MOCK_ORDER, status: 'shipped', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderShipped);
+
+    const res = await patchStatus(token, { to_status: 'returned', late_fee: 8000, damage_fee: 3000 });
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error.code).toBe('FEE_EXCEEDS_GUARD');
+    expect(json.error.details.fee_sum).toBe(11000);
+    expect(json.error.details.guard_limit).toBe(10500);
+  });
+
+  it('accepts fees at exactly 3× subtotal boundary', async () => {
+    // subtotal = 3500, 3× = 10500
+    const orderShipped = { ...MOCK_ORDER, status: 'shipped', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderShipped);
+    mockDb.order.update.mockResolvedValue({ ...orderShipped, status: 'returned', lateFee: 7000, damageFee: 3500, totalAmount: 17100 });
+    mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-guard-2' });
+
+    const res = await patchStatus(token, { to_status: 'returned', late_fee: 7000, damage_fee: 3500 });
+    expect(res.status).toBe(200);
+  });
+
+  it('accepts fees at 2× subtotal (within guard)', async () => {
+    const orderShipped = { ...MOCK_ORDER, status: 'shipped', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderShipped);
+    mockDb.order.update.mockResolvedValue({ ...orderShipped, status: 'returned', lateFee: 5000, damageFee: 2000, totalAmount: 13600 });
+    mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-guard-3' });
+
+    const res = await patchStatus(token, { to_status: 'returned', late_fee: 5000, damage_fee: 2000 });
+    expect(res.status).toBe(200);
+  });
 });

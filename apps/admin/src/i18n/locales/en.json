@@ -184,7 +184,9 @@
     "customerName": "Customer Name",
     "feeEntryLabel": "Late Fee / Damage Fee (optional)",
     "feeNote": "Fee Notes",
-    "feeNotePlaceholder": "Reason for fees (internal)"
+    "feeNotePlaceholder": "Reason for fees (internal)",
+    "feeGuardWarning": "Combined fees exceed 3× subtotal ({{limit}} THB). Server will reject.",
+    "feeExceedsGuard": "Fee total exceeds safety limit"
   },
   "products": {
     "title": "Products",
