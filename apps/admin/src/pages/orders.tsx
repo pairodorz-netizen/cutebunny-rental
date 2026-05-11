@@ -461,6 +461,9 @@ export function OrdersPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [selectedCarrier, setSelectedCarrier] = useState('');
+  const [statusLateFee, setStatusLateFee] = useState('');
+  const [statusDamageFee, setStatusDamageFee] = useState('');
+  const [statusFeeNote, setStatusFeeNote] = useState('');
 
   // Slip verify modal
   const [showSlipModal, setShowSlipModal] = useState(false);
@@ -623,7 +626,7 @@ export function OrdersPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ orderId, body }: { orderId: string; body: { to_status: string; tracking_number?: string; note?: string } }) =>
+    mutationFn: ({ orderId, body }: { orderId: string; body: { to_status: string; tracking_number?: string; note?: string; late_fee?: number; damage_fee?: number; fee_note?: string } }) =>
       adminApi.orders.updateStatus(orderId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
@@ -762,6 +765,13 @@ export function OrdersPage() {
   const openStatusModal = useCallback((orderId: string, currentStatus: string) => {
     setStatusModalOrderId(orderId);
     setStatusModalCurrentStatus(currentStatus);
+    setNewStatus('');
+    setTrackingNumber('');
+    setStatusNote('');
+    setSelectedCarrier('');
+    setStatusLateFee('');
+    setStatusDamageFee('');
+    setStatusFeeNote('');
     setShowStatusModal(true);
   }, []);
 
@@ -1014,6 +1024,23 @@ export function OrdersPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {t('orders.rentalPeriod')}: {order.rental_period.start} — {order.rental_period.end}
                       </div>
+                      {/* Order-level fees (FEAT-512) — severity badges */}
+                      {(order.late_fee > 0 || order.damage_fee > 0) && (() => {
+                        const itemSubtotal = order.items.reduce((s, i) => s + i.subtotal, 0);
+                        const feeTotal = (order.late_fee ?? 0) + (order.damage_fee ?? 0);
+                        const ratio = itemSubtotal > 0 ? feeTotal / itemSubtotal : 0;
+                        const severityColor = ratio > 2 ? 'text-red-700 bg-red-50 border-red-200' : ratio > 1 ? 'text-orange-700 bg-orange-50 border-orange-200' : 'text-yellow-700 bg-yellow-50 border-yellow-200';
+                        return (
+                        <div className="mt-2 flex gap-2 text-xs">
+                          {order.late_fee > 0 && (
+                            <span className={`px-2 py-0.5 rounded border font-medium ${severityColor}`}>{t('orders.lateFee')}: {order.late_fee.toLocaleString()} THB</span>
+                          )}
+                          {order.damage_fee > 0 && (
+                            <span className={`px-2 py-0.5 rounded border font-medium ${severityColor}`}>{t('orders.damageFee')}: {order.damage_fee.toLocaleString()} THB</span>
+                          )}
+                        </div>
+                        );
+                      })()}
                       {/* Credit Applied */}
                       {order.credit_applied > 0 && (
                         <div className="mt-1 text-xs text-green-600 font-medium">
@@ -1556,6 +1583,35 @@ export function OrdersPage() {
                   </div>
                 </>
               )}
+              {(newStatus === 'returned' || newStatus === 'finished') && (() => {
+                const modalOrder = orders.find((o) => o.id === statusModalOrderId);
+                const orderSubtotal = modalOrder?.items.reduce((s, i) => s + i.subtotal, 0) ?? 0;
+                const feeGuardLimit = orderSubtotal * 3;
+                const feeSum = (Number(statusLateFee) || 0) + (Number(statusDamageFee) || 0);
+                const exceedsGuard = feeSum > feeGuardLimit && feeGuardLimit > 0;
+                return (
+                <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                  <p className="text-xs font-medium text-muted-foreground">{t('orders.feeEntryLabel')}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium">{t('orders.lateFee')} (THB)</label>
+                      <Input type="number" min="0" value={statusLateFee} onChange={(e) => setStatusLateFee(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium">{t('orders.damageFee')} (THB)</label>
+                      <Input type="number" min="0" value={statusDamageFee} onChange={(e) => setStatusDamageFee(e.target.value)} placeholder="0" />
+                    </div>
+                  </div>
+                  {exceedsGuard && (
+                    <p className="text-xs text-destructive font-medium">{t('orders.feeGuardWarning', { limit: feeGuardLimit.toLocaleString() })}</p>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium">{t('orders.feeNote')}</label>
+                    <Input value={statusFeeNote} onChange={(e) => setStatusFeeNote(e.target.value)} placeholder={t('orders.feeNotePlaceholder')} />
+                  </div>
+                </div>
+                );
+              })()}
               <div>
                 <label className="text-sm font-medium">{t('orders.note')}</label>
                 <Input value={statusNote} onChange={(e) => setStatusNote(e.target.value)} />
@@ -1563,10 +1619,22 @@ export function OrdersPage() {
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => { setShowStatusModal(false); setStatusModalOrderId(null); }}>{t('common.cancel')}</Button>
                 <Button
-                  onClick={() => statusMutation.mutate({
-                    orderId: statusModalOrderId,
-                    body: { to_status: newStatus, tracking_number: trackingNumber || undefined, note: statusNote || undefined },
-                  })}
+                  onClick={() => {
+                    const isFinal = newStatus === 'returned' || newStatus === 'finished';
+                    statusMutation.mutate({
+                      orderId: statusModalOrderId,
+                      body: {
+                        to_status: newStatus,
+                        tracking_number: trackingNumber || undefined,
+                        note: statusNote || undefined,
+                        ...(isFinal && {
+                          late_fee: statusLateFee ? Number(statusLateFee) : 0,
+                          damage_fee: statusDamageFee ? Number(statusDamageFee) : 0,
+                          ...(statusFeeNote ? { fee_note: statusFeeNote } : {}),
+                        }),
+                      },
+                    });
+                  }}
                   disabled={!newStatus || statusMutation.isPending}
                 >
                   {statusMutation.isPending ? t('common.loading') : t('common.save')}

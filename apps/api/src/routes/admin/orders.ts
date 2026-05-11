@@ -124,6 +124,8 @@ adminOrders.get('/', async (c) => {
       })),
       tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
       total_amount: o.totalAmount,
+      late_fee: o.lateFee,
+      damage_fee: o.damageFee,
       credit_applied: o.creditApplied ?? 0,
       delivery_method: o.deliveryMethod,
       return_method: o.returnMethod,
@@ -260,6 +262,8 @@ adminOrders.get('/:id', async (c) => {
     order_number: order.orderNumber,
     status: order.status,
     total_amount: order.totalAmount,
+    late_fee: order.lateFee,
+    damage_fee: order.damageFee,
     deposit_total: order.deposit,
     delivery_fee: order.deliveryFee,
     credit_applied: order.creditApplied,
@@ -588,6 +592,9 @@ adminOrders.patch('/:id/status', async (c) => {
     to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled']),
     tracking_number: z.string().optional(),
     note: z.string().optional(),
+    late_fee: z.number().int().min(0).optional(),
+    damage_fee: z.number().int().min(0).optional(),
+    fee_note: z.string().optional(),
   });
 
   const body = await c.req.json().catch(() => null);
@@ -623,17 +630,44 @@ adminOrders.patch('/:id/status', async (c) => {
   // us that atomicity at the DB level. If either throws, the whole
   // tx rolls back and the error bubbles to `adminOrders.onError()`,
   // which returns an HTTP 500 + JSON envelope to the client.
+  // FEAT-512: Persist manual late_fee / damage_fee on final status transitions
+  const isFinalStatus = toStatus === 'returned' || toStatus === 'finished';
+  const enteredLateFee = isFinalStatus ? (parsed.data.late_fee ?? 0) : 0;
+  const enteredDamageFee = isFinalStatus ? (parsed.data.damage_fee ?? 0) : 0;
+
+  // FEAT-512 Hard Fix 1: Max value guard — combined fees must not exceed 3× subtotal
+  if (isFinalStatus) {
+    const feeSum = enteredLateFee + enteredDamageFee;
+    const feeGuardLimit = order.subtotal * 3;
+    if (feeSum > feeGuardLimit) {
+      return error(c, 400, 'FEE_EXCEEDS_GUARD', `Combined fees (${feeSum}) exceed 3× subtotal guard (${feeGuardLimit})`, {
+        entered_late_fee: enteredLateFee,
+        entered_damage_fee: enteredDamageFee,
+        fee_sum: feeSum,
+        subtotal: order.subtotal,
+        guard_limit: feeGuardLimit,
+      });
+    }
+  }
+
+  const updateData: Prisma.OrderUpdateInput = {
+    status: toStatus,
+    ...(parsed.data.tracking_number && {
+      shippingSnapshot: {
+        ...(order.shippingSnapshot as Record<string, unknown> ?? {}),
+        tracking_number: parsed.data.tracking_number,
+      },
+    }),
+    ...(isFinalStatus && {
+      lateFee: enteredLateFee,
+      damageFee: enteredDamageFee,
+      totalAmount: order.subtotal + order.deposit + order.deliveryFee + enteredLateFee + enteredDamageFee - order.discount - order.creditApplied,
+    }),
+  };
+
   const updateArgs: Prisma.OrderUpdateArgs = {
     where: { id: orderId },
-    data: {
-      status: toStatus,
-      ...(parsed.data.tracking_number && {
-        shippingSnapshot: {
-          ...(order.shippingSnapshot as Record<string, unknown> ?? {}),
-          tracking_number: parsed.data.tracking_number,
-        },
-      }),
-    },
+    data: updateData,
   };
   const statusLogArgs: Prisma.OrderStatusLogCreateArgs = {
     data: {
@@ -665,18 +699,9 @@ adminOrders.patch('/:id/status', async (c) => {
   // handler for guaranteed response delivery, matching the spec's
   // "fail quiet" side-effect rule. Upstream telemetry (BUG-401) and
   // NotificationLog rows already capture the signals we need.
-  let totalLateFee = 0;
-  let totalDamageFee = 0;
-  if (toStatus === 'finished' && db.orderItem?.aggregate) {
-    try {
-      const agg = await db.orderItem.aggregate({
-        where: { orderId },
-        _sum: { lateFee: true, damageFee: true },
-      });
-      totalLateFee = agg._sum.lateFee ?? 0;
-      totalDamageFee = agg._sum.damageFee ?? 0;
-    } catch { /* aggregate failure falls back to 0 */ }
-  }
+  // FEAT-512: Use the manually-entered order-level fees (not auto-calc from items)
+  const totalLateFee = enteredLateFee;
+  const totalDamageFee = enteredDamageFee;
 
   if (toStatus === 'finished' && db.financeTransaction?.create) {
     const totalDeductions = totalLateFee + totalDamageFee;
@@ -725,6 +750,36 @@ adminOrders.patch('/:id/status', async (c) => {
     } catch { /* returned-revenue failure is non-blocking */ }
   }
 
+  // FEAT-512: Record finance transactions for manually-entered fees
+  if (isFinalStatus && db.financeTransaction?.create) {
+    if (enteredLateFee > 0) {
+      try {
+        await db.financeTransaction.create({
+          data: {
+            orderId,
+            txType: 'late_fee',
+            amount: enteredLateFee,
+            note: parsed.data.fee_note || `Late fee for ${order.orderNumber}`,
+            createdBy: admin.sub,
+          },
+        });
+      } catch { /* late_fee tx failure is non-blocking */ }
+    }
+    if (enteredDamageFee > 0) {
+      try {
+        await db.financeTransaction.create({
+          data: {
+            orderId,
+            txType: 'damage_fee',
+            amount: enteredDamageFee,
+            note: parsed.data.fee_note || `Damage fee for ${order.orderNumber}`,
+            createdBy: admin.sub,
+          },
+        });
+      } catch { /* damage_fee tx failure is non-blocking */ }
+    }
+  }
+
   if (toStatus === 'cancelled' && db.financeTransaction?.create) {
     try {
       await db.financeTransaction.create({
@@ -764,7 +819,14 @@ adminOrders.patch('/:id/status', async (c) => {
     action: 'STATUS_CHANGE',
     resource: 'order',
     resourceId: orderId,
-    details: { from: order.status, to: toStatus, tracking_number: parsed.data.tracking_number },
+    details: {
+      from: order.status,
+      to: toStatus,
+      tracking_number: parsed.data.tracking_number,
+      late_fee: enteredLateFee,
+      damage_fee: enteredDamageFee,
+      ...(parsed.data.fee_note && { fee_note: parsed.data.fee_note }),
+    },
   });
 
   return success(c, {
@@ -772,6 +834,9 @@ adminOrders.patch('/:id/status', async (c) => {
     order_number: updatedOrder.orderNumber,
     previous_status: order.status,
     current_status: updatedOrder.status,
+    late_fee: updatedOrder.lateFee,
+    damage_fee: updatedOrder.damageFee,
+    total_amount: updatedOrder.totalAmount,
     allowed_transitions: getAllowedTransitions(updatedOrder.status),
   });
 });

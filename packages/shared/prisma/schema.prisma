@@ -327,6 +327,8 @@ model Order {
   subtotal          Int         @default(0)
   deposit           Int         @default(0)
   deliveryFee       Int         @default(0) @map("delivery_fee")
+  lateFee           Int         @default(0) @map("late_fee")
+  damageFee         Int         @default(0) @map("damage_fee")
   discount          Int         @default(0)
   creditApplied     Int         @default(0) @map("credit_applied")
   totalAmount       Int         @default(0) @map("total_amount")

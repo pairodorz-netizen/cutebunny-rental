@@ -124,6 +124,8 @@ export const MOCK_ORDER = {
   subtotal: 3500,
   deposit: 3000,
   deliveryFee: 100,
+  lateFee: 0,
+  damageFee: 0,
   discount: 0,
   creditApplied: 0,
   totalAmount: 6600,
