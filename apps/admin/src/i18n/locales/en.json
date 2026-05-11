@@ -14,7 +14,10 @@
     "thai": "Thai",
     "chinese": "Chinese",
     "error": "Something went wrong",
-    "close": "Close"
+    "close": "Close",
+    "next": "Next",
+    "prev": "Previous",
+    "saving": "Saving..."
   },
   "login": {
     "title": "Admin Login",
@@ -177,7 +180,8 @@
     "items": "Items",
     "markAsPaid": "Mark as Paid",
     "total": "Total",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "customerName": "Customer Name"
   },
   "products": {
     "title": "Products",
