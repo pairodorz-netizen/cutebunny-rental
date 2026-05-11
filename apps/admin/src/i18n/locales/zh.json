@@ -14,7 +14,10 @@
     "thai": "泰语",
     "chinese": "中文",
     "error": "出现错误",
-    "close": "关闭"
+    "close": "关闭",
+    "next": "下一页",
+    "prev": "上一页",
+    "saving": "保存中..."
   },
   "login": {
     "title": "管理员登录",
@@ -177,7 +180,8 @@
     "items": "商品",
     "markAsPaid": "标记为已付款",
     "total": "合计",
-    "cancelled": "已取消"
+    "cancelled": "已取消",
+    "customerName": "客户名称"
   },
   "products": {
     "title": "商品",

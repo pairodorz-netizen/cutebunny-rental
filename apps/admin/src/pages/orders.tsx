@@ -984,7 +984,7 @@ export function OrdersPage() {
                             <th className="text-left pb-2 w-12">{/* thumb */}</th>
                             <th className="text-left pb-2">{t('products.name')}</th>
                             <th className="text-left pb-2">SKU</th>
-                            <th className="text-left pb-2">{t('products.size')}</th>
+                            <th className="text-left pb-2">{t('orders.size')}</th>
                             <th className="text-right pb-2">{t('orders.quantity')}</th>
                             <th className="text-right pb-2">{t('orders.subtotal')}</th>
                             <th className="text-right pb-2">{t('orders.lateFee')}</th>
