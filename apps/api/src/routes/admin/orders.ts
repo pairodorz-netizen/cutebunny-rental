@@ -736,19 +736,9 @@ adminOrders.patch('/:id/status', async (c) => {
     }
   }
 
-  if (toStatus === 'returned' && db.financeTransaction?.create) {
-    try {
-      await db.financeTransaction.create({
-        data: {
-          orderId,
-          txType: 'rental_revenue',
-          amount: order.subtotal,
-          note: `Rental revenue for ${order.orderNumber}`,
-          createdBy: admin.sub,
-        },
-      });
-    } catch { /* returned-revenue failure is non-blocking */ }
-  }
+  // BUG-517: Removed duplicate rental_revenue creation at 'returned' status.
+  // Revenue is already recorded once at payment verification (subtotal only).
+  // Creating it again here caused double-counting in Finance Summary.
 
   // FEAT-512: Record finance transactions for manually-entered fees
   if (isFinalStatus && db.financeTransaction?.create) {
@@ -915,13 +905,14 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
           orderStatusChanged = 'paid_locked';
         }
 
-        // Create rental_revenue finance transaction
+        // BUG-517: Record rental_revenue as subtotal (pure rental price),
+        // not totalAmount which includes refundable deposit + delivery fees.
         try {
           await db.financeTransaction.create({
             data: {
               orderId,
               txType: 'rental_revenue',
-              amount: order.totalAmount,
+              amount: order.subtotal,
               note: `Payment verified for order ${order.orderNumber}`,
               createdBy: admin.sub,
             },
