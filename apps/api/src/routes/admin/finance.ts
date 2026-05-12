@@ -422,13 +422,15 @@ adminFinance.get('/summary', async (c) => {
     else if (expenseTypes.includes(tx.txType)) totalExpenses += Math.abs(tx.amount);
   }
 
-  // By category
+  // By category — use signed amounts for revenue (so reversals subtract),
+  // absolute for expenses (stored as negative, displayed positive).
   const byCategory: Record<string, { type: string; total: number }> = {};
   for (const tx of transactions) {
     const catName = tx.category?.name ?? tx.txType;
-    const catType = tx.category?.type ?? (revenueTypes.includes(tx.txType) ? 'REVENUE' : 'EXPENSE');
+    const isRevenue = revenueTypes.includes(tx.txType);
+    const catType = tx.category?.type ?? (isRevenue ? 'REVENUE' : 'EXPENSE');
     if (!byCategory[catName]) byCategory[catName] = { type: catType, total: 0 };
-    byCategory[catName].total += Math.abs(tx.amount);
+    byCategory[catName].total += isRevenue ? tx.amount : Math.abs(tx.amount);
   }
 
   // Top products
