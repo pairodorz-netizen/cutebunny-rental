@@ -8,6 +8,12 @@ the pending Prisma migrations to fix the root cause.
 1. `20260508_150_audit_logs_ip_inet` — ALTER `ip_address` from TEXT to INET
 2. `20260508_160_system_logs` — CREATE TABLE `system_logs` for retention job compliance
 
+**Standalone SQL files (for Supabase SQL Editor):**
+- Forward: [`migrations/20260508_150_audit_logs_ip_inet_forward.sql`](../../migrations/20260508_150_audit_logs_ip_inet_forward.sql)
+- Rollback: [`migrations/20260508_150_audit_logs_ip_inet_rollback.sql`](../../migrations/20260508_150_audit_logs_ip_inet_rollback.sql)
+- Forward: [`migrations/20260508_160_system_logs_forward.sql`](../../migrations/20260508_160_system_logs_forward.sql)
+- Rollback: [`migrations/20260508_160_system_logs_rollback.sql`](../../migrations/20260508_160_system_logs_rollback.sql)
+
 ---
 
 ## Pre-requisites
@@ -34,6 +40,7 @@ pg_dump "$PROD_DB_URL" --format=custom -f backup-pre-bug508-$(date +%Y%m%d-%H%M%
 
 ## Step 2: Run Migration
 
+**Option A — Via Prisma CLI:**
 ```bash
 cd packages/shared
 DATABASE_URL="$PROD_DB_URL" npx prisma migrate deploy
@@ -46,13 +53,25 @@ DATABASE_URL="$PROD_DB_URL" npx prisma migrate deploy
   20260508_160_system_logs
 ```
 
+**Option B — Via Supabase SQL Editor (recommended):**
+
+Run the standalone forward SQL files in order:
+1. Copy-paste contents of `migrations/20260508_150_audit_logs_ip_inet_forward.sql` → Run
+2. Copy-paste contents of `migrations/20260508_160_system_logs_forward.sql` → Run
+
 The migration SQL for `20260508_150_audit_logs_ip_inet` uses a safe USING clause:
 ```sql
 ALTER TABLE "audit_logs"
 ALTER COLUMN "ip_address" TYPE INET
-USING (CASE WHEN ip_address ~ '^[0-9a-fA-F:.]+$' THEN ip_address::inet ELSE NULL END);
+USING (CASE WHEN ip_address ~ '^[0-9a-fA-F.:]+(/[0-9]+)?$' THEN ip_address::inet ELSE NULL END);
 ```
 Invalid values are converted to NULL rather than causing the migration to fail.
+
+**IP regex explanation:** `^[0-9a-fA-F.:]+(/[0-9]+)?$` matches:
+- IPv4: `192.168.1.1`
+- IPv6: `::1`, `2001:db8::1`
+- CIDR: `192.168.1.0/24`, `::1/128`
+- Rejects: empty strings, `unknown`, `localhost`, mixed-content
 
 ---
 
@@ -166,6 +185,11 @@ Revert PR #154 code changes (or deploy a version that doesn't reference
 
 ### Step R2: DB Rollback After Worker Confirmed Live
 
+Run the standalone rollback SQL files in **reverse** order:
+1. Copy-paste `migrations/20260508_160_system_logs_rollback.sql` → Run
+2. Copy-paste `migrations/20260508_150_audit_logs_ip_inet_rollback.sql` → Run
+
+Or run manually:
 ```sql
 -- Set safety timeouts
 SET lock_timeout = '2s';
@@ -174,7 +198,7 @@ SET statement_timeout = '5s';
 -- Revert ip_address from INET back to TEXT
 ALTER TABLE "audit_logs"
 ALTER COLUMN "ip_address" TYPE TEXT
-USING ip_address::text;
+USING host(ip_address)::text;
 
 -- Drop system_logs if needed
 DROP TABLE IF EXISTS "system_logs";
