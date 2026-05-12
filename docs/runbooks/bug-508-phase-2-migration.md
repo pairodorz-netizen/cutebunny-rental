@@ -4,11 +4,14 @@
 gracefully when `audit_logs.ip_address` is TEXT instead of INET. Phase 2 applies
 the pending Prisma migrations to fix the root cause.
 
-**Migrations to apply:**
+**Migrations to apply (in order):**
+0. `20260512_140_audit_logs_phase1_columns` — ADD `ip_address` TEXT + `user_agent` TEXT (**run first if columns missing**)
 1. `20260508_150_audit_logs_ip_inet` — ALTER `ip_address` from TEXT to INET
 2. `20260508_160_system_logs` — CREATE TABLE `system_logs` for retention job compliance
 
 **Standalone SQL files (for Supabase SQL Editor):**
+- Forward: [`migrations/20260512_140_audit_logs_phase1_columns_forward.sql`](../../migrations/20260512_140_audit_logs_phase1_columns_forward.sql) **(run first)**
+- Rollback: [`migrations/20260512_140_audit_logs_phase1_columns_rollback.sql`](../../migrations/20260512_140_audit_logs_phase1_columns_rollback.sql)
 - Forward: [`migrations/20260508_150_audit_logs_ip_inet_forward.sql`](../../migrations/20260508_150_audit_logs_ip_inet_forward.sql)
 - Rollback: [`migrations/20260508_150_audit_logs_ip_inet_rollback.sql`](../../migrations/20260508_150_audit_logs_ip_inet_rollback.sql)
 - Forward: [`migrations/20260508_160_system_logs_forward.sql`](../../migrations/20260508_160_system_logs_forward.sql)
@@ -23,6 +26,29 @@ the pending Prisma migrations to fix the root cause.
 - [ ] Database backup taken before migration
 - [ ] Low-traffic window selected (recommended: 03:00–06:00 Asia/Bangkok)
 - [ ] `DATABASE_URL` for production Supabase available
+
+---
+
+## Step 0: Restore missing columns (HOTFIX-514)
+
+> **Run this step FIRST** if `ip_address` column does not exist on `audit_logs`.
+> Check with: `SELECT column_name FROM information_schema.columns WHERE table_name='audit_logs' AND column_name='ip_address';`
+> If 0 rows → run this step. If 1 row → skip to Step 1.
+
+Copy-paste contents of `migrations/20260512_140_audit_logs_phase1_columns_forward.sql` into Supabase SQL Editor → Run.
+
+This adds `ip_address TEXT` and `user_agent TEXT` columns that Phase 1 code (PR #154) expects.
+The columns are TEXT at this stage — Step 2 migration #150 will convert `ip_address` to INET.
+
+**Verification (included in the SQL file):**
+```sql
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'audit_logs'
+  AND column_name IN ('ip_address', 'user_agent');
+-- Expected: ip_address | text | YES
+--           user_agent | text | YES
+```
 
 ---
 
