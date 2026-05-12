@@ -41,6 +41,7 @@ async function fetchSummaryData() {
       _sum: { amount: true },
     }),
     db.product.findMany({
+      where: { deletedAt: null },
       orderBy: { rentalCount: 'desc' },
       take: 5,
       select: { id: true, sku: true, name: true, rentalCount: true, thumbnailUrl: true },
@@ -179,6 +180,7 @@ dashboard.get('/stats', async (c) => {
       _sum: { amount: true },
     }),
     db.product.findMany({
+      where: { deletedAt: null },
       orderBy: { rentalCount: 'desc' },
       take: 5,
       select: {
