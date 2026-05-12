@@ -1002,7 +1002,13 @@ export function OrdersPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {order.items.map((item) => (
+                          {order.items.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="py-4 text-center text-muted-foreground italic">
+                                {t('orders.noItems')}
+                              </td>
+                            </tr>
+                          ) : order.items.map((item) => (
                             <tr key={item.id} className="border-t border-muted">
                               <td className="py-1.5"><Thumbnail src={item.thumbnail} size={36} /></td>
                               <td className="py-1.5 font-medium">{item.product_name}</td>

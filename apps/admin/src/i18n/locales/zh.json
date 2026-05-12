@@ -164,6 +164,7 @@
     "messengerDistance": "距离",
     "addItem": "添加商品",
     "removeItem": "移除商品",
+    "noItems": "此订单没有商品记录",
     "selectProduct": "选择商品",
     "searchProducts": "搜索商品...",
     "refund": "退款",

@@ -69,6 +69,9 @@ adminOrders.get('/', async (c) => {
 
   try {
     const [orders, total] = await Promise.all([
+      // BUG-520: fetch items without product include to avoid FK failures
+      // when a product has been hard-deleted. Product data is enriched
+      // separately below using snapshot fields as fallback.
       db.order.findMany({
         where,
         include: {
@@ -78,6 +81,7 @@ adminOrders.get('/', async (c) => {
           items: {
             select: {
               id: true,
+              productId: true,
               productName: true,
               size: true,
               quantity: true,
@@ -85,7 +89,6 @@ adminOrders.get('/', async (c) => {
               subtotal: true,
               lateFee: true,
               damageFee: true,
-              product: { select: { sku: true, thumbnailUrl: true } },
             },
           },
           paymentSlips: {
@@ -101,6 +104,17 @@ adminOrders.get('/', async (c) => {
       db.order.count({ where }),
     ]);
 
+    // BUG-520: batch-fetch product data (sku, thumbnail) separately.
+    // If a product was hard-deleted, we gracefully fall back to snapshot fields.
+    const allProductIds = [...new Set(orders.flatMap((o) => o.items.map((i) => i.productId)))];
+    const products = allProductIds.length > 0
+      ? await db.product.findMany({
+          where: { id: { in: allProductIds } },
+          select: { id: true, sku: true, thumbnailUrl: true },
+        }).catch(() => [] as Array<{ id: string; sku: string; thumbnailUrl: string | null }>)
+      : [];
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
     const data = orders.map((o) => ({
       id: o.id,
       order_number: o.orderNumber,
@@ -110,18 +124,21 @@ adminOrders.get('/', async (c) => {
         email: o.customer.email,
         phone: o.customer.phone,
       },
-      items: o.items.map((item) => ({
-        id: item.id,
-        product_name: item.productName,
-        sku: item.product?.sku ?? '',
-        size: item.size,
-        quantity: item.quantity,
-        subtotal: item.subtotal,
-        late_fee: item.lateFee,
-        damage_fee: item.damageFee,
-        item_status: item.status,
-        thumbnail: item.product?.thumbnailUrl ?? null,
-      })),
+      items: o.items.map((item) => {
+        const product = productMap.get(item.productId);
+        return {
+          id: item.id,
+          product_name: item.productName,
+          sku: product?.sku ?? '',
+          size: item.size,
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+          late_fee: item.lateFee,
+          damage_fee: item.damageFee,
+          item_status: item.status,
+          thumbnail: product?.thumbnailUrl ?? null,
+        };
+      }),
       tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
       total_amount: o.totalAmount,
       late_fee: o.lateFee,
@@ -211,6 +228,8 @@ adminOrders.get('/:id', async (c) => {
   const db = getDb();
   const orderId = c.req.param('id');
 
+  // BUG-520: fetch items without product include to avoid FK failures
+  // when a product has been hard-deleted. Product data is enriched separately.
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
@@ -219,17 +238,7 @@ adminOrders.get('/:id', async (c) => {
           documents: true,
         },
       },
-      items: {
-        include: {
-          product: {
-            select: {
-              sku: true,
-              thumbnailUrl: true,
-              images: { select: { id: true, url: true, altText: true, sortOrder: true } },
-            },
-          },
-        },
-      },
+      items: true,
       paymentSlips: {
         orderBy: { createdAt: 'desc' },
       },
@@ -242,6 +251,21 @@ adminOrders.get('/:id', async (c) => {
   if (!order) {
     return error(c, 404, 'NOT_FOUND', 'Order not found');
   }
+
+  // BUG-520: batch-fetch product data separately for resilience.
+  const itemProductIds = [...new Set(order.items.map((i) => i.productId))];
+  const itemProducts = itemProductIds.length > 0
+    ? await db.product.findMany({
+        where: { id: { in: itemProductIds } },
+        select: {
+          id: true,
+          sku: true,
+          thumbnailUrl: true,
+          images: { select: { id: true, url: true, altText: true, sortOrder: true } },
+        },
+      }).catch(() => [] as Array<{ id: string; sku: string; thumbnailUrl: string | null; images: Array<{ id: string; url: string; altText: string | null; sortOrder: number }> }>)
+    : [];
+  const detailProductMap = new Map(itemProducts.map((p) => [p.id, p]));
 
   // Fetch audit logs with BUG-508 resilience wrapper
   const auditResult = await safeAuditLogQuery<{ id: string; action: string; resource: string | null; details: unknown; adminId: string; createdAt: Date; admin?: { name: string | null; email: string } | null }>(
@@ -281,22 +305,27 @@ adminOrders.get('/:id', async (c) => {
       phone: order.customer.phone,
       email: order.customer.email,
       address: order.customer.address,
-      documents: order.customer.documents.map((doc) => ({
-        id: doc.id,
-        doc_type: doc.docType,
-        storage_key: doc.storageKey,
-        verified: doc.verified,
-        created_at: doc.createdAt.toISOString(),
-      })),
+      // BUG-519: deduplicate customer documents by doc_type (keep latest).
+      documents: [...order.customer.documents]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .filter((doc, _i, arr) => arr.findIndex((d) => d.docType === doc.docType) === arr.indexOf(doc))
+        .map((doc) => ({
+          id: doc.id,
+          doc_type: doc.docType,
+          storage_key: doc.storageKey,
+          verified: doc.verified,
+          created_at: doc.createdAt.toISOString(),
+        })),
     },
     items: order.items.map((item) => {
       const rentalDays = Math.ceil(
         (order.rentalEndDate.getTime() - order.rentalStartDate.getTime()) / (1000 * 60 * 60 * 24)
       );
+      const product = detailProductMap.get(item.productId);
       return {
         id: item.id,
         product_name: item.productName,
-        sku: item.product?.sku ?? '',
+        sku: product?.sku ?? '',
         size: item.size,
         quantity: item.quantity,
         rental_days: rentalDays,
@@ -305,8 +334,8 @@ adminOrders.get('/:id', async (c) => {
         late_fee: item.lateFee,
         damage_fee: item.damageFee,
         status: item.status,
-        thumbnail: item.product?.thumbnailUrl ?? null,
-        images: item.product?.images ?? [],
+        thumbnail: product?.thumbnailUrl ?? null,
+        images: product?.images ?? [],
       };
     }),
     status_log: order.statusLogs.map((log) => ({
