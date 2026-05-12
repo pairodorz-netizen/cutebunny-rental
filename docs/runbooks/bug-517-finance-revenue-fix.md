@@ -24,6 +24,24 @@ Revenue was double-counted and inflated due to two bugs:
 | Admin edit → paid_locked | No | No | Guard creates (fallback) |
 | Cancelled order | N/A | Reversal (-subtotal) | N/A |
 
+## Important: SQL Column Name Mapping
+
+Prisma uses camelCase model names, but the actual PostgreSQL tables use snake_case
+via `@@map` / `@map`. The SQL below uses the **real PostgreSQL names**:
+
+| Prisma model / field | PostgreSQL table / column |
+|---|---|
+| `financeTransaction` | `finance_transactions` |
+| `orderId` | `order_id` |
+| `txType` | `tx_type` |
+| `totalAmount` | `total_amount` |
+| `createdAt` | `created_at` |
+| `createdBy` | `created_by` |
+| `orders` | `orders` (same) |
+| `subtotal` | `subtotal` (same) |
+| `amount` | `amount` (same) |
+| `note` | `note` (same) |
+
 ## Post-Merge: Historical Data Reconciliation
 
 **DO NOT run on prod without human approval.**
@@ -31,23 +49,23 @@ Revenue was double-counted and inflated due to two bugs:
 ### Step 1: Identify affected transactions
 
 ```sql
--- Find rental_revenue transactions that used totalAmount instead of subtotal
+-- Find rental_revenue transactions that used total_amount instead of subtotal
 -- (created before BUG-517 fix was deployed)
 SELECT
   ft.id AS tx_id,
-  ft."orderId",
+  ft.order_id,
   ft.amount AS recorded_amount,
   o.subtotal AS correct_amount,
-  o."totalAmount",
+  o.total_amount,
   ft.amount - o.subtotal AS overstated_by,
-  ft."createdAt"
-FROM "financeTransaction" ft
-JOIN "orders" o ON o.id = ft."orderId"
-WHERE ft."txType" = 'rental_revenue'
+  ft.created_at
+FROM finance_transactions ft
+JOIN orders o ON o.id = ft.order_id
+WHERE ft.tx_type = 'rental_revenue'
   AND ft.amount > 0
-  AND ft.amount = o."totalAmount"
+  AND ft.amount = o.total_amount
   AND ft.amount != o.subtotal
-ORDER BY ft."createdAt";
+ORDER BY ft.created_at;
 ```
 
 ### Step 2: Find duplicate revenue records (double-counted orders)
@@ -55,15 +73,15 @@ ORDER BY ft."createdAt";
 ```sql
 -- Orders with more than one positive rental_revenue transaction
 SELECT
-  "orderId",
+  order_id,
   COUNT(*) AS revenue_count,
   SUM(amount) AS total_recorded,
   MIN(amount) AS min_amount,
   MAX(amount) AS max_amount
-FROM "financeTransaction"
-WHERE "txType" = 'rental_revenue'
+FROM finance_transactions
+WHERE tx_type = 'rental_revenue'
   AND amount > 0
-GROUP BY "orderId"
+GROUP BY order_id
 HAVING COUNT(*) > 1
 ORDER BY COUNT(*) DESC;
 ```
@@ -72,42 +90,41 @@ ORDER BY COUNT(*) DESC;
 
 ```sql
 -- For each overstated transaction, create a correction entry
--- Replace <tx_id>, <order_id>, <overstated_amount>, <admin_id> with actual values
 BEGIN;
 
--- Correct overstated amount (totalAmount → subtotal)
-INSERT INTO "financeTransaction" ("orderId", "txType", amount, note, "createdBy")
+-- Correct overstated amount (total_amount → subtotal)
+INSERT INTO finance_transactions (order_id, tx_type, amount, note, created_by)
 SELECT
-  ft."orderId",
+  ft.order_id,
   'rental_revenue',
   -(ft.amount - o.subtotal),
-  'BUG-517 reconciliation: correct totalAmount→subtotal (overstated by ' || (ft.amount - o.subtotal) || ')',
-  ft."createdBy"
-FROM "financeTransaction" ft
-JOIN "orders" o ON o.id = ft."orderId"
-WHERE ft."txType" = 'rental_revenue'
+  'BUG-517 reconciliation: correct total_amount→subtotal (overstated by ' || (ft.amount - o.subtotal) || ')',
+  ft.created_by
+FROM finance_transactions ft
+JOIN orders o ON o.id = ft.order_id
+WHERE ft.tx_type = 'rental_revenue'
   AND ft.amount > 0
-  AND ft.amount = o."totalAmount"
+  AND ft.amount = o.total_amount
   AND ft.amount != o.subtotal;
 
 -- Remove duplicate revenue records (keep earliest, reverse later ones)
 WITH ranked AS (
   SELECT
     id,
-    "orderId",
+    order_id,
     amount,
-    ROW_NUMBER() OVER (PARTITION BY "orderId" ORDER BY "createdAt") AS rn
-  FROM "financeTransaction"
-  WHERE "txType" = 'rental_revenue'
+    ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY created_at) AS rn
+  FROM finance_transactions
+  WHERE tx_type = 'rental_revenue'
     AND amount > 0
 )
-INSERT INTO "financeTransaction" ("orderId", "txType", amount, note, "createdBy")
+INSERT INTO finance_transactions (order_id, tx_type, amount, note, created_by)
 SELECT
-  r."orderId",
+  r.order_id,
   'rental_revenue',
   -r.amount,
   'BUG-517 reconciliation: remove duplicate revenue record',
-  (SELECT "createdBy" FROM "financeTransaction" WHERE id = r.id)
+  (SELECT created_by FROM finance_transactions WHERE id = r.id)
 FROM ranked r
 WHERE r.rn > 1;
 
@@ -119,24 +136,24 @@ COMMIT;
 ```sql
 -- After reconciliation, verify no duplicates remain
 SELECT
-  "orderId",
+  order_id,
   COUNT(*) AS positive_revenue_count
-FROM "financeTransaction"
-WHERE "txType" = 'rental_revenue'
+FROM finance_transactions
+WHERE tx_type = 'rental_revenue'
   AND amount > 0
-GROUP BY "orderId"
+GROUP BY order_id
 HAVING COUNT(*) > 1;
 -- Expected: 0 rows
 
 -- Verify revenue amounts match subtotals
 SELECT
-  ft."orderId",
+  ft.order_id,
   SUM(ft.amount) AS net_revenue,
   o.subtotal
-FROM "financeTransaction" ft
-JOIN "orders" o ON o.id = ft."orderId"
-WHERE ft."txType" = 'rental_revenue'
-GROUP BY ft."orderId", o.subtotal
+FROM finance_transactions ft
+JOIN orders o ON o.id = ft.order_id
+WHERE ft.tx_type = 'rental_revenue'
+GROUP BY ft.order_id, o.subtotal
 HAVING SUM(ft.amount) != o.subtotal
   AND SUM(ft.amount) != 0;
 -- Expected: 0 rows (all match subtotal, or 0 for cancelled)
