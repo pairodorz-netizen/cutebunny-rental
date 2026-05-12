@@ -488,6 +488,9 @@
     "roiRankings": "Per-Dress ROI Rankings",
     "roiRankingsDesc": "All products sorted by return on investment. Green = profitable, red = losing money.",
     "revenueTrend": "Revenue vs Expenses Trend",
+    "revenueTooltip": "Sum of rental subtotals, late fees, damage fees, force-buy, and forfeited deposits from verified payments. Excludes unpaid orders and refundable deposits.",
+    "expensesTooltip": "Sum of shipping, COGS, cleaning, repair, marketing, and platform fees.",
+    "netProfitTooltip": "Revenue minus Expenses for the selected period.",
     "groupBy": {
       "category": "By Category",
       "product": "By Product",

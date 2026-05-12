@@ -736,18 +736,27 @@ adminOrders.patch('/:id/status', async (c) => {
     }
   }
 
+  // BUG-517: Guard against double-counting rental_revenue.
+  // Revenue may already exist from payment verification flow.
+  // For manual/cash payments (mark_as_paid, admin edit) there's no verification,
+  // so this fallback ensures revenue is recorded exactly once.
   if (toStatus === 'returned' && db.financeTransaction?.create) {
     try {
-      await db.financeTransaction.create({
-        data: {
-          orderId,
-          txType: 'rental_revenue',
-          amount: order.subtotal,
-          note: `Rental revenue for ${order.orderNumber}`,
-          createdBy: admin.sub,
-        },
+      const existingRevenue = await db.financeTransaction.findFirst({
+        where: { orderId, txType: 'rental_revenue', amount: { gt: 0 } },
       });
-    } catch { /* returned-revenue failure is non-blocking */ }
+      if (!existingRevenue) {
+        await db.financeTransaction.create({
+          data: {
+            orderId,
+            txType: 'rental_revenue',
+            amount: order.subtotal,
+            note: `Rental revenue for ${order.orderNumber} (no prior payment verification)`,
+            createdBy: admin.sub,
+          },
+        });
+      }
+    } catch { /* returned-revenue guard failure is non-blocking */ }
   }
 
   // FEAT-512: Record finance transactions for manually-entered fees
@@ -915,13 +924,14 @@ adminOrders.post('/:id/payment-slip/verify', async (c) => {
           orderStatusChanged = 'paid_locked';
         }
 
-        // Create rental_revenue finance transaction
+        // BUG-517: Record rental_revenue as subtotal (pure rental price),
+        // not totalAmount which includes refundable deposit + delivery fees.
         try {
           await db.financeTransaction.create({
             data: {
               orderId,
               txType: 'rental_revenue',
-              amount: order.totalAmount,
+              amount: order.subtotal,
               note: `Payment verified for order ${order.orderNumber}`,
               createdBy: admin.sub,
             },

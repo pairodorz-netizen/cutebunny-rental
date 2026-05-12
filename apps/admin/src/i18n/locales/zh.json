@@ -488,6 +488,9 @@
     "roiRankings": "单品ROI排名",
     "roiRankingsDesc": "所有商品按投资回报率排序。绿色=盈利，红色=亏损。",
     "revenueTrend": "收入与支出趋势",
+    "revenueTooltip": "已确认付款的租金小计、逾期费、损坏费、买断费和没收押金之和。不含未付订单和可退押金。",
+    "expensesTooltip": "运费、成本、清洗、维修、营销和平台费用之和。",
+    "netProfitTooltip": "所选期间的收入减去支出。",
     "groupBy": {
       "category": "按类别",
       "product": "按商品",

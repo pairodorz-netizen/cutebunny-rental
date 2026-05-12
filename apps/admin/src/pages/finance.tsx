@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, TrendingUp, TrendingDown, Download, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Download, ArrowUpRight, ArrowDownRight, Info } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { useState } from 'react';
 
@@ -151,21 +151,30 @@ export function FinancePage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="rounded-lg border bg-card p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted-foreground">{t('finance.totalRevenue')}</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      {t('finance.totalRevenue')}
+                      <span title={t('finance.revenueTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
+                    </span>
                     <ArrowUpRight className="h-4 w-4 text-green-500" />
                   </div>
                   <p className="text-xl font-bold text-green-600">{summary.totals.total_revenue.toLocaleString()} <span className="text-sm font-normal">THB</span></p>
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted-foreground">{t('finance.totalExpenses')}</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      {t('finance.totalExpenses')}
+                      <span title={t('finance.expensesTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
+                    </span>
                     <ArrowDownRight className="h-4 w-4 text-red-500" />
                   </div>
                   <p className="text-xl font-bold text-red-600">{summary.totals.total_expenses.toLocaleString()} <span className="text-sm font-normal">THB</span></p>
                 </div>
                 <div className="rounded-lg border bg-card p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-muted-foreground">{t('finance.netProfit')}</span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      {t('finance.netProfit')}
+                      <span title={t('finance.netProfitTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
+                    </span>
                     <DollarSign className="h-4 w-4 text-emerald-500" />
                   </div>
                   <p className={`text-xl font-bold ${summary.totals.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
