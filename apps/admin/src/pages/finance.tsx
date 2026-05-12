@@ -153,7 +153,7 @@ export function FinancePage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {t('finance.totalRevenue')}
-                      <Info className="h-3 w-3 cursor-help" title={t('finance.revenueTooltip')} />
+                      <span title={t('finance.revenueTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
                     </span>
                     <ArrowUpRight className="h-4 w-4 text-green-500" />
                   </div>
@@ -163,7 +163,7 @@ export function FinancePage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {t('finance.totalExpenses')}
-                      <Info className="h-3 w-3 cursor-help" title={t('finance.expensesTooltip')} />
+                      <span title={t('finance.expensesTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
                     </span>
                     <ArrowDownRight className="h-4 w-4 text-red-500" />
                   </div>
@@ -173,7 +173,7 @@ export function FinancePage() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {t('finance.netProfit')}
-                      <Info className="h-3 w-3 cursor-help" title={t('finance.netProfitTooltip')} />
+                      <span title={t('finance.netProfitTooltip')}><Info className="h-3 w-3 cursor-help" /></span>
                     </span>
                     <DollarSign className="h-4 w-4 text-emerald-500" />
                   </div>
