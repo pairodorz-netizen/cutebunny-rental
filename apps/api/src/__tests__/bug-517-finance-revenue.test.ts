@@ -9,13 +9,17 @@
  *
  * Fix:
  *   1. Payment verification now records rental_revenue = order.subtotal
- *   2. Removed duplicate rental_revenue at returned-status transition
+ *   2. Returned-status path uses guard: check if rental_revenue already exists
+ *      before creating → prevents double-count AND ensures fallback for
+ *      manual/cash payments that skip payment verification.
  *   3. Cancellation reversal already uses -order.subtotal (correct)
  *
  * Tests:
  *   - Payment verification creates rental_revenue with subtotal (not totalAmount)
- *   - Returned status does NOT create a second rental_revenue
+ *   - Returned after payment verification → no duplicate (guard skips)
+ *   - Returned without prior payment verification → creates revenue (fallback)
  *   - Cancellation creates reversal with -subtotal
+ *   - Tooltip i18n keys exist in all locales
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -102,6 +106,17 @@ const MOCK_ORDER_UNPAID = {
   status: 'unpaid',
 };
 
+async function patchStatus(orderId: string, toStatus: string, token: string) {
+  return app.request(`/api/v1/admin/orders/${orderId}/status`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ to_status: toStatus }),
+  });
+}
+
 describe('BUG-517: Finance Revenue calculation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -154,7 +169,14 @@ describe('BUG-517: Finance Revenue calculation', () => {
     expect(revenueCall![0].data.amount).not.toBe(MOCK_ORDER_UNPAID.totalAmount);
   });
 
-  it('returned status does NOT create a second rental_revenue transaction', async () => {
+  it('returned after payment verification — guard skips duplicate revenue', async () => {
+    // Simulate: revenue already exists from payment verification
+    mockDb.financeTransaction.findFirst.mockResolvedValue({
+      id: 'existing-revenue',
+      orderId: ORDER_ID,
+      txType: 'rental_revenue',
+      amount: 3500,
+    });
     mockDb.order.findUnique.mockResolvedValue(MOCK_ORDER_SHIPPED);
     mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER_SHIPPED, status: 'returned' });
     mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-1' });
@@ -163,18 +185,11 @@ describe('BUG-517: Finance Revenue calculation', () => {
     mockDb.auditLog.create.mockResolvedValue({ id: 'audit-1' });
 
     const token = await getAdminToken();
-    const res = await app.request(`/api/v1/admin/orders/${ORDER_ID}/status`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ to_status: 'returned' }),
-    });
+    const res = await patchStatus(ORDER_ID, 'returned', token);
 
     expect(res.status).toBe(200);
 
-    // No rental_revenue transaction should be created at returned status
+    // Guard found existing revenue → no rental_revenue create call
     const txCalls = mockDb.financeTransaction.create.mock.calls;
     const revenueCall = txCalls.find(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -182,6 +197,33 @@ describe('BUG-517: Finance Revenue calculation', () => {
     );
 
     expect(revenueCall).toBeUndefined();
+  });
+
+  it('returned without prior payment verification — fallback creates revenue', async () => {
+    // Simulate: no prior revenue (manual/cash payment, no verification flow)
+    mockDb.financeTransaction.findFirst.mockResolvedValue(null);
+    mockDb.order.findUnique.mockResolvedValue(MOCK_ORDER_SHIPPED);
+    mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER_SHIPPED, status: 'returned' });
+    mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-1' });
+    mockDb.financeTransaction.create.mockResolvedValue({ id: 'tx-1' });
+    mockDb.customer.findUnique.mockResolvedValue(null);
+    mockDb.auditLog.create.mockResolvedValue({ id: 'audit-1' });
+
+    const token = await getAdminToken();
+    const res = await patchStatus(ORDER_ID, 'returned', token);
+
+    expect(res.status).toBe(200);
+
+    // No existing revenue → fallback creates rental_revenue with subtotal
+    const txCalls = mockDb.financeTransaction.create.mock.calls;
+    const revenueCall = txCalls.find(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (call: any[]) => call[0]?.data?.txType === 'rental_revenue' && call[0]?.data?.amount > 0,
+    );
+
+    expect(revenueCall).toBeDefined();
+    expect(revenueCall![0].data.amount).toBe(MOCK_ORDER_SHIPPED.subtotal);
+    expect(revenueCall![0].data.note).toContain('no prior payment verification');
   });
 
   it('cancelled status creates revenue reversal with -subtotal', async () => {
@@ -194,14 +236,7 @@ describe('BUG-517: Finance Revenue calculation', () => {
     mockDb.auditLog.create.mockResolvedValue({ id: 'audit-1' });
 
     const token = await getAdminToken();
-    const res = await app.request(`/api/v1/admin/orders/${ORDER_ID}/status`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ to_status: 'cancelled' }),
-    });
+    const res = await patchStatus(ORDER_ID, 'cancelled', token);
 
     expect(res.status).toBe(200);
 
@@ -216,7 +251,6 @@ describe('BUG-517: Finance Revenue calculation', () => {
   });
 
   it('finance summary tooltip keys exist in all locales', async () => {
-    // This test validates that the tooltip i18n keys exist
     const fs = await import('fs');
     const path = await import('path');
     const localeDir = path.resolve(__dirname, '../../../admin/src/i18n/locales');
