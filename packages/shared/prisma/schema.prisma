@@ -313,6 +313,7 @@ model CustomerDocument {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
+  @@unique([customerId, docType])
   @@map("customer_documents")
 }
 

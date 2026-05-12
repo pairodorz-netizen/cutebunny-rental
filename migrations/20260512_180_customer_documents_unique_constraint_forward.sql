@@ -9,13 +9,13 @@ BEGIN;
 SET LOCAL statement_timeout = '5s';
 SET LOCAL lock_timeout = '2s';
 
--- Step 1: Remove duplicate rows, keeping the EARLIEST per (customer_id, doc_type).
--- This preserves the original verified=true row if it was uploaded first.
+-- Step 1: Remove duplicate rows, keeping the LATEST per (customer_id, doc_type).
+-- Aligned with API dedup logic which keeps the newest upload.
 DELETE FROM customer_documents
 WHERE id NOT IN (
   SELECT DISTINCT ON (customer_id, doc_type) id
   FROM customer_documents
-  ORDER BY customer_id, doc_type, created_at ASC
+  ORDER BY customer_id, doc_type, created_at DESC
 );
 
 -- Step 2: Add unique constraint (idempotent — will fail silently if exists).
