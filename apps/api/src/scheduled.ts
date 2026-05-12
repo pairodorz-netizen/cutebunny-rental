@@ -68,6 +68,20 @@ const DEFAULT_AUTO_ADVANCE_CONFIG: AutoAdvanceConfig = {
 
 const BATCH_SIZE = 100;
 
+// HOTFIX-513: Explicit select to avoid referencing columns that may not
+// exist in prod yet (e.g. late_fee / damage_fee from FEAT-512 migration
+// that hasn't been applied). Using `include` causes Prisma to SELECT *
+// which fails with P2022 if schema is ahead of the database.
+const SCHEDULED_ORDER_SELECT = {
+  id: true,
+  orderNumber: true,
+  customerId: true,
+  status: true,
+  rentalStartDate: true,
+  rentalEndDate: true,
+  items: { select: { productId: true } },
+} as const;
+
 // ─── Config loader ─────────────────────────────────────────────────────
 
 async function loadAutoAdvanceConfig(db: PrismaClient): Promise<AutoAdvanceConfig> {
@@ -221,9 +235,7 @@ async function advancePaidLockedToShipped(
         rentalStartDate: { lte: todayDate },
         ...(cursor ? { id: { gt: cursor } } : {}),
       },
-      include: {
-        items: { select: { productId: true } },
-      },
+      select: SCHEDULED_ORDER_SELECT,
       orderBy: { id: 'asc' },
       take: BATCH_SIZE,
     });
@@ -362,9 +374,7 @@ async function advanceReturnedToCleaning(
         status: 'returned',
         ...(cursor ? { id: { gt: cursor } } : {}),
       },
-      include: {
-        items: { select: { productId: true } },
-      },
+      select: SCHEDULED_ORDER_SELECT,
       orderBy: { id: 'asc' },
       take: BATCH_SIZE,
     });
@@ -623,9 +633,7 @@ export async function backfillStaleOrders(
       status: 'paid_locked',
       rentalStartDate: { lte: todayDate },
     },
-    include: {
-      items: { select: { productId: true } },
-    },
+    select: SCHEDULED_ORDER_SELECT,
     orderBy: { createdAt: 'asc' },
   });
 
@@ -634,9 +642,7 @@ export async function backfillStaleOrders(
     where: {
       status: 'returned',
     },
-    include: {
-      items: { select: { productId: true } },
-    },
+    select: SCHEDULED_ORDER_SELECT,
     orderBy: { createdAt: 'asc' },
   });
 
