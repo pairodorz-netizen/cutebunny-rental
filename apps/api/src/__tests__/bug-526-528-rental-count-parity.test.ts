@@ -68,18 +68,16 @@ describe('BUG-526/528: Rental count parity', () => {
     // Default mocks
     mockDb.order.count.mockResolvedValue(0);
     mockDb.order.groupBy.mockResolvedValue([]);
-    mockDb.order.findMany.mockResolvedValue([]);
+    // BUG-534: getProductRentalCounts now queries Order model (top-level where)
+    // with included items — same pattern as getCustomerRentalStats.
+    mockDb.order.findMany.mockResolvedValue([
+      { items: [{ productId: 'prod-boho' }, { productId: 'prod-boho' }] },
+      { items: [{ productId: 'prod-lace' }] },
+      { items: [{ productId: 'prod-memo' }] },
+    ]);
     mockDb.financeTransaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
     mockDb.customer.count.mockResolvedValue(0);
     mockDb.product.count.mockResolvedValue(0);
-
-    // BUG-532: orderItem.findMany returns individual items for JS aggregation
-    mockDb.orderItem.findMany.mockResolvedValue([
-      { productId: 'prod-boho' },
-      { productId: 'prod-boho' },
-      { productId: 'prod-lace' },
-      { productId: 'prod-memo' },
-    ]);
   });
 
   it('Dashboard /stats top_products uses actual rental counts from order_items', async () => {
@@ -154,7 +152,7 @@ describe('BUG-526/528: Rental count parity', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
 
-    // rental_count should be 2 (from orderItem.findMany), NOT 0 (from stale column)
+    // rental_count should be 2 (from order.findMany + JS aggregation), NOT 0 (from stale column)
     expect(body.data[0].rental_count).toBe(2);
   });
 

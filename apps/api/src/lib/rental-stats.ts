@@ -26,19 +26,21 @@ export interface CustomerRentalStat {
 
 export async function getProductRentalCounts(db: Db): Promise<Map<string, number>> {
   try {
-    // BUG-532: Use findMany + JS aggregation instead of groupBy.
-    // PrismaNeon adapter on Cloudflare Workers silently fails on
-    // groupBy with nested relation filters, returning 0 for all products.
-    const items: Array<{ productId: string }> = await db.orderItem.findMany({
-      where: {
-        order: { status: { in: PAID_STATUSES } },
-      },
-      select: { productId: true },
+    // BUG-534: Query from Order model (top-level where) instead of OrderItem
+    // with nested relation filter. PrismaNeon adapter on Cloudflare Workers
+    // silently fails on any nested relation filter (both groupBy and findMany
+    // on orderItem with `where: { order: { status: ... } }`).
+    // This pattern matches getCustomerRentalStats() which works on prod.
+    const orders = await db.order.findMany({
+      where: { status: { in: PAID_STATUSES } },
+      select: { items: { select: { productId: true } } },
     });
 
     const map = new Map<string, number>();
-    for (const item of items) {
-      map.set(item.productId, (map.get(item.productId) ?? 0) + 1);
+    for (const order of orders) {
+      for (const item of order.items) {
+        map.set(item.productId, (map.get(item.productId) ?? 0) + 1);
+      }
     }
     return map;
   } catch {
