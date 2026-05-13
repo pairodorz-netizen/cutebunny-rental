@@ -2,6 +2,10 @@
 
 ## [Unreleased] — 2026-05-13
 
+### Fixed — BUG-540, 541 (customer home popular products + hero badge contrast)
+- **BUG-541**: Customer home "ชุดยอดนิยมประจำสัปดาห์" showed random products with 0 rentals instead of actual popular ones. Root cause: `sort=popular` used the stale `rentalCount` column (always 0). Fix: when `sort=popular`, uses `getProductRentalCounts()` shared helper for actual rental counts from order_items, sorts in application code, then paginates.
+- **BUG-540**: Hero announcement badge had low contrast (~2:1) with pastel gradient background and white text. Fix: darkened gradient stops from `#E8837C/#D4A28A` to `#C0564F/#A67A60` for WCAG AA compliant contrast (4.5:1+).
+
 ### Fixed — BUG-538 (order line item thumbnails)
 - **BUG-538**: Admin Orders page line items showed placeholder "—" instead of product thumbnails. Root cause: orders endpoint only used `product.thumbnailUrl` (often null) without checking the `images` relation. Fix: orders list and detail endpoints now use `images[0]?.url ?? thumbnailUrl` (same pattern as Products list). Added `loading="lazy"` and graceful fallback placeholder on image error.
 
