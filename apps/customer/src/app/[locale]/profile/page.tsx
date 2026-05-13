@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type CustomerProfile, type CustomerOrder } from '@/lib/api';
 import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
+import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
 
 function formatDate(dateStr: string, loc: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -164,15 +165,6 @@ export default function ProfilePage() {
       phone: editForm.phone,
     });
   }
-
-  const statusColor: Record<string, string> = {
-    unpaid: 'bg-yellow-100 text-yellow-700',
-    paid_locked: 'bg-blue-100 text-blue-700',
-    shipped: 'bg-purple-100 text-purple-700',
-    returned: 'bg-green-100 text-green-700',
-    cleaning: 'bg-orange-100 text-orange-700',
-    ready: 'bg-emerald-100 text-emerald-700',
-  };
 
   // Not logged in: show login/register form
   if (!token) {
@@ -475,21 +467,24 @@ export default function ProfilePage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`inline-block text-xs font-medium px-2 py-1 rounded-full ${statusColor[order.status] || 'bg-gray-100 text-gray-700'}`}>
-                            {order.status}
-                          </span>
+                          <OrderStatusBadge status={order.status} locale={locale} />
                           <span className="text-sm font-semibold text-cb-heading">
                             ฿{order.total_amount.toLocaleString()}
                           </span>
                         </div>
                       </div>
+                      {/* Status Timeline */}
+                      <OrderStatusTimeline status={order.status} locale={locale} />
+
                       {order.items.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 mt-3">
                           {order.items.map((item, idx) => (
                             <div key={idx} className="flex items-center gap-3">
                               <div className="w-10 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
-                                {item.thumbnail && (
-                                  <img src={item.thumbnail} alt={item.product_name} className="w-full h-full object-cover" />
+                                {item.thumbnail ? (
+                                  <img src={item.thumbnail} alt={item.product_name} loading="lazy" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">—</div>
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
