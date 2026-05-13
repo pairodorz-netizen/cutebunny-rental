@@ -4,6 +4,7 @@ import { getDb } from '../lib/db';
 import { success, error } from '../lib/response';
 import { parseLocale, localizeField } from '../lib/i18n';
 import { getMonthAvailability } from '../lib/availability';
+import { getProductRentalCounts } from '../lib/rental-stats';
 import type { Prisma } from '@prisma/client';
 
 const products = new Hono();
@@ -85,39 +86,38 @@ products.get('/', async (c) => {
     }
   }
 
-  // Fetch products
-  const [items, productTotal] = await Promise.all([
+  // BUG-541: When sort=popular, use actual rental counts from order_items
+  // (shared helper) instead of the stale rentalCount column which is always 0.
+  const isPopularSort = sort === 'popular';
+  const dbOrderBy =
+    sort === 'price_asc'
+      ? { rentalPrice1Day: 'asc' as const }
+      : sort === 'price_desc'
+        ? { rentalPrice1Day: 'desc' as const }
+        : { createdAt: 'desc' as const };
+
+  // For popular sort, fetch all matching products (no skip/take) so we can
+  // sort by actual rental count in application code, then paginate.
+  const [items, productTotal, rentalCountMap] = await Promise.all([
     db.product.findMany({
       where,
       include: {
         images: { orderBy: { sortOrder: 'asc' }, take: 1 },
         brand: true,
-        // BUG-504-A06 commit 3 — wire `category` is now sourced from
-        // the FK relation, not the legacy enum column.
         categoryRef: { select: { slug: true } },
       },
-      skip: (page - 1) * perPage,
-      take: perPage,
-      orderBy:
-        sort === 'price_asc'
-          ? { rentalPrice1Day: 'asc' as const }
-          : sort === 'price_desc'
-            ? { rentalPrice1Day: 'desc' as const }
-            // BUG-530: sort=popular orders by rental count; sort=newest by createdAt desc (default)
-            : sort === 'popular'
-              ? { rentalCount: 'desc' as const }
-              : { createdAt: 'desc' as const },
+      ...(isPopularSort ? {} : { skip: (page - 1) * perPage, take: perPage }),
+      orderBy: dbOrderBy,
     }),
     db.product.count({ where }),
+    isPopularSort ? getProductRentalCounts(db) : Promise.resolve(new Map<string, number>()),
   ]);
 
-  const productData = items.map((p) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapProduct = (p: any) => ({
     id: p.id,
     sku: p.sku,
     name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
-    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
-    // Verbatim string equivalence with the legacy enum (slug == enum
-    // value) keeps the customer SPA wire-compatible.
     category: p.categoryRef.slug,
     brand: p.brand ? localizeField(p.brand.nameI18n as Record<string, string> | null, p.brand.name, locale) : null,
     thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
@@ -130,10 +130,18 @@ products.get('/', async (c) => {
     },
     extra_day_rate: p.extraDayRate ?? 0,
     deposit: p.deposit,
-    is_popular: (p.rentalCount ?? 0) > 10,
+    is_popular: (rentalCountMap.get(p.id) ?? p.rentalCount ?? 0) > 0,
+    rental_count: rentalCountMap.get(p.id) ?? 0,
     currency: p.currency,
     is_combo: false,
-  }));
+  });
+
+  let productData = items.map(mapProduct);
+
+  if (isPopularSort) {
+    productData.sort((a, b) => b.rental_count - a.rental_count);
+    productData = productData.slice((page - 1) * perPage, page * perPage);
+  }
 
   // Fetch combo sets and merge into listing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
