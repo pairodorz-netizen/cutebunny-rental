@@ -29,7 +29,7 @@ adminCustomers.get('/', async (c) => {
   }
 
   if (tier) {
-    conditions.push(`c.tier = $${paramIdx}::\"CustomerTier\"`);
+    conditions.push(`c.tier = $${paramIdx}::"CustomerTier"`);
     params.push(tier);
     paramIdx += 1;
   }
