@@ -26,17 +26,19 @@ export interface CustomerRentalStat {
 
 export async function getProductRentalCounts(db: Db): Promise<Map<string, number>> {
   try {
-    const rows: Array<{ productId: string; _count: { id: number } }> = await db.orderItem.groupBy({
-      by: ['productId'],
+    // BUG-532: Use findMany + JS aggregation instead of groupBy.
+    // PrismaNeon adapter on Cloudflare Workers silently fails on
+    // groupBy with nested relation filters, returning 0 for all products.
+    const items: Array<{ productId: string }> = await db.orderItem.findMany({
       where: {
         order: { status: { in: PAID_STATUSES } },
       },
-      _count: { id: true },
+      select: { productId: true },
     });
 
     const map = new Map<string, number>();
-    for (const r of rows) {
-      map.set(r.productId, r._count.id);
+    for (const item of items) {
+      map.set(item.productId, (map.get(item.productId) ?? 0) + 1);
     }
     return map;
   } catch {

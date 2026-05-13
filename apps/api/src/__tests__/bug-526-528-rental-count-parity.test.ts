@@ -73,11 +73,12 @@ describe('BUG-526/528: Rental count parity', () => {
     mockDb.customer.count.mockResolvedValue(0);
     mockDb.product.count.mockResolvedValue(0);
 
-    // BUG-526: orderItem.groupBy returns actual rental counts
-    mockDb.orderItem.groupBy.mockResolvedValue([
-      { productId: 'prod-boho', _count: { id: 2 } },
-      { productId: 'prod-lace', _count: { id: 1 } },
-      { productId: 'prod-memo', _count: { id: 1 } },
+    // BUG-532: orderItem.findMany returns individual items for JS aggregation
+    mockDb.orderItem.findMany.mockResolvedValue([
+      { productId: 'prod-boho' },
+      { productId: 'prod-boho' },
+      { productId: 'prod-lace' },
+      { productId: 'prod-memo' },
     ]);
   });
 
@@ -153,7 +154,7 @@ describe('BUG-526/528: Rental count parity', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
 
-    // rental_count should be 2 (from orderItem.groupBy), NOT 0 (from stale column)
+    // rental_count should be 2 (from orderItem.findMany), NOT 0 (from stale column)
     expect(body.data[0].rental_count).toBe(2);
   });
 

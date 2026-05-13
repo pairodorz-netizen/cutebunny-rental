@@ -123,10 +123,10 @@ describe('BUG-516: Top Products excludes deleted products', () => {
       thumbnailUrl: 'https://example.com/active.jpg',
     };
 
-    // BUG-526: rental count now comes from orderItem.groupBy
-    mockDb.orderItem.groupBy.mockResolvedValue([
-      { productId: 'prod-active', _count: { id: 20 } },
-    ]);
+    // BUG-532: rental count now comes from orderItem.findMany + JS aggregation
+    mockDb.orderItem.findMany.mockResolvedValue(
+      Array.from({ length: 20 }, () => ({ productId: 'prod-active' }))
+    );
 
     mockDb.product.findMany.mockImplementation(async (args: Record<string, unknown>) => {
       const where = args?.where as Record<string, unknown> | undefined;
