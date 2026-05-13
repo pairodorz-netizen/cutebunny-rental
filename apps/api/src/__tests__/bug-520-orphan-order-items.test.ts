@@ -195,7 +195,8 @@ describe('BUG-520: Orphan order items / deleted product resilience', () => {
     expect(body.data.items).toHaveLength(1);
     expect(body.data.items[0].product_name).toBe('Memo Doll Top');
     expect(body.data.items[0].sku).toBe('MEMO-001');
-    expect(body.data.items[0].thumbnail).toBe('https://example.com/memo.jpg');
+    // BUG-538: thumbnail now prefers images[0].url over thumbnailUrl
+    expect(body.data.items[0].thumbnail).toBe('https://example.com/full.jpg');
     expect(body.data.items[0].images).toHaveLength(1);
   });
 

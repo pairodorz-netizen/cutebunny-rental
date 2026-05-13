@@ -124,9 +124,19 @@ function Thumbnail({ src, size = 32 }: { src: string | null; size?: number }) {
     <img
       src={src}
       alt=""
+      loading="lazy"
       className="rounded-md object-cover"
       style={{ width: size, height: size }}
-      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+      onError={(e) => {
+        const el = e.target as HTMLImageElement;
+        el.style.display = 'none';
+        const placeholder = document.createElement('div');
+        placeholder.className = 'rounded-md bg-muted flex items-center justify-center text-muted-foreground text-[10px]';
+        placeholder.style.width = `${size}px`;
+        placeholder.style.height = `${size}px`;
+        placeholder.textContent = '—';
+        el.parentNode?.replaceChild(placeholder, el);
+      }}
     />
   );
 }
