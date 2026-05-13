@@ -2,8 +2,8 @@
 
 ## [Unreleased] — 2026-05-13
 
-### Fixed — BUG-532, 533 (aggregator polish)
-- **BUG-532**: Dashboard Top Products showed 0 rentals — `getProductRentalCounts()` replaced `groupBy` (incompatible with PrismaNeon adapter on Cloudflare Workers) with `findMany` + JS aggregation.
+### Fixed — BUG-532, 533, 534 (aggregator polish)
+- **BUG-532/534**: Dashboard Top Products showed 0 rentals — `getProductRentalCounts()` now queries from `Order` model (top-level `where: { status }`) with included items + JS aggregation. PrismaNeon adapter on Cloudflare Workers silently fails on any nested relation filter (both `groupBy` and `findMany` on `orderItem` with `where: { order: { status: ... } }`).
 - **BUG-533**: Per-product ROI endpoint (`/:id/roi`) formula aligned with `/roi/summary` — now subtracts `totalExpenses` before dividing by `purchaseCost`.
 
 ### Fixed — BUG-521..528, 530, 531
