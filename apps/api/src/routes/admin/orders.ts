@@ -107,11 +107,13 @@ adminOrders.get('/', async (c) => {
     // BUG-520: batch-fetch product data (sku, thumbnail) separately.
     // If a product was hard-deleted, we gracefully fall back to snapshot fields.
     const allProductIds = [...new Set(orders.flatMap((o) => o.items.map((i) => i.productId)))];
+    // BUG-538: include images relation — thumbnailUrl is often null while
+    // product has images in product_images table (same pattern as products list).
     const products = allProductIds.length > 0
       ? await db.product.findMany({
           where: { id: { in: allProductIds } },
-          select: { id: true, sku: true, thumbnailUrl: true },
-        }).catch(() => [] as Array<{ id: string; sku: string; thumbnailUrl: string | null }>)
+          select: { id: true, sku: true, thumbnailUrl: true, images: { select: { url: true }, orderBy: { sortOrder: 'asc' }, take: 1 } },
+        }).catch(() => [] as Array<{ id: string; sku: string; thumbnailUrl: string | null; images: Array<{ url: string }> }>)
       : [];
     const productMap = new Map(products.map((p) => [p.id, p]));
 
@@ -136,7 +138,7 @@ adminOrders.get('/', async (c) => {
           late_fee: item.lateFee,
           damage_fee: item.damageFee,
           item_status: item.status,
-          thumbnail: product?.thumbnailUrl ?? null,
+          thumbnail: product?.images[0]?.url ?? product?.thumbnailUrl ?? null,
         };
       }),
       tracking_number: ((o.shippingSnapshot as Record<string, unknown>)?.tracking_number as string) ?? null,
@@ -334,7 +336,8 @@ adminOrders.get('/:id', async (c) => {
         late_fee: item.lateFee,
         damage_fee: item.damageFee,
         status: item.status,
-        thumbnail: product?.thumbnailUrl ?? null,
+        // BUG-538: prefer first image from images relation over thumbnailUrl
+        thumbnail: product?.images[0]?.url ?? product?.thumbnailUrl ?? null,
         images: product?.images ?? [],
       };
     }),

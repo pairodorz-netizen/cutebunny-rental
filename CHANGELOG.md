@@ -2,6 +2,9 @@
 
 ## [Unreleased] — 2026-05-13
 
+### Fixed — BUG-538 (order line item thumbnails)
+- **BUG-538**: Admin Orders page line items showed placeholder "—" instead of product thumbnails. Root cause: orders endpoint only used `product.thumbnailUrl` (often null) without checking the `images` relation. Fix: orders list and detail endpoints now use `images[0]?.url ?? thumbnailUrl` (same pattern as Products list). Added `loading="lazy"` and graceful fallback placeholder on image error.
+
 ### Fixed — BUG-536, 537 (finance deposit accounting + rental count consistency)
 - **BUG-537**: `deposit_returned` was incorrectly classified as an expense, inflating Total Expenses (4,140 THB) and distorting Net Profit. Fix: deposit types (`deposit_received`, `deposit_returned`) are now separated from revenue/expense categories as `DEPOSIT` type with dedicated `deposit_received`, `deposit_returned`, `net_deposit` fields in summary/report responses.
 - **BUG-536**: Finance Top Products rental count (2) didn't match Dashboard Top Products (1) for Bohemian Maxi Dress. Root cause: Finance counted `financeTransaction` rows per product, Dashboard counted `order_items` via `getProductRentalCounts()`. Fix: Finance summary now uses the same `getProductRentalCounts()` shared helper for rental counts, keeping revenue calculation from finance transactions.
