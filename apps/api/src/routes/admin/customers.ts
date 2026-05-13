@@ -33,7 +33,11 @@ adminCustomers.get('/', async (c) => {
     where.tier = tier as Prisma.EnumCustomerTierFilter;
   }
 
-  const [customers, total, customerStatsMap] = await Promise.all([
+  // BUG-540: Run stats query (raw SQL) first, then Prisma queries.
+  // Avoids PrismaNeon concurrent connection issues that can cause
+  // partial/missing results on Cloudflare Workers.
+  const customerStatsMap = await getCustomerRentalStats(db);
+  const [customers, total] = await Promise.all([
     db.customer.findMany({
       where,
       select: {
@@ -53,8 +57,6 @@ adminCustomers.get('/', async (c) => {
       orderBy: { createdAt: 'desc' },
     }),
     db.customer.count({ where }),
-    // BUG-528: actual rental counts and total payment from orders
-    getCustomerRentalStats(db),
   ]);
 
   const data = customers.map((c) => {

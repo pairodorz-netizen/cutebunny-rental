@@ -54,21 +54,29 @@ export async function getProductRentalCounts(db: Db): Promise<Map<string, number
 
 export async function getCustomerRentalStats(db: Db): Promise<Map<string, CustomerRentalStat>> {
   try {
-    const orders = await db.order.findMany({
-      where: { status: { in: PAID_STATUSES } },
-      select: {
-        customerId: true,
-        totalAmount: true,
-        items: { select: { id: true } },
-      },
-    });
+    // BUG-540: Use raw SQL — PrismaNeon findMany with nested relation
+    // (items: { select: { id: true } }) silently fails on Cloudflare Workers,
+    // same class of issue as BUG-535 for getProductRentalCounts.
+    // Join order-level totals with per-order item counts to avoid
+    // Cartesian product inflating SUM(total_amount).
+    const rows: Array<{ customerId: string; rentalCount: number; totalPayment: number }> = await db.$queryRaw`
+      SELECT
+        o.customer_id AS "customerId",
+        COALESCE(SUM(ic.cnt), 0)::int AS "rentalCount",
+        COALESCE(SUM(o.total_amount), 0)::int AS "totalPayment"
+      FROM orders o
+      LEFT JOIN (
+        SELECT order_id, COUNT(*)::int AS cnt
+        FROM order_items
+        GROUP BY order_id
+      ) ic ON ic.order_id = o.id
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      GROUP BY o.customer_id
+    `;
 
     const map = new Map<string, CustomerRentalStat>();
-    for (const o of orders) {
-      const existing = map.get(o.customerId) ?? { customerId: o.customerId, rentalCount: 0, totalPayment: 0 };
-      existing.rentalCount += o.items.length;
-      existing.totalPayment += o.totalAmount;
-      map.set(o.customerId, existing);
+    for (const row of rows) {
+      map.set(row.customerId, row);
     }
     return map;
   } catch {
