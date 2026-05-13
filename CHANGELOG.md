@@ -2,6 +2,10 @@
 
 ## [Unreleased] — 2026-05-13
 
+### Fixed — BUG-536, 537 (finance deposit accounting + rental count consistency)
+- **BUG-537**: `deposit_returned` was incorrectly classified as an expense, inflating Total Expenses (4,140 THB) and distorting Net Profit. Fix: deposit types (`deposit_received`, `deposit_returned`) are now separated from revenue/expense categories as `DEPOSIT` type with dedicated `deposit_received`, `deposit_returned`, `net_deposit` fields in summary/report responses.
+- **BUG-536**: Finance Top Products rental count (2) didn't match Dashboard Top Products (1) for Bohemian Maxi Dress. Root cause: Finance counted `financeTransaction` rows per product, Dashboard counted `order_items` via `getProductRentalCounts()`. Fix: Finance summary now uses the same `getProductRentalCounts()` shared helper for rental counts, keeping revenue calculation from finance transactions.
+
 ### Fixed — BUG-532, 533, 534, 535 (aggregator polish)
 - **BUG-532/534/535**: Dashboard Top Products showed 0 rentals — two root causes: (1) `PAID_STATUSES` included `'ready'` which is not a valid `OrderStatus` enum value, causing Prisma validation errors silently caught by try/catch; (2) PrismaNeon adapter on Cloudflare Workers doesn't reliably support Prisma query builder patterns (groupBy, findMany with nested relation filters, nested selects). Fix: removed invalid `'ready'` from `PAID_STATUSES` and switched `getProductRentalCounts()` to raw SQL via `$queryRaw`.
 - **BUG-533**: Per-product ROI endpoint (`/:id/roi`) formula aligned with `/roi/summary` — now subtracts `totalExpenses` before dividing by `purchaseCost`.

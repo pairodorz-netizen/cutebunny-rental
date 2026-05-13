@@ -161,10 +161,11 @@ describe('BUG-521: deposit_returned sign and direction', () => {
     const row = body.data.data[0];
 
     expect(row.category_name).toBe('Deposit Returned');
-    expect(row.category_type).toBe('EXPENSE');
+    // BUG-537: deposit types are now classified as DEPOSIT, not EXPENSE
+    expect(row.category_type).toBe('DEPOSIT');
   });
 
-  it('summary endpoint: deposit_returned is included in total_expenses', async () => {
+  it('BUG-537: summary endpoint: deposit_returned is NOT in total_expenses, shown separately', async () => {
     const txData = [
       { txType: 'rental_revenue', amount: 2750, createdAt: new Date('2026-05-10'), category: null },
       { txType: 'deposit_returned', amount: 4140, createdAt: new Date('2026-05-10'), category: null },
@@ -178,6 +179,8 @@ describe('BUG-521: deposit_returned sign and direction', () => {
     });
     mockDb.order.findMany.mockResolvedValue([]);
     mockDb.financeCategory.findMany.mockResolvedValue([]);
+    // BUG-536: getProductRentalCounts uses $queryRaw
+    mockDb.$queryRaw.mockResolvedValue([]);
 
     const token = await getAdminToken();
     const res = await app.request('/api/v1/admin/finance/summary', {
@@ -189,6 +192,40 @@ describe('BUG-521: deposit_returned sign and direction', () => {
     const totals = body.data.totals;
 
     expect(totals.total_revenue).toBe(2750);
-    expect(totals.total_expenses).toBe(4140);
+    // BUG-537: deposit_returned is no longer in total_expenses
+    expect(totals.total_expenses).toBe(0);
+    expect(totals.net_profit).toBe(2750);
+    // Deposit shown separately
+    expect(totals.deposit_returned).toBe(4140);
+    expect(totals.deposit_received).toBe(0);
+    expect(totals.net_deposit).toBe(-4140);
+  });
+
+  it('BUG-537: by_category tags deposit_returned as DEPOSIT type', async () => {
+    const txData = [
+      { txType: 'rental_revenue', amount: 2750, createdAt: new Date('2026-05-10'), category: null },
+      { txType: 'deposit_returned', amount: 4140, createdAt: new Date('2026-05-10'), category: null },
+    ];
+
+    mockDb.financeTransaction.findMany.mockImplementation(async (args: Record<string, unknown>) => {
+      const include = args?.include as Record<string, unknown> | undefined;
+      if (include?.category) return txData;
+      if (include?.order) return txData.filter((t) => t.txType === 'rental_revenue').map((t) => ({ ...t, order: null }));
+      return [];
+    });
+    mockDb.order.findMany.mockResolvedValue([]);
+    mockDb.financeCategory.findMany.mockResolvedValue([]);
+    mockDb.$queryRaw.mockResolvedValue([]);
+
+    const token = await getAdminToken();
+    const res = await app.request('/api/v1/admin/finance/summary', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const depositCat = body.data.by_category.find((c: { category_name: string }) => c.category_name === 'deposit_returned');
+    expect(depositCat).toBeDefined();
+    expect(depositCat.category_type).toBe('DEPOSIT');
   });
 });

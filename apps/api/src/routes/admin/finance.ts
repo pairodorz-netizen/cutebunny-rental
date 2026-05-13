@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import { getAdmin } from '../../middleware/auth';
+import { getProductRentalCounts } from '../../lib/rental-stats';
 
 const adminFinance = new Hono();
 
@@ -47,6 +48,8 @@ adminFinance.get('/categories', async (c) => {
   }
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
+  // BUG-537: deposit types are liability movements, not revenue or expense
+  const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const txGroups = await db.financeTransaction.groupBy({
     by: ['txType'],
@@ -55,10 +58,11 @@ adminFinance.get('/categories', async (c) => {
 
   const derived = txGroups.map((g) => {
     const isRevenue = revenueTypes.includes(g.txType);
+    const isDeposit = depositTypes.includes(g.txType);
     return {
       id: g.txType,
       name: formatTxTypeLabel(g.txType),
-      type: isRevenue ? 'REVENUE' : 'EXPENSE',
+      type: isRevenue ? 'REVENUE' : isDeposit ? 'DEPOSIT' : 'EXPENSE',
       total: isRevenue ? (g._sum.amount ?? 0) : Math.abs(g._sum.amount ?? 0),
       description: null,
     };
@@ -133,7 +137,9 @@ adminFinance.get('/transactions', async (c) => {
   }
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee', 'deposit_received', 'deposit_returned'];
+  // BUG-537: deposit types are liability movements, not expenses
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const where: Record<string, unknown> = {};
   if (parsed.data.start_date) {
@@ -167,8 +173,9 @@ adminFinance.get('/transactions', async (c) => {
   ]);
 
   // BUG-521: classify direction (inflow/outflow) per txType
-  const outflowTypes = [...expenseTypes];
-  const inflowTypes = [...revenueTypes];
+  // BUG-537: deposit_returned is outflow, deposit_received is inflow
+  const outflowTypes = [...expenseTypes, 'deposit_returned'];
+  const inflowTypes = [...revenueTypes, 'deposit_received'];
 
   return success(c, {
     data: transactions.map((tx) => {
@@ -177,7 +184,8 @@ adminFinance.get('/transactions', async (c) => {
       const displayAmount = isOutflow ? -Math.abs(tx.amount) : Math.abs(tx.amount);
       // BUG-522: fallback category label from txType when categoryName is null
       const categoryLabel = tx.category?.name ?? formatTxTypeLabel(tx.txType);
-      const categoryType = tx.category?.type ?? (inflowTypes.includes(tx.txType) ? 'REVENUE' : 'EXPENSE');
+      const isDeposit = depositTypes.includes(tx.txType);
+      const categoryType = tx.category?.type ?? (isDeposit ? 'DEPOSIT' : inflowTypes.includes(tx.txType) ? 'REVENUE' : 'EXPENSE');
       return {
         id: tx.id,
         order_id: tx.orderId,
@@ -307,13 +315,17 @@ adminFinance.get('/report', async (c) => {
   });
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  // BUG-521: include deposit_returned in expenses (cash outflow)
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee', 'deposit_returned'];
+  // BUG-537: deposit types are liability movements, not expenses
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const revenueBreakdown: Record<string, number> = {};
   const expenseBreakdown: Record<string, number> = {};
+  const depositBreakdown: Record<string, number> = {};
   let totalRevenue = 0;
   let totalExpenses = 0;
+  let totalDepositReceived = 0;
+  let totalDepositReturned = 0;
 
   for (const tx of transactions) {
     if (revenueTypes.includes(tx.txType)) {
@@ -322,6 +334,10 @@ adminFinance.get('/report', async (c) => {
     } else if (expenseTypes.includes(tx.txType)) {
       expenseBreakdown[tx.txType] = (expenseBreakdown[tx.txType] ?? 0) + Math.abs(tx.amount);
       totalExpenses += Math.abs(tx.amount);
+    } else if (depositTypes.includes(tx.txType)) {
+      depositBreakdown[tx.txType] = (depositBreakdown[tx.txType] ?? 0) + Math.abs(tx.amount);
+      if (tx.txType === 'deposit_received') totalDepositReceived += tx.amount;
+      else if (tx.txType === 'deposit_returned') totalDepositReturned += Math.abs(tx.amount);
     }
   }
 
@@ -395,9 +411,13 @@ adminFinance.get('/report', async (c) => {
       total_expenses: totalExpenses,
       gross_margin: totalRevenue - totalExpenses,
       gross_margin_pct: totalRevenue > 0 ? Math.round(((totalRevenue - totalExpenses) / totalRevenue) * 100) : 0,
+      deposit_received: totalDepositReceived,
+      deposit_returned: totalDepositReturned,
+      net_deposit: totalDepositReceived - totalDepositReturned,
     },
     revenue_breakdown: revenueBreakdown,
     expense_breakdown: expenseBreakdown,
+    deposit_breakdown: depositBreakdown,
     grouped_by: group_by,
     groups: Object.entries(grouped).map(([key, val]) => ({
       key,
@@ -430,8 +450,9 @@ adminFinance.get('/summary', async (c) => {
   const endDate = parsed.data.end_date ? new Date(parsed.data.end_date + 'T23:59:59.999Z') : now;
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  // BUG-521: include deposit_returned in expenses (cash outflow back to customer)
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee', 'deposit_returned'];
+  // BUG-537: deposit types are liability movements, not expenses
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const [transactions, orders, categories] = await Promise.all([
     db.financeTransaction.findMany({
@@ -477,52 +498,65 @@ adminFinance.get('/summary', async (c) => {
 
   let totalRevenue = 0;
   let totalExpenses = 0;
+  let totalDepositReceived = 0;
+  let totalDepositReturned = 0;
   for (const tx of transactions) {
     if (revenueTypes.includes(tx.txType)) totalRevenue += tx.amount;
     else if (expenseTypes.includes(tx.txType)) totalExpenses += Math.abs(tx.amount);
+    else if (tx.txType === 'deposit_received') totalDepositReceived += tx.amount;
+    else if (tx.txType === 'deposit_returned') totalDepositReturned += Math.abs(tx.amount);
   }
 
   // By category — use signed amounts for revenue (so reversals subtract),
-  // absolute for expenses (stored as negative, displayed positive).
+  // absolute for expenses/deposits (stored as negative, displayed positive).
   const byCategory: Record<string, { type: string; total: number }> = {};
   for (const tx of transactions) {
     const catName = tx.category?.name ?? tx.txType;
     const isRevenue = revenueTypes.includes(tx.txType);
-    const catType = tx.category?.type ?? (isRevenue ? 'REVENUE' : 'EXPENSE');
+    const isDeposit = depositTypes.includes(tx.txType);
+    const catType = tx.category?.type ?? (isRevenue ? 'REVENUE' : isDeposit ? 'DEPOSIT' : 'EXPENSE');
     if (!byCategory[catName]) byCategory[catName] = { type: catType, total: 0 };
     byCategory[catName].total += isRevenue ? tx.amount : Math.abs(tx.amount);
   }
 
-  // Top products
-  const productRevenue: Record<string, { name: string; revenue: number; count: number }> = {};
-  const txWithProducts = await db.financeTransaction.findMany({
-    where: {
-      createdAt: { gte: startDate, lte: endDate },
-      txType: { in: revenueTypes.map((t) => t as never) },
-    },
-    include: {
-      order: {
-        select: {
-          items: {
-            select: { productId: true, productName: true },
-            take: 1,
+  // Top products — BUG-536: use shared getProductRentalCounts() for consistent
+  // rental counts across Dashboard, Finance, Products, and Customers.
+  const [rentalCountMap, txWithProducts] = await Promise.all([
+    getProductRentalCounts(db),
+    db.financeTransaction.findMany({
+      where: {
+        createdAt: { gte: startDate, lte: endDate },
+        txType: { in: revenueTypes.map((t) => t as never) },
+      },
+      include: {
+        order: {
+          select: {
+            items: {
+              select: { productId: true, productName: true },
+              take: 1,
+            },
           },
         },
       },
-    },
-  });
+    }),
+  ]);
+  const productRevenue: Record<string, { name: string; revenue: number }> = {};
   for (const tx of txWithProducts) {
     const item = tx.order?.items[0];
     if (!item) continue;
     if (!productRevenue[item.productId]) {
-      productRevenue[item.productId] = { name: item.productName, revenue: 0, count: 0 };
+      productRevenue[item.productId] = { name: item.productName, revenue: 0 };
     }
     productRevenue[item.productId].revenue += tx.amount;
-    productRevenue[item.productId].count++;
   }
 
   const topProducts = Object.entries(productRevenue)
-    .map(([id, val]) => ({ product_id: id, product_name: val.name, revenue: val.revenue, rental_count: val.count }))
+    .map(([id, val]) => ({
+      product_id: id,
+      product_name: val.name,
+      revenue: val.revenue,
+      rental_count: rentalCountMap.get(id) ?? 0,
+    }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10);
 
@@ -541,6 +575,9 @@ adminFinance.get('/summary', async (c) => {
       total_expenses: totalExpenses,
       net_profit: totalRevenue - totalExpenses,
       total_orders: orders.length,
+      deposit_received: totalDepositReceived,
+      deposit_returned: totalDepositReturned,
+      net_deposit: totalDepositReceived - totalDepositReturned,
     },
     by_category: Object.entries(byCategory).map(([name, val]) => ({
       category_name: name,
