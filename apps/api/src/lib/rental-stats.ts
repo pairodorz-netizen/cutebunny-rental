@@ -11,7 +11,10 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
 
-const PAID_STATUSES = ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'ready', 'finished'];
+// BUG-535: 'ready' was never a valid OrderStatus enum value — it caused
+// Prisma to throw a validation error silently caught by try/catch,
+// returning empty Maps for all callers.
+const PAID_STATUSES = ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
 
 export interface ProductRentalStat {
   productId: string;
@@ -26,21 +29,22 @@ export interface CustomerRentalStat {
 
 export async function getProductRentalCounts(db: Db): Promise<Map<string, number>> {
   try {
-    // BUG-534: Query from Order model (top-level where) instead of OrderItem
-    // with nested relation filter. PrismaNeon adapter on Cloudflare Workers
-    // silently fails on any nested relation filter (both groupBy and findMany
-    // on orderItem with `where: { order: { status: ... } }`).
-    // This pattern matches getCustomerRentalStats() which works on prod.
-    const orders = await db.order.findMany({
-      where: { status: { in: PAID_STATUSES } },
-      select: { items: { select: { productId: true } } },
-    });
+    // BUG-535: Use raw SQL to bypass all PrismaNeon adapter issues.
+    // Previous attempts with groupBy, findMany on orderItem (nested
+    // relation filter), and findMany on Order (nested select) all
+    // silently failed on Cloudflare Workers. Raw SQL is proven to
+    // work in this codebase (see dashboard.ts lowStockProducts fallback).
+    const rows: Array<{ productId: string; count: number }> = await db.$queryRaw`
+      SELECT oi.product_id AS "productId", COUNT(*)::int AS "count"
+      FROM order_items oi
+      JOIN orders o ON oi.order_id = o.id
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      GROUP BY oi.product_id
+    `;
 
     const map = new Map<string, number>();
-    for (const order of orders) {
-      for (const item of order.items) {
-        map.set(item.productId, (map.get(item.productId) ?? 0) + 1);
-      }
+    for (const row of rows) {
+      map.set(row.productId, row.count);
     }
     return map;
   } catch {
