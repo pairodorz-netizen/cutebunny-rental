@@ -18,6 +18,7 @@ export function createMockDb() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
   };
 
   for (const model of DB_MODELS) {

@@ -20,6 +20,7 @@ const mockDb = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
     // BUG-405-A01: admin order status handler now wraps the CORE
     // writes (order.update + orderStatusLog.create) in a single
     // $transaction batch. The default mock just runs the ops and

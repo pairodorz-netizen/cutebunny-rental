@@ -21,6 +21,7 @@ const mockDb = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
     // BUG-405-A01: admin order status handler now wraps the CORE
     // writes (order.update + orderStatusLog.create) in a single
     // $transaction batch. The default mock just runs the ops and
@@ -593,8 +594,24 @@ describe('T03: Admin Happy Path E2E', () => {
     it('lists customers', async () => {
       const token = await getAdminToken();
 
-      mockDb.customer.findMany.mockResolvedValue([MOCK_CUSTOMER]);
-      mockDb.customer.count.mockResolvedValue(1);
+      // BUG-540 hotfix: customer list now uses $queryRawUnsafe (raw SQL)
+      mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+        if (!sql.includes('LIMIT')) {
+          return [{ total: 1 }];
+        }
+        return [{
+          id: MOCK_CUSTOMER.id,
+          firstName: MOCK_CUSTOMER.firstName,
+          lastName: MOCK_CUSTOMER.lastName,
+          email: MOCK_CUSTOMER.email,
+          phone: MOCK_CUSTOMER.phone,
+          tier: MOCK_CUSTOMER.tier,
+          creditBalance: MOCK_CUSTOMER.creditBalance,
+          createdAt: MOCK_CUSTOMER.createdAt.toISOString(),
+          rentalCount: 5,
+          totalPayment: 15000,
+        }];
+      });
 
       const res = await app.request('/api/v1/admin/customers', {
         headers: { Authorization: `Bearer ${token}` },

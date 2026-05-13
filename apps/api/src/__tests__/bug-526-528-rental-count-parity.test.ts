@@ -20,6 +20,7 @@ const mockDb = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(async (ops: unknown) => {
       if (typeof ops === 'function') return (ops as (tx: unknown) => unknown)(db);
       if (Array.isArray(ops)) return Promise.all(ops as Promise<unknown>[]);
@@ -156,37 +157,27 @@ describe('BUG-526/528: Rental count parity', () => {
     expect(body.data[0].rental_count).toBe(2);
   });
 
-  it('Customers list /admin/customers uses actual rental counts', async () => {
-    // BUG-540: getCustomerRentalStats now uses raw SQL ($queryRaw)
-    // instead of Prisma order.findMany with nested relations.
-    mockDb.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
-      const query = strings.join('');
-      if (query.includes('order_items') && query.includes('customer_id')) {
-        return [{ customerId: 'cust-1', rentalCount: 2, totalPayment: 1350 }];
+  it('Customers list /admin/customers uses actual rental counts via raw SQL', async () => {
+    // BUG-540 hotfix: entire customer list now uses $queryRawUnsafe
+    // (not Prisma findMany) to bypass PrismaNeon silent failures.
+    mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (!sql.includes('LIMIT')) {
+        return [{ total: 1 }];
       }
-      // product rental counts and health check
-      return [
-        { productId: 'prod-boho', count: 2 },
-        { productId: 'prod-lace', count: 1 },
-        { productId: 'prod-memo', count: 1 },
-      ];
-    });
-
-    mockDb.customer.findMany.mockResolvedValue([
-      {
+      // List query returns customer with LEFT JOIN stats
+      return [{
         id: 'cust-1',
         firstName: 'Test',
         lastName: 'Customer',
         email: 'test@test.com',
         phone: '0812345678',
         tier: 'standard',
-        rentalCount: 0, // stale
-        totalPayment: 0, // stale
         creditBalance: 0,
-        createdAt: new Date('2026-01-01'),
-      },
-    ]);
-    mockDb.customer.count.mockResolvedValue(1);
+        createdAt: '2026-01-01T00:00:00.000Z',
+        rentalCount: 2,     // from LEFT JOIN order stats
+        totalPayment: 1350,  // from LEFT JOIN order stats
+      }];
+    });
 
     const token = await getAdminToken();
     const res = await app.request('/api/v1/admin/customers', {

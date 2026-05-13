@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
-import { getCustomerRentalStats } from '../../lib/rental-stats';
 
 const adminCustomers = new Hono();
 
@@ -15,65 +14,98 @@ adminCustomers.get('/', async (c) => {
   const search = c.req.query('search');
   const tier = c.req.query('tier');
 
-  const where: Prisma.CustomerWhereInput = {
-    // Exclude soft-deleted customers (email prefixed with "deleted_")
-    NOT: { email: { startsWith: 'deleted_' } },
-  };
+  // BUG-540 hotfix: Prisma findMany on PrismaNeon/Cloudflare Workers
+  // silently returns partial results. Convert entire customer list to
+  // raw SQL — single query with LEFT JOIN for rental stats.
+  const conditions: string[] = ["c.email NOT LIKE 'deleted_%'"];
+  const params: unknown[] = [];
+  let paramIdx = 1;
 
   if (search) {
-    where.OR = [
-      { firstName: { contains: search, mode: 'insensitive' } },
-      { lastName: { contains: search, mode: 'insensitive' } },
-      { email: { contains: search, mode: 'insensitive' } },
-      { phone: { contains: search } },
-    ];
+    const pattern = `%${search}%`;
+    conditions.push(`(c.first_name ILIKE $${paramIdx} OR c.last_name ILIKE $${paramIdx + 1} OR c.email ILIKE $${paramIdx + 2} OR c.phone LIKE $${paramIdx + 3})`);
+    params.push(pattern, pattern, pattern, pattern);
+    paramIdx += 4;
   }
 
   if (tier) {
-    where.tier = tier as Prisma.EnumCustomerTierFilter;
+    conditions.push(`c.tier = $${paramIdx}::"CustomerTier"`);
+    params.push(tier);
+    paramIdx += 1;
   }
 
-  // BUG-540: Run stats query (raw SQL) first, then Prisma queries.
-  // Avoids PrismaNeon concurrent connection issues that can cause
-  // partial/missing results on Cloudflare Workers.
-  const customerStatsMap = await getCustomerRentalStats(db);
-  const [customers, total] = await Promise.all([
-    db.customer.findMany({
-      where,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        tier: true,
-        rentalCount: true,
-        totalPayment: true,
-        creditBalance: true,
-        createdAt: true,
-      },
-      skip: (page - 1) * perPage,
-      take: perPage,
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.customer.count({ where }),
+  const whereClause = conditions.join(' AND ');
+  const offset = (page - 1) * perPage;
+
+  const listSql = `
+    SELECT
+      c.id,
+      c.first_name AS "firstName",
+      c.last_name AS "lastName",
+      c.email,
+      c.phone,
+      c.tier,
+      c.credit_balance AS "creditBalance",
+      c.created_at AS "createdAt",
+      COALESCE(stats.rental_count, 0)::int AS "rentalCount",
+      COALESCE(stats.total_payment, 0)::int AS "totalPayment"
+    FROM customers c
+    LEFT JOIN (
+      SELECT
+        o.customer_id,
+        COALESCE(SUM(ic.cnt), 0)::int AS rental_count,
+        COALESCE(SUM(o.total_amount), 0)::int AS total_payment
+      FROM orders o
+      LEFT JOIN (
+        SELECT order_id, COUNT(*)::int AS cnt
+        FROM order_items
+        GROUP BY order_id
+      ) ic ON ic.order_id = o.id
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      GROUP BY o.customer_id
+    ) stats ON stats.customer_id = c.id
+    WHERE ${whereClause}
+    ORDER BY c.created_at DESC
+    LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+  `;
+
+  const countSql = `
+    SELECT COUNT(*)::int AS total
+    FROM customers c
+    WHERE ${whereClause}
+  `;
+
+  interface CustomerRow {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    tier: string;
+    creditBalance: number;
+    createdAt: Date;
+    rentalCount: number;
+    totalPayment: number;
+  }
+
+  const [customers, countResult] = await Promise.all([
+    db.$queryRawUnsafe<CustomerRow[]>(listSql, ...params, perPage, offset),
+    db.$queryRawUnsafe<[{ total: number }]>(countSql, ...params),
   ]);
 
-  const data = customers.map((c) => {
-    const stats = customerStatsMap.get(c.id);
-    return {
-      id: c.id,
-      name: `${c.firstName} ${c.lastName}`,
-      email: c.email,
-      phone: c.phone,
-      tier: c.tier,
-      // BUG-528: use actual counts from order_items
-      rental_count: stats?.rentalCount ?? 0,
-      total_payment: stats?.totalPayment ?? 0,
-      credit_balance: c.creditBalance,
-      created_at: c.createdAt.toISOString(),
-    };
-  });
+  const total = countResult[0]?.total ?? 0;
+
+  const data = customers.map((c: CustomerRow) => ({
+    id: c.id,
+    name: `${c.firstName} ${c.lastName}`,
+    email: c.email,
+    phone: c.phone,
+    tier: c.tier,
+    rental_count: c.rentalCount,
+    total_payment: c.totalPayment,
+    credit_balance: c.creditBalance,
+    created_at: new Date(c.createdAt).toISOString(),
+  }));
 
   return success(c, data, {
     page,
