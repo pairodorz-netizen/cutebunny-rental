@@ -1198,7 +1198,8 @@ adminProducts.get('/:id/roi', async (c) => {
 
   // BUG-525: Net Profit must include purchaseCost to be consistent with ROI%
   const netProfit = totalRevenue - totalExpenses - purchaseCost;
-  const roi = purchaseCost > 0 ? ((totalRevenue - purchaseCost) / purchaseCost) * 100 : 0;
+  // BUG-533: Align with /roi/summary formula — subtract totalExpenses
+  const roi = purchaseCost > 0 ? ((totalRevenue - totalExpenses - purchaseCost) / purchaseCost) * 100 : 0;
   const revenuePerRental = totalRentals > 0 ? Math.round(totalRevenue / totalRentals) : 0;
   const breakEvenRentals = revenuePerRental > 0 ? Math.ceil(purchaseCost / revenuePerRental) : 0;
 
