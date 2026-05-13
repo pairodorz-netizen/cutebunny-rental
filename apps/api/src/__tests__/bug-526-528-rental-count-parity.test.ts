@@ -157,13 +157,20 @@ describe('BUG-526/528: Rental count parity', () => {
   });
 
   it('Customers list /admin/customers uses actual rental counts', async () => {
-    mockDb.order.findMany.mockResolvedValue([
-      {
-        customerId: 'cust-1',
-        totalAmount: 1350,
-        items: [{ id: 'oi-1' }, { id: 'oi-2' }],
-      },
-    ]);
+    // BUG-540: getCustomerRentalStats now uses raw SQL ($queryRaw)
+    // instead of Prisma order.findMany with nested relations.
+    mockDb.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
+      const query = strings.join('');
+      if (query.includes('order_items') && query.includes('customer_id')) {
+        return [{ customerId: 'cust-1', rentalCount: 2, totalPayment: 1350 }];
+      }
+      // product rental counts and health check
+      return [
+        { productId: 'prod-boho', count: 2 },
+        { productId: 'prod-lace', count: 1 },
+        { productId: 'prod-memo', count: 1 },
+      ];
+    });
 
     mockDb.customer.findMany.mockResolvedValue([
       {
