@@ -1,8 +1,8 @@
 /**
  * BUG-540: Admin customers list drops customers whose orders are all finished.
  *
- * getCustomerRentalStats must include 'finished' orders and use raw SQL
- * to avoid PrismaNeon adapter issues on Cloudflare Workers.
+ * Entire customer list endpoint now uses raw SQL ($queryRawUnsafe)
+ * to bypass PrismaNeon adapter issues on Cloudflare Workers.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -19,7 +19,8 @@ const mockDb = vi.hoisted(() => {
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {
-    $queryRaw: vi.fn().mockResolvedValue([]),
+    $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(async (ops: unknown) => {
       if (typeof ops === 'function') return (ops as (tx: unknown) => unknown)(db);
       if (Array.isArray(ops)) return Promise.all(ops as Promise<unknown>[]);
@@ -64,34 +65,25 @@ async function getAdminToken(): Promise<string> {
 describe('BUG-540: Customer list includes all non-deleted customers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Health check
+    mockDb.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
   });
 
-  it('returns customers with only finished orders and correct stats', async () => {
-    // 5 customers: 3 with active orders, 2 with only finished orders
-    const allCustomers = [
-      { id: 'cust-1', firstName: 'ไพโรจน์', lastName: 'ทรงดำรงทัศน์', email: 'pairoj@test.com', phone: '0999999999', tier: 'standard', rentalCount: 0, totalPayment: 0, creditBalance: 0, createdAt: new Date('2024-01-01') },
-      { id: 'cust-2', firstName: 'กฟหก', lastName: 'test', email: 'test@test.com', phone: '0888888888', tier: 'standard', rentalCount: 0, totalPayment: 0, creditBalance: 0, createdAt: new Date('2024-02-01') },
-      { id: 'cust-3', firstName: 'สมมุติ', lastName: '1', email: 'sommut@test.com', phone: '0777777777', tier: 'standard', rentalCount: 0, totalPayment: 0, creditBalance: 0, createdAt: new Date('2024-03-01') },
-      { id: 'cust-4', firstName: 'สมชาย', lastName: 'ใจดี', email: 'somchai@test.com', phone: '0812345678', tier: 'standard', rentalCount: 0, totalPayment: 0, creditBalance: 0, createdAt: new Date('2024-04-01') },
-      { id: 'cust-5', firstName: 'มาลี', lastName: 'ดอกไม้', email: 'malee@test.com', phone: '0898765432', tier: 'standard', rentalCount: 0, totalPayment: 0, creditBalance: 0, createdAt: new Date('2024-05-01') },
-    ];
-
-    mockDb.customer.findMany.mockResolvedValue(allCustomers);
-    mockDb.customer.count.mockResolvedValue(5);
-
-    // Raw SQL returns stats including finished orders
-    mockDb.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) => {
-      const query = strings.join('');
-      if (query.includes('order_items') && query.includes('customer_id')) {
-        // Customer rental stats: includes finished orders
-        return [
-          { customerId: 'cust-1', rentalCount: 2, totalPayment: 640 },
-          { customerId: 'cust-4', rentalCount: 1, totalPayment: 4960 }, // finished-only customer
-          { customerId: 'cust-5', rentalCount: 1, totalPayment: 590 },  // finished-only customer
-        ];
+  it('returns all customers with correct stats via raw SQL', async () => {
+    // $queryRawUnsafe is called twice: list query (has LIMIT) + count query
+    mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (!sql.includes('LIMIT')) {
+        // Count query (no LIMIT)
+        return [{ total: 5 }];
       }
-      // Health check
-      return [{ '?column?': 1 }];
+      // List query — returns all 5 customers with LEFT JOIN stats
+      return [
+        { id: 'cust-5', firstName: 'มาลี', lastName: 'ดอกไม้', email: 'malee@test.com', phone: '0898765432', tier: 'standard', creditBalance: 0, createdAt: '2024-05-01T00:00:00.000Z', rentalCount: 1, totalPayment: 590 },
+        { id: 'cust-4', firstName: 'สมชาย', lastName: 'ใจดี', email: 'somchai@test.com', phone: '0812345678', tier: 'standard', creditBalance: 0, createdAt: '2024-04-01T00:00:00.000Z', rentalCount: 1, totalPayment: 4960 },
+        { id: 'cust-3', firstName: 'สมมุติ', lastName: '1', email: 'sommut@test.com', phone: '0777777777', tier: 'standard', creditBalance: 0, createdAt: '2024-03-01T00:00:00.000Z', rentalCount: 0, totalPayment: 0 },
+        { id: 'cust-2', firstName: 'กฟหก', lastName: 'test', email: 'test@test.com', phone: '0888888888', tier: 'standard', creditBalance: 0, createdAt: '2024-02-01T00:00:00.000Z', rentalCount: 0, totalPayment: 0 },
+        { id: 'cust-1', firstName: 'ไพโรจน์', lastName: 'ทรงดำรงทัศน์', email: 'pairoj@test.com', phone: '0999999999', tier: 'standard', creditBalance: 0, createdAt: '2024-01-01T00:00:00.000Z', rentalCount: 2, totalPayment: 640 },
+      ];
     });
 
     const token = await getAdminToken();
@@ -105,8 +97,9 @@ describe('BUG-540: Customer list includes all non-deleted customers', () => {
 
     // All 5 customers must be returned
     expect(data).toHaveLength(5);
+    expect(body.meta.total).toBe(5);
 
-    // Finished-only customers must appear with correct stats
+    // Finished-only customers appear with correct stats
     const somchai = data.find((c: { name: string }) => c.name.includes('สมชาย'));
     expect(somchai).toBeDefined();
     expect(somchai.rental_count).toBe(1);
@@ -124,20 +117,44 @@ describe('BUG-540: Customer list includes all non-deleted customers', () => {
     expect(test.total_payment).toBe(0);
   });
 
-  it('getCustomerRentalStats uses raw SQL (not Prisma findMany)', async () => {
-    mockDb.customer.findMany.mockResolvedValue([]);
-    mockDb.customer.count.mockResolvedValue(0);
-    mockDb.$queryRaw.mockResolvedValue([]);
+  it('uses $queryRawUnsafe (not Prisma findMany) for customer list', async () => {
+    mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (!sql.includes('LIMIT')) return [{ total: 0 }];
+      return [];
+    });
 
     const token = await getAdminToken();
     await app.request('/api/v1/admin/customers?page=1&per_page=20', {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    // $queryRaw should be called (raw SQL for stats)
-    expect(mockDb.$queryRaw).toHaveBeenCalled();
+    // $queryRawUnsafe should be called (raw SQL for entire list)
+    expect(mockDb.$queryRawUnsafe).toHaveBeenCalled();
 
-    // order.findMany should NOT be called (no longer uses Prisma for stats)
-    expect(mockDb.order.findMany).not.toHaveBeenCalled();
+    // customer.findMany should NOT be called
+    expect(mockDb.customer.findMany).not.toHaveBeenCalled();
+    expect(mockDb.customer.count).not.toHaveBeenCalled();
+  });
+
+  it('passes search filter to raw SQL', async () => {
+    mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (!sql.includes('LIMIT')) return [{ total: 0 }];
+      return [];
+    });
+
+    const token = await getAdminToken();
+    await app.request('/api/v1/admin/customers?page=1&per_page=20&search=somchai', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Verify search param is passed in the query
+    const calls = mockDb.$queryRawUnsafe.mock.calls;
+    // List query contains LIMIT, count query does not
+    const listCall = calls.find((c: unknown[]) => (c[0] as string).includes('LIMIT'));
+    expect(listCall).toBeDefined();
+    // Search pattern should include ILIKE
+    expect(listCall[0]).toContain('ILIKE');
+    // The search pattern should be passed as a parameter
+    expect(listCall).toContain('%somchai%');
   });
 });
