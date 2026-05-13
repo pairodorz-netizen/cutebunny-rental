@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getDb } from '../../lib/db';
 import { success } from '../../lib/response';
+import { getProductRentalCounts } from '../../lib/rental-stats';
 
 const CACHE_TTL_MS = 15_000;
 const summaryCache: { data: unknown; ts: number } = { data: null, ts: 0 };
@@ -20,7 +21,7 @@ async function fetchSummaryData() {
     ordersShipped,
     overdueReturns,
     revenueThisMonth,
-    topProducts,
+    allProductsSummary,
     lowStockAlert,
     totalCustomers,
     totalOrders,
@@ -31,6 +32,8 @@ async function fetchSummaryData() {
     productsCleaning,
     recentOrders,
     lowStockProducts,
+    // BUG-526: actual rental counts
+    summaryRentalCounts,
   ] = await Promise.all([
     db.order.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
     db.order.count({ where: { status: 'unpaid' } }),
@@ -42,9 +45,7 @@ async function fetchSummaryData() {
     }),
     db.product.findMany({
       where: { deletedAt: null },
-      orderBy: { rentalCount: 'desc' },
-      take: 5,
-      select: { id: true, sku: true, name: true, rentalCount: true, thumbnailUrl: true },
+      select: { id: true, sku: true, name: true, thumbnailUrl: true },
     }),
     db.product.findMany({
       where: { stockQuantity: { lte: 1 }, available: true },
@@ -81,7 +82,14 @@ async function fetchSummaryData() {
           LIMIT 10
         ` as Array<{ id: string; sku: string; name: string; thumbnailUrl: string | null; stockOnHand: number; lowStockThreshold: number }>;
       }),
+    getProductRentalCounts(db),
   ]);
+
+  // BUG-526: sort by actual rental count
+  const topProductsSummary = allProductsSummary
+    .map((p) => ({ ...p, rentalCount: summaryRentalCounts.get(p.id) ?? 0 }))
+    .sort((a, b) => b.rentalCount - a.rentalCount)
+    .slice(0, 5);
 
   const ordersByStatus: Record<string, number> = {};
   for (const row of ordersByStatusRaw) {
@@ -97,7 +105,7 @@ async function fetchSummaryData() {
       revenue_this_month: revenueThisMonth._sum.amount ?? 0,
       total_customers: totalCustomers,
       total_orders: totalOrders,
-      top_products: topProducts.map((p) => ({
+      top_products: topProductsSummary.map((p) => ({
         id: p.id, sku: p.sku, name: p.name,
         rental_count: p.rentalCount, thumbnail: p.thumbnailUrl,
       })),
@@ -152,10 +160,12 @@ dashboard.get('/stats', async (c) => {
     ordersShipped,
     overdueReturns,
     revenueThisMonth,
-    topProducts,
+    allProductsForStats,
     lowStockProducts,
     totalCustomers,
     totalOrders,
+    // BUG-526: actual rental counts from order_items
+    rentalCountMap,
   ] = await Promise.all([
     db.order.count({
       where: { createdAt: { gte: today, lt: tomorrow } },
@@ -181,13 +191,10 @@ dashboard.get('/stats', async (c) => {
     }),
     db.product.findMany({
       where: { deletedAt: null },
-      orderBy: { rentalCount: 'desc' },
-      take: 5,
       select: {
         id: true,
         sku: true,
         name: true,
-        rentalCount: true,
         thumbnailUrl: true,
       },
     }),
@@ -202,7 +209,14 @@ dashboard.get('/stats', async (c) => {
     }),
     db.customer.count(),
     db.order.count(),
+    getProductRentalCounts(db),
   ]);
+
+  // BUG-526: sort by actual rental count and take top 5
+  const topProductsForStats = allProductsForStats
+    .map((p) => ({ ...p, rentalCount: rentalCountMap.get(p.id) ?? 0 }))
+    .sort((a, b) => b.rentalCount - a.rentalCount)
+    .slice(0, 5);
 
   return success(c, {
     orders_today: ordersToday,
@@ -212,7 +226,7 @@ dashboard.get('/stats', async (c) => {
     revenue_this_month: revenueThisMonth._sum.amount ?? 0,
     total_customers: totalCustomers,
     total_orders: totalOrders,
-    top_products: topProducts.map((p) => ({
+    top_products: topProductsForStats.map((p) => ({
       id: p.id,
       sku: p.sku,
       name: p.name,

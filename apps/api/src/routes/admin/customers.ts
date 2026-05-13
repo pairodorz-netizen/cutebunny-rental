@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
+import { getCustomerRentalStats } from '../../lib/rental-stats';
 
 const adminCustomers = new Hono();
 
@@ -32,7 +33,7 @@ adminCustomers.get('/', async (c) => {
     where.tier = tier as Prisma.EnumCustomerTierFilter;
   }
 
-  const [customers, total] = await Promise.all([
+  const [customers, total, customerStatsMap] = await Promise.all([
     db.customer.findMany({
       where,
       select: {
@@ -52,19 +53,25 @@ adminCustomers.get('/', async (c) => {
       orderBy: { createdAt: 'desc' },
     }),
     db.customer.count({ where }),
+    // BUG-528: actual rental counts and total payment from orders
+    getCustomerRentalStats(db),
   ]);
 
-  const data = customers.map((c) => ({
-    id: c.id,
-    name: `${c.firstName} ${c.lastName}`,
-    email: c.email,
-    phone: c.phone,
-    tier: c.tier,
-    rental_count: c.rentalCount,
-    total_payment: c.totalPayment,
-    credit_balance: c.creditBalance,
-    created_at: c.createdAt.toISOString(),
-  }));
+  const data = customers.map((c) => {
+    const stats = customerStatsMap.get(c.id);
+    return {
+      id: c.id,
+      name: `${c.firstName} ${c.lastName}`,
+      email: c.email,
+      phone: c.phone,
+      tier: c.tier,
+      // BUG-528: use actual counts from order_items
+      rental_count: stats?.rentalCount ?? 0,
+      total_payment: stats?.totalPayment ?? 0,
+      credit_balance: c.creditBalance,
+      created_at: c.createdAt.toISOString(),
+    };
+  });
 
   return success(c, data, {
     page,

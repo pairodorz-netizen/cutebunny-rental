@@ -82,10 +82,12 @@ describe('BUG-516: Top Products excludes deleted products', () => {
 
     expect(res.status).toBe(200);
 
+    // BUG-526: query no longer uses orderBy.rentalCount (sorted in JS from order_items).
+    // Verify the product query still filters deleted products.
     const findManyCalls = mockDb.product.findMany.mock.calls;
     const topProductCall = findManyCalls.find(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (call: any[]) => call[0]?.orderBy?.rentalCount === 'desc',
+      (call: any[]) => call[0]?.where?.deletedAt === null && call[0]?.select?.sku,
     );
 
     expect(topProductCall).toBeDefined();
@@ -102,10 +104,11 @@ describe('BUG-516: Top Products excludes deleted products', () => {
 
     expect(res.status).toBe(200);
 
+    // BUG-526: query no longer uses orderBy.rentalCount (sorted in JS from order_items).
     const findManyCalls = mockDb.product.findMany.mock.calls;
     const topProductCall = findManyCalls.find(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (call: any[]) => call[0]?.orderBy?.rentalCount === 'desc',
+      (call: any[]) => call[0]?.where?.deletedAt === null && call[0]?.select?.sku,
     );
 
     expect(topProductCall).toBeDefined();
@@ -117,13 +120,17 @@ describe('BUG-516: Top Products excludes deleted products', () => {
       id: 'prod-active',
       sku: 'DRESS-001',
       name: 'Active Wedding Dress',
-      rentalCount: 20,
       thumbnailUrl: 'https://example.com/active.jpg',
     };
 
+    // BUG-526: rental count now comes from orderItem.groupBy
+    mockDb.orderItem.groupBy.mockResolvedValue([
+      { productId: 'prod-active', _count: { id: 20 } },
+    ]);
+
     mockDb.product.findMany.mockImplementation(async (args: Record<string, unknown>) => {
       const where = args?.where as Record<string, unknown> | undefined;
-      if (where?.deletedAt === null && args?.orderBy) {
+      if (where?.deletedAt === null) {
         return [activeProduct];
       }
       return [];
@@ -138,5 +145,6 @@ describe('BUG-516: Top Products excludes deleted products', () => {
     const body = await res.json();
     expect(body.data.top_products).toHaveLength(1);
     expect(body.data.top_products[0].name).toBe('Active Wedding Dress');
+    expect(body.data.top_products[0].rental_count).toBe(20);
   });
 });

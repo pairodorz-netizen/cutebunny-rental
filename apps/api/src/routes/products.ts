@@ -103,7 +103,10 @@ products.get('/', async (c) => {
           ? { rentalPrice1Day: 'asc' as const }
           : sort === 'price_desc'
             ? { rentalPrice1Day: 'desc' as const }
-            : { createdAt: 'desc' as const },
+            // BUG-530: sort=popular orders by rental count; sort=newest by createdAt desc (default)
+            : sort === 'popular'
+              ? { rentalCount: 'desc' as const }
+              : { createdAt: 'desc' as const },
     }),
     db.product.count({ where }),
   ]);
