@@ -6,7 +6,8 @@ import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { CheckCircle, Clock, Truck, Package, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
 
 function formatDate(dateStr: string, loc: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -17,17 +18,6 @@ function formatDate(dateStr: string, loc: string): string {
   const enMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${enMonths[m - 1]} ${d}, ${y}`;
 }
-
-const STATUS_STEPS = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'finished'];
-
-const STATUS_ICONS: Record<string, typeof Clock> = {
-  unpaid: Clock,
-  paid_locked: CheckCircle,
-  shipped: Truck,
-  returned: Package,
-  cleaning: Package,
-  ready: CheckCircle,
-};
 
 export default function OrderStatusPage() {
   const t = useTranslations('orderStatus');
@@ -68,8 +58,6 @@ export default function OrderStatusPage() {
     );
   }
 
-  const currentStepIndex = STATUS_STEPS.indexOf(order.status);
-
   return (
     <div className="container py-8 max-w-3xl">
       <Link href="/products" className="text-sm text-muted-foreground hover:text-primary mb-6 inline-flex items-center gap-1">
@@ -81,33 +69,14 @@ export default function OrderStatusPage() {
         <p className="text-muted-foreground mt-1">
           {t('orderNumber')}: <span className="font-mono font-semibold">{order.order_number}</span>
         </p>
+        <div className="mt-3 flex justify-center">
+          <OrderStatusBadge status={order.status} locale={locale} />
+        </div>
       </div>
 
       {/* Status Timeline */}
-      <div className="flex items-center justify-between mb-8 px-4">
-        {STATUS_STEPS.map((status, idx) => {
-          const Icon = STATUS_ICONS[status] ?? Clock;
-          const isActive = idx <= currentStepIndex;
-          const isCurrent = idx === currentStepIndex;
-          return (
-            <div key={status} className="flex flex-col items-center relative">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  isCurrent
-                    ? 'bg-primary text-primary-foreground'
-                    : isActive
-                      ? 'bg-primary/20 text-primary'
-                      : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-              </div>
-              <span className={`text-xs mt-1 ${isCurrent ? 'font-semibold text-primary' : 'text-muted-foreground'}`}>
-                {t(`status.${status}`)}
-              </span>
-            </div>
-          );
-        })}
+      <div className="mb-8">
+        <OrderStatusTimeline status={order.status} locale={locale} />
       </div>
 
       {/* Payment Action */}

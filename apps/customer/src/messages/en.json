@@ -288,13 +288,14 @@
     "uploadSlip": "Upload Payment Slip",
     "paymentSlips": "Payment Slips",
     "status": {
-      "unpaid": "Unpaid",
-      "paid_locked": "Paid",
+      "unpaid": "Awaiting Payment",
+      "paid_locked": "Payment Confirmed",
       "shipped": "Shipped",
       "returned": "Returned",
-      "cleaning": "Cleaning",
-      "repair": "Repair",
-      "finished": "Complete"
+      "cleaning": "Inspecting",
+      "repair": "Under Repair",
+      "finished": "Completed",
+      "cancelled": "Cancelled"
     },
     "slipStatus": {
       "pending": "Pending Review",

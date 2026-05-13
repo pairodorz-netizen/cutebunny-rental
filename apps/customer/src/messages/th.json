@@ -288,13 +288,14 @@
     "uploadSlip": "อัปโหลดสลิป",
     "paymentSlips": "สลิปการชำระเงิน",
     "status": {
-      "unpaid": "รอชำระ",
-      "paid_locked": "ชำระแล้ว",
+      "unpaid": "รอชำระเงิน",
+      "paid_locked": "ยืนยันชำระแล้ว",
       "shipped": "จัดส่งแล้ว",
-      "returned": "คืนแล้ว",
-      "cleaning": "ทำความสะอาด",
-      "repair": "ซ่อมแซม",
-      "finished": "เสร็จสิ้น"
+      "returned": "ส่งคืนแล้ว",
+      "cleaning": "กำลังตรวจสอบ",
+      "repair": "ระหว่างซ่อม",
+      "finished": "เสร็จสมบูรณ์",
+      "cancelled": "ยกเลิก"
     },
     "slipStatus": {
       "pending": "รอตรวจสอบ",
