@@ -42,17 +42,28 @@ categories.get('/', async (c) => {
     const db = getDb();
     const rows = await db.category.findMany({
       orderBy: { sortOrder: 'asc' },
+      include: {
+        // BUG-531: count active (non-deleted) products per category
+        _count: { select: { products: { where: { deletedAt: null, available: true } } } },
+      },
     });
 
-    const data = rows.map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name_th: row.nameTh,
-      name_en: row.nameEn,
-      sort_order: row.sortOrder,
-      visible_frontend: row.visibleFrontend,
-      visible_backend: row.visibleBackend,
-    }));
+    // BUG-531: filter out frontend-visible categories with 0 active products
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = (rows as any[])
+      .filter((row) => {
+        if (!row._count) return true;
+        return !row.visibleFrontend || row._count.products > 0;
+      })
+      .map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name_th: row.nameTh,
+        name_en: row.nameEn,
+        sort_order: row.sortOrder,
+        visible_frontend: row.visibleFrontend,
+        visible_backend: row.visibleBackend,
+      }));
 
     c.header('Cache-Control', CACHE_CONTROL);
     return success(c, data);

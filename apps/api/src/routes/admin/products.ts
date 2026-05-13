@@ -6,6 +6,7 @@ import { parseLocale, localizeField } from '../../lib/i18n';
 import { getAdmin } from '../../middleware/auth';
 import { Prisma } from '@prisma/client';
 import { safeAuditLogCreate } from '../../lib/safe-audit-log';
+import { getProductRentalCounts } from '../../lib/rental-stats';
 
 const adminProducts = new Hono();
 
@@ -239,7 +240,7 @@ adminProducts.get('/', async (c) => {
     where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
   }
 
-  const [products, total] = await Promise.all([
+  const [products, total, productRentalMap] = await Promise.all([
     db.product.findMany({
       where,
       include: {
@@ -253,6 +254,8 @@ adminProducts.get('/', async (c) => {
       orderBy: { createdAt: 'desc' },
     }),
     db.product.count({ where }),
+    // BUG-528: actual rental counts from order_items
+    getProductRentalCounts(db),
   ]);
 
   const data = products.map((p) => ({
@@ -279,7 +282,8 @@ adminProducts.get('/', async (c) => {
     stock: p.stockQuantity,
     stock_on_hand: p.stockOnHand,
     low_stock_threshold: p.lowStockThreshold,
-    rental_count: p.rentalCount,
+    // BUG-528: use actual rental count from order_items
+    rental_count: productRentalMap.get(p.id) ?? 0,
     available: p.available,
     cost_price: p.costPrice,
     selling_price: p.sellingPrice,
@@ -1192,8 +1196,9 @@ adminProducts.get('/:id/roi', async (c) => {
     totalRevenue = completedOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
   }
 
-  const netProfit = totalRevenue - totalExpenses;
-  const roi = purchaseCost > 0 ? ((totalRevenue - totalExpenses - purchaseCost) / purchaseCost) * 100 : 0;
+  // BUG-525: Net Profit must include purchaseCost to be consistent with ROI%
+  const netProfit = totalRevenue - totalExpenses - purchaseCost;
+  const roi = purchaseCost > 0 ? ((totalRevenue - purchaseCost) / purchaseCost) * 100 : 0;
   const revenuePerRental = totalRentals > 0 ? Math.round(totalRevenue / totalRentals) : 0;
   const breakEvenRentals = revenuePerRental > 0 ? Math.ceil(purchaseCost / revenuePerRental) : 0;
 
@@ -1224,7 +1229,9 @@ adminProducts.get('/:id/roi', async (c) => {
 adminProducts.get('/roi/summary', async (c) => {
   const db = getDb();
 
+  // BUG-524: exclude soft-deleted products from ROI Rankings
   const products = await db.product.findMany({
+    where: { deletedAt: null },
     include: {
       orderItems: {
         include: {
@@ -1266,7 +1273,8 @@ adminProducts.get('/roi/summary', async (c) => {
       purchase_cost: purchaseCost,
       total_revenue: totalRevenue,
       total_expenses: totalExpenses,
-      net_profit: totalRevenue - totalExpenses,
+      // BUG-525: Net Profit = TotalRevenue - PurchaseCost (consistent with ROI%)
+      net_profit: totalRevenue - totalExpenses - purchaseCost,
       roi: Math.round(roi * 100) / 100,
       total_rentals: totalRentals,
     };

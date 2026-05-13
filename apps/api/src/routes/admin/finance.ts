@@ -6,21 +6,66 @@ import { getAdmin } from '../../middleware/auth';
 
 const adminFinance = new Hono();
 
+// BUG-522: human-readable labels for txType when no financeCategory is linked
+function formatTxTypeLabel(txType: string): string {
+  const labels: Record<string, string> = {
+    rental_revenue: 'Rental Revenue',
+    deposit_received: 'Deposit Received',
+    deposit_returned: 'Deposit Returned',
+    deposit_forfeited: 'Deposit Forfeited',
+    late_fee: 'Late Fee',
+    damage_fee: 'Damage Fee',
+    force_buy: 'Force Buy',
+    shipping: 'Shipping',
+    cogs: 'Cost of Goods',
+    cleaning: 'Cleaning',
+    repair: 'Repair',
+    marketing: 'Marketing',
+    platform_fee: 'Platform Fee',
+  };
+  return labels[txType] ?? txType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // ─── M02: Finance Categories ─────────────────────────────────────────────
 
 // GET /api/v1/admin/finance/categories
+// BUG-523: fallback to aggregated finance_transaction rows when financeCategory table is empty
 adminFinance.get('/categories', async (c) => {
   const db = getDb();
   const categories = await db.financeCategory.findMany({
     orderBy: [{ type: 'asc' }, { name: 'asc' }],
   });
-  return success(c, categories.map((cat) => ({
-    id: cat.id,
-    name: cat.name,
-    type: cat.type,
-    description: cat.description,
-    created_at: cat.createdAt.toISOString(),
-  })));
+
+  if (categories.length > 0) {
+    return success(c, categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      type: cat.type,
+      description: cat.description,
+      created_at: cat.createdAt.toISOString(),
+    })));
+  }
+
+  const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
+
+  const txGroups = await db.financeTransaction.groupBy({
+    by: ['txType'],
+    _sum: { amount: true },
+  });
+
+  const derived = txGroups.map((g) => {
+    const isRevenue = revenueTypes.includes(g.txType);
+    return {
+      id: g.txType,
+      name: formatTxTypeLabel(g.txType),
+      type: isRevenue ? 'REVENUE' : 'EXPENSE',
+      total: isRevenue ? (g._sum.amount ?? 0) : Math.abs(g._sum.amount ?? 0),
+      description: null,
+    };
+  });
+
+  derived.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
+  return success(c, derived);
 });
 
 // POST /api/v1/admin/finance/categories
@@ -121,23 +166,36 @@ adminFinance.get('/transactions', async (c) => {
     db.financeTransaction.count({ where }),
   ]);
 
+  // BUG-521: classify direction (inflow/outflow) per txType
+  const outflowTypes = [...expenseTypes];
+  const inflowTypes = [...revenueTypes];
+
   return success(c, {
-    data: transactions.map((tx) => ({
-      id: tx.id,
-      order_id: tx.orderId,
-      order_number: tx.order?.orderNumber ?? null,
-      product_id: tx.productId,
-      product_name: tx.product?.name ?? null,
-      product_sku: tx.product?.sku ?? null,
-      category_id: tx.categoryId,
-      category_name: tx.category?.name ?? null,
-      category_type: tx.category?.type ?? null,
-      tx_type: tx.txType,
-      amount: tx.amount,
-      note: tx.note,
-      created_by: tx.createdBy,
-      created_at: tx.createdAt.toISOString(),
-    })),
+    data: transactions.map((tx) => {
+      const isOutflow = outflowTypes.includes(tx.txType);
+      const direction: 'inflow' | 'outflow' = isOutflow ? 'outflow' : 'inflow';
+      const displayAmount = isOutflow ? -Math.abs(tx.amount) : Math.abs(tx.amount);
+      // BUG-522: fallback category label from txType when categoryName is null
+      const categoryLabel = tx.category?.name ?? formatTxTypeLabel(tx.txType);
+      const categoryType = tx.category?.type ?? (inflowTypes.includes(tx.txType) ? 'REVENUE' : 'EXPENSE');
+      return {
+        id: tx.id,
+        order_id: tx.orderId,
+        order_number: tx.order?.orderNumber ?? null,
+        product_id: tx.productId,
+        product_name: tx.product?.name ?? null,
+        product_sku: tx.product?.sku ?? null,
+        category_id: tx.categoryId,
+        category_name: categoryLabel,
+        category_type: categoryType,
+        tx_type: tx.txType,
+        amount: displayAmount,
+        direction,
+        note: tx.note,
+        created_by: tx.createdBy,
+        created_at: tx.createdAt.toISOString(),
+      };
+    }),
     meta: {
       page: parsed.data.page,
       per_page: parsed.data.per_page,
@@ -249,7 +307,8 @@ adminFinance.get('/report', async (c) => {
   });
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  // BUG-521: include deposit_returned in expenses (cash outflow)
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee', 'deposit_returned'];
 
   const revenueBreakdown: Record<string, number> = {};
   const expenseBreakdown: Record<string, number> = {};
@@ -371,7 +430,8 @@ adminFinance.get('/summary', async (c) => {
   const endDate = parsed.data.end_date ? new Date(parsed.data.end_date + 'T23:59:59.999Z') : now;
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  // BUG-521: include deposit_returned in expenses (cash outflow back to customer)
+  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee', 'deposit_returned'];
 
   const [transactions, orders, categories] = await Promise.all([
     db.financeTransaction.findMany({
