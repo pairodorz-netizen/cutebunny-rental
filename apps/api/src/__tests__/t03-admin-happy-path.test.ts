@@ -594,23 +594,26 @@ describe('T03: Admin Happy Path E2E', () => {
     it('lists customers', async () => {
       const token = await getAdminToken();
 
-      // BUG-540 hotfix: customer list now uses $queryRawUnsafe (raw SQL)
-      mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
-        if (!sql.includes('LIMIT')) {
-          return [{ total: 1 }];
+      // BUG-540: customer list now uses $queryRaw tagged template
+      mockDb.$queryRaw.mockImplementation(async (...args: unknown[]) => {
+        const strings = args[0] as string[];
+        const sql = Array.isArray(strings) ? strings.join('?') : String(strings);
+        if (sql.includes('LIMIT')) {
+          return [{
+            id: MOCK_CUSTOMER.id,
+            firstName: MOCK_CUSTOMER.firstName,
+            lastName: MOCK_CUSTOMER.lastName,
+            email: MOCK_CUSTOMER.email,
+            phone: MOCK_CUSTOMER.phone,
+            tier: MOCK_CUSTOMER.tier,
+            creditBalance: MOCK_CUSTOMER.creditBalance,
+            createdAt: MOCK_CUSTOMER.createdAt.toISOString(),
+            rentalCount: 5,
+            totalPayment: 15000,
+          }];
         }
-        return [{
-          id: MOCK_CUSTOMER.id,
-          firstName: MOCK_CUSTOMER.firstName,
-          lastName: MOCK_CUSTOMER.lastName,
-          email: MOCK_CUSTOMER.email,
-          phone: MOCK_CUSTOMER.phone,
-          tier: MOCK_CUSTOMER.tier,
-          creditBalance: MOCK_CUSTOMER.creditBalance,
-          createdAt: MOCK_CUSTOMER.createdAt.toISOString(),
-          rentalCount: 5,
-          totalPayment: 15000,
-        }];
+        if (sql.includes('COUNT')) return [{ total: 1 }];
+        return [{ '?column?': 1 }];
       });
 
       const res = await app.request('/api/v1/admin/customers', {

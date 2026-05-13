@@ -158,25 +158,27 @@ describe('BUG-526/528: Rental count parity', () => {
   });
 
   it('Customers list /admin/customers uses actual rental counts via raw SQL', async () => {
-    // BUG-540 hotfix: entire customer list now uses $queryRawUnsafe
-    // (not Prisma findMany) to bypass PrismaNeon silent failures.
-    mockDb.$queryRawUnsafe.mockImplementation(async (sql: string) => {
-      if (!sql.includes('LIMIT')) {
-        return [{ total: 1 }];
+    // BUG-540: entire customer list uses $queryRaw tagged template
+    // — the ONLY method proven reliable on PrismaNeon/Cloudflare Workers.
+    mockDb.$queryRaw.mockImplementation(async (...args: unknown[]) => {
+      const strings = args[0] as string[];
+      const sql = Array.isArray(strings) ? strings.join('?') : String(strings);
+      if (sql.includes('LIMIT')) {
+        return [{
+          id: 'cust-1',
+          firstName: 'Test',
+          lastName: 'Customer',
+          email: 'test@test.com',
+          phone: '0812345678',
+          tier: 'standard',
+          creditBalance: 0,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          rentalCount: 2,
+          totalPayment: 1350,
+        }];
       }
-      // List query returns customer with LEFT JOIN stats
-      return [{
-        id: 'cust-1',
-        firstName: 'Test',
-        lastName: 'Customer',
-        email: 'test@test.com',
-        phone: '0812345678',
-        tier: 'standard',
-        creditBalance: 0,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        rentalCount: 2,     // from LEFT JOIN order stats
-        totalPayment: 1350,  // from LEFT JOIN order stats
-      }];
+      if (sql.includes('COUNT')) return [{ total: 1 }];
+      return [{ '?column?': 1 }];
     });
 
     const token = await getAdminToken();

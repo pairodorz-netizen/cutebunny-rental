@@ -14,30 +14,29 @@ adminCustomers.get('/', async (c) => {
   const search = c.req.query('search');
   const tier = c.req.query('tier');
 
-  // BUG-540 hotfix: Prisma findMany on PrismaNeon/Cloudflare Workers
-  // silently returns partial results. Convert entire customer list to
-  // raw SQL — single query with LEFT JOIN for rental stats.
-  const conditions: string[] = ["c.email NOT LIKE 'deleted_%'"];
-  const params: unknown[] = [];
-  let paramIdx = 1;
-
-  if (search) {
-    const pattern = `%${search}%`;
-    conditions.push(`(c.first_name ILIKE $${paramIdx} OR c.last_name ILIKE $${paramIdx + 1} OR c.email ILIKE $${paramIdx + 2} OR c.phone LIKE $${paramIdx + 3})`);
-    params.push(pattern, pattern, pattern, pattern);
-    paramIdx += 4;
-  }
-
-  if (tier) {
-    conditions.push(`c.tier = $${paramIdx}::"CustomerTier"`);
-    params.push(tier);
-    paramIdx += 1;
-  }
-
-  const whereClause = conditions.join(' AND ');
+  // BUG-540: Use $queryRaw tagged template — the ONLY method proven
+  // reliable on PrismaNeon/Cloudflare Workers. $queryRawUnsafe and
+  // all Prisma query builder methods silently return partial results.
+  // Dynamic filters use "IS NULL OR" pattern to stay in tagged template.
+  const searchPattern = search ? `%${search}%` : null;
+  const tierFilter = tier ?? null;
   const offset = (page - 1) * perPage;
 
-  const listSql = `
+  interface CustomerRow {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+    tier: string;
+    creditBalance: number;
+    createdAt: Date;
+    rentalCount: number;
+    totalPayment: number;
+  }
+
+  // Run sequentially — proven safer than Promise.all on PrismaNeon.
+  const customers = await db.$queryRaw<CustomerRow[]>`
     SELECT
       c.id,
       c.first_name AS "firstName",
@@ -64,47 +63,43 @@ adminCustomers.get('/', async (c) => {
       WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
       GROUP BY o.customer_id
     ) stats ON stats.customer_id = c.id
-    WHERE ${whereClause}
+    WHERE c.email NOT LIKE 'deleted_%'
+      AND (${searchPattern}::text IS NULL OR (
+        c.first_name ILIKE ${searchPattern}
+        OR c.last_name ILIKE ${searchPattern}
+        OR c.email ILIKE ${searchPattern}
+        OR c.phone LIKE ${searchPattern}
+      ))
+      AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
     ORDER BY c.created_at DESC
-    LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    LIMIT ${perPage} OFFSET ${offset}
   `;
 
-  const countSql = `
+  const countResult = await db.$queryRaw<[{ total: number }]>`
     SELECT COUNT(*)::int AS total
     FROM customers c
-    WHERE ${whereClause}
+    WHERE c.email NOT LIKE 'deleted_%'
+      AND (${searchPattern}::text IS NULL OR (
+        c.first_name ILIKE ${searchPattern}
+        OR c.last_name ILIKE ${searchPattern}
+        OR c.email ILIKE ${searchPattern}
+        OR c.phone LIKE ${searchPattern}
+      ))
+      AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
   `;
-
-  interface CustomerRow {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string | null;
-    tier: string;
-    creditBalance: number;
-    createdAt: Date;
-    rentalCount: number;
-    totalPayment: number;
-  }
-
-  const [customers, countResult] = await Promise.all([
-    db.$queryRawUnsafe<CustomerRow[]>(listSql, ...params, perPage, offset),
-    db.$queryRawUnsafe<[{ total: number }]>(countSql, ...params),
-  ]);
 
   const total = countResult[0]?.total ?? 0;
 
-  const data = customers.map((c: CustomerRow) => ({
-    id: c.id,
-    name: `${c.firstName} ${c.lastName}`,
-    email: c.email,
-    phone: c.phone,
-    tier: c.tier,
-    rental_count: c.rentalCount,
-    total_payment: c.totalPayment,
-    credit_balance: c.creditBalance,
-    created_at: new Date(c.createdAt).toISOString(),
+  const data = customers.map((cust: CustomerRow) => ({
+    id: cust.id,
+    name: `${cust.firstName} ${cust.lastName}`,
+    email: cust.email,
+    phone: cust.phone,
+    tier: cust.tier,
+    rental_count: cust.rentalCount,
+    total_payment: cust.totalPayment,
+    credit_balance: cust.creditBalance,
+    created_at: new Date(cust.createdAt).toISOString(),
   }));
 
   return success(c, data, {
