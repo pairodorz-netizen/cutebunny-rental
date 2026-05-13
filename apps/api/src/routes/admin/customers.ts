@@ -14,9 +14,9 @@ adminCustomers.get('/', async (c) => {
   const search = c.req.query('search');
   const tier = c.req.query('tier');
 
-  // BUG-540: Use $queryRaw tagged template — the ONLY method proven
-  // reliable on PrismaNeon/Cloudflare Workers. $queryRawUnsafe and
-  // all Prisma query builder methods silently return partial results.
+  // BUG-540: Raw SQL with $queryRaw tagged template for explicit control.
+  // Soft-delete pattern: customers have no deleted_at column — soft-deleted
+  // records are identified by email prefix 'deleted_'.
   // Dynamic filters use "IS NULL OR" pattern to stay in tagged template.
   const searchPattern = search ? `%${search}%` : null;
   const tierFilter = tier ?? null;
@@ -35,7 +35,7 @@ adminCustomers.get('/', async (c) => {
     totalPayment: number;
   }
 
-  // Run sequentially — proven safer than Promise.all on PrismaNeon.
+  // Run sequentially to reduce concurrent connection pressure on Neon.
   const customers = await db.$queryRaw<CustomerRow[]>`
     SELECT
       c.id,

@@ -1,8 +1,9 @@
 /**
- * BUG-540: Admin customers list drops customers whose orders are all finished.
+ * BUG-540: Admin customers list — raw SQL with correct soft-delete filter.
  *
- * Entire customer list endpoint now uses $queryRaw tagged template
- * — the ONLY method proven reliable on PrismaNeon/Cloudflare Workers.
+ * Customers table has no deleted_at column. Soft-deleted records are
+ * identified by the email prefix 'deleted_'. The endpoint uses $queryRaw
+ * tagged template with `WHERE c.email NOT LIKE 'deleted_%'`.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -68,7 +69,7 @@ function joinTemplate(args: unknown[]): string {
   return Array.isArray(strings) ? strings.join('?') : String(strings);
 }
 
-describe('BUG-540: Customer list includes all non-deleted customers', () => {
+describe('BUG-540: Customer list filters by email prefix soft-delete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -123,6 +124,34 @@ describe('BUG-540: Customer list includes all non-deleted customers', () => {
     expect(test).toBeDefined();
     expect(test.rental_count).toBe(0);
     expect(test.total_payment).toBe(0);
+  });
+
+  it('SQL uses email prefix soft-delete filter (NOT LIKE deleted_%)', async () => {
+    mockDb.$queryRaw.mockImplementation(async (...args: unknown[]) => {
+      const sql = joinTemplate(args);
+      if (sql.includes('LIMIT')) return [];
+      if (sql.includes('COUNT')) return [{ total: 0 }];
+      return [{ '?column?': 1 }];
+    });
+
+    const token = await getAdminToken();
+    await app.request('/api/v1/admin/customers?page=1&per_page=20', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Both list and count queries must filter with email prefix pattern
+    const calls = mockDb.$queryRaw.mock.calls;
+    const listCall = calls.find((c: unknown[]) => joinTemplate(c).includes('LIMIT'));
+    const countCall = calls.find((c: unknown[]) =>
+      joinTemplate(c).includes('COUNT') && !joinTemplate(c).includes('LIMIT'),
+    );
+
+    expect(joinTemplate(listCall)).toContain("NOT LIKE 'deleted_%'");
+    expect(joinTemplate(countCall)).toContain("NOT LIKE 'deleted_%'");
+
+    // Must NOT reference deleted_at (customers table has no such column)
+    expect(joinTemplate(listCall)).not.toContain('deleted_at');
+    expect(joinTemplate(countCall)).not.toContain('deleted_at');
   });
 
   it('uses $queryRaw tagged template (not Prisma findMany) for customer list', async () => {
