@@ -21,7 +21,8 @@
     "./combo-delete-state": "./src/combo-delete-state.ts",
     "./orders-archive-window": "./src/orders-archive-window.ts",
     "./admin-orders-query-keys": "./src/admin-orders-query-keys.ts",
-    "./order-status": "./src/order-status.ts"
+    "./order-status": "./src/order-status.ts",
+    "./customer-pii": "./src/customer-pii.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

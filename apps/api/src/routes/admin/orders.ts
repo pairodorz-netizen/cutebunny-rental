@@ -11,6 +11,7 @@ import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query
 import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
 import { safeAuditLogCreate, safeAuditLogQuery } from '../../lib/safe-audit-log';
 import type { OrderStatus, Prisma } from '@prisma/client';
+import { customerDisplayName, customerDisplayEmail, customerDisplayPhone, isCustomerDeleted } from '@cutebunny/shared/customer-pii';
 
 const adminOrders = new Hono();
 
@@ -122,9 +123,9 @@ adminOrders.get('/', async (c) => {
       order_number: o.orderNumber,
       status: o.status,
       customer: {
-        name: `${o.customer.firstName} ${o.customer.lastName}`,
-        email: o.customer.email,
-        phone: o.customer.phone,
+        name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
+        email: customerDisplayEmail(o.customer.email),
+        phone: customerDisplayPhone(o.customer.phone, o.customer.email),
       },
       items: o.items.map((item) => {
         const product = productMap.get(item.productId);
@@ -299,16 +300,18 @@ adminOrders.get('/:id', async (c) => {
     messenger_fee_return: order.messengerFeeReturn,
     messenger_distance_km: order.messengerDistanceKm,
     messenger_payment_mode: order.messengerPaymentMode,
-    customer: {
-      id: order.customer.id,
-      name: `${order.customer.firstName} ${order.customer.lastName}`,
-      first_name: order.customer.firstName,
-      last_name: order.customer.lastName,
-      phone: order.customer.phone,
-      email: order.customer.email,
-      address: order.customer.address,
-      // BUG-519: deduplicate customer documents by doc_type (keep latest).
-      documents: [...order.customer.documents]
+    customer: (() => {
+      const deleted = isCustomerDeleted(order.customer.email);
+      return {
+        id: order.customer.id,
+        name: customerDisplayName(order.customer.firstName, order.customer.lastName, order.customer.email),
+        first_name: deleted ? '[Deleted' : order.customer.firstName,
+        last_name: deleted ? 'customer]' : order.customer.lastName,
+        phone: customerDisplayPhone(order.customer.phone, order.customer.email),
+        email: customerDisplayEmail(order.customer.email),
+        address: deleted ? {} : order.customer.address,
+        // BUG-519: deduplicate customer documents by doc_type (keep latest).
+        documents: deleted ? [] : [...order.customer.documents]
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .filter((doc, _i, arr) => arr.findIndex((d) => d.docType === doc.docType) === arr.indexOf(doc))
         .map((doc) => ({
@@ -318,7 +321,8 @@ adminOrders.get('/:id', async (c) => {
           verified: doc.verified,
           created_at: doc.createdAt.toISOString(),
         })),
-    },
+      };
+    })(),
     items: order.items.map((item) => {
       const rentalDays = Math.ceil(
         (order.rentalEndDate.getTime() - order.rentalStartDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -412,8 +416,11 @@ adminOrders.patch('/:id/edit', async (c) => {
 
   const changes: string[] = [];
 
-  // Update customer name
+  // Update customer name (skip for soft-deleted customers — PII is masked)
   if (parsed.data.customer_name) {
+    if (isCustomerDeleted(order.customer.email)) {
+      return error(c, 400, 'VALIDATION_ERROR', 'Cannot edit name of a deleted customer');
+    }
     const parts = parsed.data.customer_name.trim().split(/\s+/);
     const firstName = parts[0] || '';
     const lastName = parts.slice(1).join(' ') || '';
@@ -1107,7 +1114,7 @@ adminOrders.get('/overdue/list', async (c) => {
     },
     include: {
       customer: {
-        select: { firstName: true, lastName: true, phone: true },
+        select: { firstName: true, lastName: true, phone: true, email: true },
       },
     },
     orderBy: { rentalEndDate: 'asc' },
@@ -1118,8 +1125,8 @@ adminOrders.get('/overdue/list', async (c) => {
     return {
       id: o.id,
       order_number: o.orderNumber,
-      customer_name: `${o.customer.firstName} ${o.customer.lastName}`,
-      customer_phone: o.customer.phone,
+      customer_name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
+      customer_phone: customerDisplayPhone(o.customer.phone, o.customer.email),
       rental_end_date: o.rentalEndDate.toISOString().split('T')[0],
       days_late: daysLate,
       estimated_late_fee: daysLate * LATE_FEE_PER_DAY_THB,
@@ -1288,7 +1295,7 @@ adminOrders.get('/:id/profit', async (c) => {
   const order = await db.order.findUnique({
     where: { id: orderId },
     include: {
-      customer: { select: { firstName: true, lastName: true } },
+      customer: { select: { firstName: true, lastName: true, email: true } },
       items: {
         include: {
           product: { select: { name: true, sku: true } },
@@ -1330,7 +1337,7 @@ adminOrders.get('/:id/profit', async (c) => {
   return success(c, {
     order_id: order.id,
     order_number: order.orderNumber,
-    customer_name: `${order.customer.firstName} ${order.customer.lastName}`,
+    customer_name: customerDisplayName(order.customer.firstName, order.customer.lastName, order.customer.email),
     items: order.items.map((i) => ({
       product_name: i.product.name,
       sku: i.product.sku,

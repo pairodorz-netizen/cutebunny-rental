@@ -18,6 +18,11 @@ import {
   buildOrdersWindowFilter,
 } from '@cutebunny/shared/orders-archive-window';
 
+// BUG-541: customer PII search must not match soft-deleted records.
+const NOT_DELETED_CUSTOMER: Prisma.CustomerWhereInput = {
+  email: { not: { startsWith: 'deleted_' } },
+};
+
 export interface OrdersListQuery {
   status?: string;
   from?: string;
@@ -70,12 +75,13 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
   }
 
   if (q.search) {
+    // BUG-541: PII-based search only matches non-deleted customers.
     where.OR = [
       { orderNumber: { contains: q.search, mode: 'insensitive' } },
-      { customer: { phone: { contains: q.search } } },
-      { customer: { email: { contains: q.search, mode: 'insensitive' } } },
-      { customer: { firstName: { contains: q.search, mode: 'insensitive' } } },
-      { customer: { lastName: { contains: q.search, mode: 'insensitive' } } },
+      { customer: { phone: { contains: q.search }, ...NOT_DELETED_CUSTOMER } },
+      { customer: { email: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
+      { customer: { firstName: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
+      { customer: { lastName: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
     ];
   }
 
@@ -86,15 +92,17 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
     });
   }
   if (q.search_customer_name) {
+    // BUG-541: only search non-deleted customers by name
     andConditions.push({
       OR: [
-        { customer: { firstName: { contains: q.search_customer_name, mode: 'insensitive' } } },
-        { customer: { lastName: { contains: q.search_customer_name, mode: 'insensitive' } } },
+        { customer: { firstName: { contains: q.search_customer_name, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
+        { customer: { lastName: { contains: q.search_customer_name, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
       ],
     });
   }
   if (q.search_customer_phone) {
-    andConditions.push({ customer: { phone: { contains: q.search_customer_phone } } });
+    // BUG-541: only search non-deleted customers by phone
+    andConditions.push({ customer: { phone: { contains: q.search_customer_phone }, ...NOT_DELETED_CUSTOMER } });
   }
   if (q.search_sku) {
     andConditions.push({
