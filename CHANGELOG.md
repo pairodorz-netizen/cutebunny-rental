@@ -2,8 +2,8 @@
 
 ## [Unreleased] — 2026-05-13
 
-### Fixed — BUG-532, 533, 534 (aggregator polish)
-- **BUG-532/534**: Dashboard Top Products showed 0 rentals — `getProductRentalCounts()` now queries from `Order` model (top-level `where: { status }`) with included items + JS aggregation. PrismaNeon adapter on Cloudflare Workers silently fails on any nested relation filter (both `groupBy` and `findMany` on `orderItem` with `where: { order: { status: ... } }`).
+### Fixed — BUG-532, 533, 534, 535 (aggregator polish)
+- **BUG-532/534/535**: Dashboard Top Products showed 0 rentals — two root causes: (1) `PAID_STATUSES` included `'ready'` which is not a valid `OrderStatus` enum value, causing Prisma validation errors silently caught by try/catch; (2) PrismaNeon adapter on Cloudflare Workers doesn't reliably support Prisma query builder patterns (groupBy, findMany with nested relation filters, nested selects). Fix: removed invalid `'ready'` from `PAID_STATUSES` and switched `getProductRentalCounts()` to raw SQL via `$queryRaw`.
 - **BUG-533**: Per-product ROI endpoint (`/:id/roi`) formula aligned with `/roi/summary` — now subtracts `totalExpenses` before dividing by `purchaseCost`.
 
 ### Fixed — BUG-521..528, 530, 531
