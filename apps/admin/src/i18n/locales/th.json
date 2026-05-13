@@ -164,6 +164,7 @@
     "messengerDistance": "ระยะทาง",
     "addItem": "เพิ่มสินค้า",
     "removeItem": "ลบสินค้า",
+    "noItems": "ไม่มีรายการสินค้าในคำสั่งซื้อนี้",
     "selectProduct": "เลือกสินค้า",
     "searchProducts": "ค้นหาสินค้า...",
     "refund": "คืนเงิน",

@@ -368,18 +368,26 @@ orders.post('/', async (c) => {
             },
           });
         } else {
+          // BUG-519: atomic upsert to prevent duplicate (customer_id, doc_type) rows.
           const mappedType = docTypeMap[doc.doc_type] ?? 'id_card_front';
-          await db.customerDocument.create({
-            data: {
+          await db.customerDocument.upsert({
+            where: {
+              customerId_docType: { customerId: customer.id, docType: mappedType },
+            },
+            create: {
               customerId: customer.id,
               docType: mappedType,
               storageKey: doc.url,
               verified: false,
             },
+            update: {
+              storageKey: doc.url,
+              verified: false,
+            },
           });
         }
-      } catch {
-        // Non-critical — continue if document creation fails
+      } catch (err) {
+        console.error('[orders] document upload failed:', err);
       }
     }
   }

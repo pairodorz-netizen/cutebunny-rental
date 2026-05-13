@@ -164,6 +164,7 @@
     "messengerDistance": "Distance",
     "addItem": "Add Item",
     "removeItem": "Remove Item",
+    "noItems": "No items recorded for this order",
     "selectProduct": "Select product",
     "searchProducts": "Search products...",
     "refund": "Refund",
