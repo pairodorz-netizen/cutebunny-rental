@@ -192,4 +192,48 @@ describe('BUG-526/528: Rental count parity', () => {
     expect(body.data[0].rental_count).toBe(2);
     expect(body.data[0].total_payment).toBe(1350);
   });
+
+  it('BUG-536: Finance /summary top_products uses same rental counts as Dashboard', async () => {
+    const revenueTx = [
+      {
+        txType: 'rental_revenue',
+        amount: 250,
+        createdAt: new Date('2026-05-10'),
+        category: null,
+        order: { items: [{ productId: 'prod-boho', productName: 'Bohemian Maxi Dress' }] },
+      },
+      {
+        txType: 'rental_revenue',
+        amount: 800,
+        createdAt: new Date('2026-05-10'),
+        category: null,
+        order: { items: [{ productId: 'prod-lace', productName: 'Lace Bridal Gown' }] },
+      },
+    ];
+
+    mockDb.financeTransaction.findMany.mockImplementation(async (args: Record<string, unknown>) => {
+      const include = args?.include as Record<string, unknown> | undefined;
+      if (include?.category) return revenueTx;
+      if (include?.order) return revenueTx;
+      return [];
+    });
+    mockDb.order.findMany.mockResolvedValue([]);
+    mockDb.financeCategory.findMany.mockResolvedValue([]);
+
+    const token = await getAdminToken();
+    const res = await app.request('/api/v1/admin/finance/summary', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const topProducts = body.data.top_products;
+
+    const boho = topProducts.find((p: { product_id: string }) => p.product_id === 'prod-boho');
+    const lace = topProducts.find((p: { product_id: string }) => p.product_id === 'prod-lace');
+
+    // rental_count comes from $queryRaw (shared helper), NOT financeTransaction count
+    expect(boho.rental_count).toBe(2);
+    expect(lace.rental_count).toBe(1);
+  });
 });
