@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
+import { isCustomerDeleted, customerDisplayName, customerDisplayEmail, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
 
 const adminCustomers = new Hono();
 
@@ -146,22 +147,26 @@ adminCustomers.get('/:id', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Customer not found');
   }
 
+  // BUG-541: mask PII for soft-deleted customers (right-to-be-forgotten)
+  const deleted = isCustomerDeleted(customer.email);
+
   return success(c, {
     id: customer.id,
-    name: `${customer.firstName} ${customer.lastName}`,
-    first_name: customer.firstName,
-    last_name: customer.lastName,
-    email: customer.email,
-    phone: customer.phone,
-    avatar_url: customer.avatarUrl,
+    name: customerDisplayName(customer.firstName, customer.lastName, customer.email),
+    first_name: deleted ? '[Deleted' : customer.firstName,
+    last_name: deleted ? 'customer]' : customer.lastName,
+    email: customerDisplayEmail(customer.email),
+    phone: customerDisplayPhone(customer.phone, customer.email),
+    avatar_url: deleted ? null : customer.avatarUrl,
     tier: customer.tier,
     rental_count: customer.rentalCount,
     total_payment: customer.totalPayment,
     credit_balance: customer.creditBalance,
-    tags: customer.tags,
-    address: customer.address,
+    tags: deleted ? [] : customer.tags,
+    address: deleted ? {} : customer.address,
     locale: customer.locale,
-    documents: customer.documents.map((d) => ({
+    _deleted: deleted,
+    documents: deleted ? [] : customer.documents.map((d) => ({
       id: d.id,
       type: d.docType,
       verified: d.verified,
