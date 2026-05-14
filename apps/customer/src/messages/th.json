@@ -259,7 +259,7 @@
   "delivery": {
     "selectMethod": "วิธีจัดส่ง",
     "standard": "จัดส่งปกติ",
-    "standardDesc": "จัดส่งทางขนส่ง 1-3 วันทำการ",
+    "standardDesc": "จัดส่งทางขนส่ง 2-4 วันทำการ",
     "messenger": "แมสเซนเจอร์",
     "messengerDesc": "จัดส่งมอเตอร์ไซค์ ภายในวันเดียว",
     "payDirectlyToProvider": "ชำระค่าจัดส่งกับผู้ให้บริการ (Grab/Lalamove) โดยตรง",
