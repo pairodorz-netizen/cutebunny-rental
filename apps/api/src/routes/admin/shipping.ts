@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../lib/db';
 import { success, created as created_response, error } from '../../lib/response';
 import { parseLocale, localizeField } from '../../lib/i18n';
+import { customerDisplayName, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
 
 const THAI_CARRIERS = [
   { code: 'kerry', name: 'Kerry Express', tracking_url: 'https://th.kerryexpress.com/en/track/?track=' },
@@ -85,8 +86,8 @@ adminShipping.get('/orders/:id/shipping-label', async (c) => {
       address: '123 Sukhumvit Rd, Khlong Toei, Bangkok 10110',
     },
     recipient: {
-      name: shippingData?.name ?? `${order.customer.firstName} ${order.customer.lastName}`,
-      phone: shippingData?.phone ?? order.customer.phone,
+      name: shippingData?.name ?? customerDisplayName(order.customer.firstName, order.customer.lastName, order.customer.email),
+      phone: shippingData?.phone ?? customerDisplayPhone(order.customer.phone, order.customer.email),
       address: shippingData?.address ?? '',
       subdistrict: (shippingData?.subdistrict as string) ?? '',
       district: (shippingData?.district as string) ?? '',
