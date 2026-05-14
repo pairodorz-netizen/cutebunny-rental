@@ -124,14 +124,15 @@ export default function ProductDetailPage() {
   const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
 
   function handleRangeSelect(startDate: string, endDate: string, days: number) {
-    if (deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
+    const isRangeComplete = startDate !== endDate;
+    if (isRangeComplete && deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
       setPendingStartDate(startDate);
-      setPendingEndDate(startDate === endDate ? null : endDate);
+      setPendingEndDate(endDate);
       setPendingDays(days);
       setShowDeliveryRiskModal(true);
       return;
     }
-    applyDateSelection(startDate, startDate === endDate ? null : endDate, days);
+    applyDateSelection(startDate, isRangeComplete ? endDate : null, days);
   }
 
   function applyDateSelection(startDate: string, endDate: string | null, days: number) {
