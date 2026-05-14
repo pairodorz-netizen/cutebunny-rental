@@ -259,7 +259,7 @@
   "delivery": {
     "selectMethod": "Delivery Method",
     "standard": "Standard",
-    "standardDesc": "Courier delivery, 2-4 business days",
+    "standardDesc": "Courier delivery, 2-4 days",
     "messenger": "Messenger",
     "messengerDesc": "Motorcycle same-day delivery",
     "payDirectlyToProvider": "Pay delivery fee directly to provider (Grab/Lalamove)",
