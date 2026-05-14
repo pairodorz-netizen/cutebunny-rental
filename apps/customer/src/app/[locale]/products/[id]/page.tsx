@@ -12,6 +12,8 @@ import { api, type ProductListItem } from '@/lib/api';
 import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
+import { isDeliveryAtRisk } from '@cutebunny/shared/delivery';
 
 const RENTAL_TIERS = [
   { days: 1, key: '1day' as const },
@@ -52,6 +54,10 @@ export default function ProductDetailPage() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
+  const [showDeliveryRiskModal, setShowDeliveryRiskModal] = useState(false);
+  const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
+  const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
+  const [pendingDays, setPendingDays] = useState<number | null>(null);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
 
   useEffect(() => {
@@ -118,10 +124,35 @@ export default function ProductDetailPage() {
   const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
 
   function handleRangeSelect(startDate: string, endDate: string, days: number) {
+    if (deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
+      setPendingStartDate(startDate);
+      setPendingEndDate(startDate === endDate ? null : endDate);
+      setPendingDays(days);
+      setShowDeliveryRiskModal(true);
+      return;
+    }
+    applyDateSelection(startDate, startDate === endDate ? null : endDate, days);
+  }
+
+  function applyDateSelection(startDate: string, endDate: string | null, days: number) {
     setSelectedStartDate(startDate);
-    setSelectedEndDate(startDate === endDate ? null : endDate);
+    setSelectedEndDate(endDate);
     setCustomDays(days);
     setSelectedRentalDays(days === 1 || days === 3 || days === 5 ? days : selectedRentalDays);
+  }
+
+  function handleRiskAccept() {
+    setShowDeliveryRiskModal(false);
+    if (pendingStartDate && pendingDays != null) {
+      applyDateSelection(pendingStartDate, pendingEndDate, pendingDays);
+    }
+  }
+
+  function handleRiskCancel() {
+    setShowDeliveryRiskModal(false);
+    setPendingStartDate(null);
+    setPendingEndDate(null);
+    setPendingDays(null);
   }
 
   function handlePresetClick(days: number) {
@@ -445,6 +476,12 @@ export default function ProductDetailPage() {
           </section>
         )}
       </div>
+
+      <DeliveryRiskModal
+        open={showDeliveryRiskModal}
+        onAccept={handleRiskAccept}
+        onCancel={handleRiskCancel}
+      />
     </div>
   );
 }

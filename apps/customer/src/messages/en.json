@@ -266,7 +266,11 @@
     "messengerDisabled": "Currently unavailable",
     "returnMethod": "Return Method",
     "returnMessengerRequired": "1-day rental: return via messenger (pay return fee separately)",
-    "returnStandard": "Standard courier return"
+    "returnStandard": "Standard courier return",
+    "riskTitle": "Delivery may not arrive in time",
+    "riskMessage": "Standard courier delivery takes 2-4 business days. Your selected date may not allow enough time. We recommend choosing messenger (same-day delivery) or selecting a later date.",
+    "riskAccept": "OK, accept the risk",
+    "riskCancel": "Cancel, choose another date"
   },
   "orderStatus": {
     "title": "Order Status",
