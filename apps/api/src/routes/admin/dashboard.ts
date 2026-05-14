@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { getDb } from '../../lib/db';
 import { success } from '../../lib/response';
 import { getProductRentalCounts } from '../../lib/rental-stats';
+import { customerDisplayName } from '@cutebunny/shared/customer-pii';
 
 const CACHE_TTL_MS = 15_000;
 const summaryCache: { data: unknown; ts: number } = { data: null, ts: 0 };
@@ -23,7 +24,7 @@ async function fetchSummaryData() {
     revenueThisMonth,
     allProductsSummary,
     lowStockAlert,
-    totalCustomers,
+    totalCustomersAll,
     totalOrders,
     totalProducts,
     ordersByStatusRaw,
@@ -51,7 +52,7 @@ async function fetchSummaryData() {
       where: { stockQuantity: { lte: 1 }, available: true },
       select: { id: true, sku: true, name: true, stockQuantity: true },
     }),
-    db.customer.count(),
+    db.customer.count({ where: { email: { not: { startsWith: 'deleted_' } } } }),
     db.order.count(),
     db.product.count(),
     db.order.groupBy({ by: ['status'], _count: { id: true } }),
@@ -65,7 +66,7 @@ async function fetchSummaryData() {
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { firstName: true, lastName: true } },
+        customer: { select: { firstName: true, lastName: true, email: true } },
         items: { select: { productName: true }, take: 1 },
       },
     }),
@@ -103,7 +104,7 @@ async function fetchSummaryData() {
       orders_shipped: ordersShipped,
       overdue_returns: overdueReturns,
       revenue_this_month: revenueThisMonth._sum.amount ?? 0,
-      total_customers: totalCustomers,
+      total_customers: totalCustomersAll,
       total_orders: totalOrders,
       top_products: topProductsSummary.map((p) => ({
         id: p.id, sku: p.sku, name: p.name,
@@ -125,7 +126,7 @@ async function fetchSummaryData() {
       recent_orders: recentOrders.map((o) => ({
         id: o.id,
         order_number: o.orderNumber,
-        customer_name: `${o.customer.firstName} ${o.customer.lastName}`,
+        customer_name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
         product_name: o.items[0]?.productName ?? '-',
         status: o.status,
         total_amount: o.totalAmount,
@@ -207,7 +208,7 @@ dashboard.get('/stats', async (c) => {
         stockQuantity: true,
       },
     }),
-    db.customer.count(),
+    db.customer.count({ where: { email: { not: { startsWith: 'deleted_' } } } }),
     db.order.count(),
     getProductRentalCounts(db),
   ]);
@@ -275,7 +276,7 @@ dashboard.get('/overview', async (c) => {
       take: 10,
       orderBy: { createdAt: 'desc' },
       include: {
-        customer: { select: { firstName: true, lastName: true } },
+        customer: { select: { firstName: true, lastName: true, email: true } },
         items: { select: { productName: true }, take: 1 },
       },
     }),
@@ -298,7 +299,7 @@ dashboard.get('/overview', async (c) => {
     recent_orders: recentOrders.map((o) => ({
       id: o.id,
       order_number: o.orderNumber,
-      customer_name: `${o.customer.firstName} ${o.customer.lastName}`,
+      customer_name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
       product_name: o.items[0]?.productName ?? '-',
       status: o.status,
       total_amount: o.totalAmount,

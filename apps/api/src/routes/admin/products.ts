@@ -7,6 +7,7 @@ import { getAdmin } from '../../middleware/auth';
 import { Prisma } from '@prisma/client';
 import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 import { getProductRentalCounts } from '../../lib/rental-stats';
+import { customerDisplayName, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
 
 const adminProducts = new Hono();
 
@@ -1066,7 +1067,7 @@ adminProducts.get('/:id/detail', async (c) => {
               rentalEndDate: true,
               totalDays: true,
               createdAt: true,
-              customer: { select: { firstName: true, lastName: true, phone: true } },
+              customer: { select: { firstName: true, lastName: true, phone: true, email: true } },
             },
           },
         },
@@ -1121,8 +1122,8 @@ adminProducts.get('/:id/detail', async (c) => {
     rental_history: product.orderItems.map((oi) => ({
       order_id: oi.order.id,
       order_number: oi.order.orderNumber,
-      customer_name: `${oi.order.customer.firstName} ${oi.order.customer.lastName}`,
-      customer_phone: oi.order.customer.phone,
+      customer_name: customerDisplayName(oi.order.customer.firstName, oi.order.customer.lastName, oi.order.customer.email),
+      customer_phone: customerDisplayPhone(oi.order.customer.phone, oi.order.customer.email),
       rental_start: oi.order.rentalStartDate.toISOString().split('T')[0],
       rental_end: oi.order.rentalEndDate.toISOString().split('T')[0],
       rental_days: oi.order.totalDays,

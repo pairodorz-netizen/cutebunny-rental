@@ -226,7 +226,7 @@ adminCustomers.post('/:id/adjust-credit', async (c) => {
       data: {
         txType: amount > 0 ? 'deposit_received' : 'deposit_returned',
         amount: Math.abs(amount),
-        note: `Credit adjustment for customer ${customer.firstName} ${customer.lastName}: ${reason} (${customer.creditBalance} → ${newBalance} THB)`,
+        note: `Credit adjustment for customer ${customerDisplayName(customer.firstName, customer.lastName, customer.email)}: ${reason} (${customer.creditBalance} → ${newBalance} THB)`,
       },
     });
   } catch {
