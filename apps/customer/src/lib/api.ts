@@ -233,6 +233,8 @@ export const api = {
       if (color) params.set('color', color);
       return request<{ data: { product_id: string; year: number; month: number; days: CalendarDay[] } }>(`/api/v1/products/${id}/calendar?${params}`);
     },
+    nextBooking: (id: string, after: string) =>
+      request<{ data: { product_id: string; next_booking_start: string | null } }>(`/api/v1/products/${id}/next-booking?after=${after}`),
   },
   cart: {
     create: (items: Array<{ product_id: string; rental_days: number; rental_start: string }>) =>

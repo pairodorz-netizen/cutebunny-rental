@@ -13,7 +13,8 @@ import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
-import { isDeliveryAtRisk } from '@cutebunny/shared/delivery';
+import type { DeliveryRiskVariant } from '@/components/delivery-risk-modal';
+import { isDeliveryAtRisk, isQueueCollisionRisk, QUEUE_BUFFER_DAYS_PROVINCE } from '@cutebunny/shared/delivery';
 
 const RENTAL_TIERS = [
   { days: 1, key: '1day' as const },
@@ -55,6 +56,7 @@ export default function ProductDetailPage() {
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
   const [showDeliveryRiskModal, setShowDeliveryRiskModal] = useState(false);
+  const [deliveryRiskVariant, setDeliveryRiskVariant] = useState<DeliveryRiskVariant>('delivery');
   const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
   const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
   const [pendingDays, setPendingDays] = useState<number | null>(null);
@@ -123,14 +125,31 @@ export default function ProductDetailPage() {
 
   const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
 
-  function handleRangeSelect(startDate: string, endDate: string, days: number) {
+  async function handleRangeSelect(startDate: string, endDate: string, days: number) {
     const isRangeComplete = startDate !== endDate;
     if (isRangeComplete && deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
       setPendingStartDate(startDate);
       setPendingEndDate(endDate);
       setPendingDays(days);
+      setDeliveryRiskVariant('delivery');
       setShowDeliveryRiskModal(true);
       return;
+    }
+    if (isRangeComplete && deliveryMethod === 'standard') {
+      try {
+        const res = await api.products.nextBooking(productId, endDate);
+        const nextStart = res.data?.next_booking_start ?? null;
+        if (nextStart && isQueueCollisionRisk(new Date(endDate), new Date(nextStart), QUEUE_BUFFER_DAYS_PROVINCE)) {
+          setPendingStartDate(startDate);
+          setPendingEndDate(endDate);
+          setPendingDays(days);
+          setDeliveryRiskVariant('queueCollision');
+          setShowDeliveryRiskModal(true);
+          return;
+        }
+      } catch {
+        // endpoint unavailable — skip queue collision check
+      }
     }
     applyDateSelection(startDate, isRangeComplete ? endDate : null, days);
   }
@@ -480,6 +499,7 @@ export default function ProductDetailPage() {
 
       <DeliveryRiskModal
         open={showDeliveryRiskModal}
+        variant={deliveryRiskVariant}
         onAccept={handleRiskAccept}
         onCancel={handleRiskCancel}
       />

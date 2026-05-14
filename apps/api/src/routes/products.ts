@@ -407,4 +407,38 @@ products.get('/:id/calendar', async (c) => {
   return error(c, 404, 'NOT_FOUND', 'Product not found');
 });
 
+// C04: GET /api/v1/products/:id/next-booking — First booked date after a given date
+products.get('/:id/next-booking', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const afterStr = c.req.query('after');
+
+  if (!afterStr || !/^\d{4}-\d{2}-\d{2}$/.test(afterStr)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Query param "after" is required (YYYY-MM-DD)');
+  }
+
+  const afterDate = new Date(afterStr + 'T00:00:00.000Z');
+
+  try {
+    const slot = await db.availabilityCalendar.findFirst({
+      where: {
+        productId: id,
+        calendarDate: { gt: afterDate },
+        slotStatus: { not: 'available' },
+      },
+      orderBy: { calendarDate: 'asc' },
+      select: { calendarDate: true },
+    });
+
+    return success(c, {
+      product_id: id,
+      next_booking_start: slot
+        ? slot.calendarDate.toISOString().split('T')[0]
+        : null,
+    });
+  } catch {
+    return success(c, { product_id: id, next_booking_start: null });
+  }
+});
+
 export default products;

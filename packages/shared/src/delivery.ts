@@ -9,6 +9,12 @@
 /** Maximum calendar days for standard delivery (upper bound of "2-4 days"). */
 export const MAX_STANDARD_DELIVERY_DAYS = 4;
 
+/** Buffer days for queue collision: Bangkok (return shipping is fast). */
+export const QUEUE_BUFFER_DAYS_BKK = 2;
+
+/** Buffer days for queue collision: provinces (return shipping slower). */
+export const QUEUE_BUFFER_DAYS_PROVINCE = 5;
+
 /**
  * Count calendar days between two dates (exclusive of start, inclusive of end).
  */
@@ -29,4 +35,21 @@ export function isDeliveryAtRisk(startDate: Date, today?: Date): boolean {
   const reference = today ?? new Date();
   const days = countCalendarDays(reference, startDate);
   return days < MAX_STANDARD_DELIVERY_DAYS;
+}
+
+/**
+ * Check whether a rental end date is too close to the next booking,
+ * leaving insufficient buffer for return delivery to the next customer.
+ *
+ * Returns true when the gap (end_date → next_booking_start) is ≤ bufferDays.
+ * If nextBookingStart is null (no upcoming booking), returns false.
+ */
+export function isQueueCollisionRisk(
+  endDate: Date,
+  nextBookingStart: Date | null,
+  bufferDays: number = QUEUE_BUFFER_DAYS_PROVINCE,
+): boolean {
+  if (!nextBookingStart) return false;
+  const gap = countCalendarDays(endDate, nextBookingStart);
+  return gap <= bufferDays;
 }
