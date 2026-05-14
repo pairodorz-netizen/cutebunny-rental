@@ -3,9 +3,11 @@ import {
   countCalendarDays,
   isDeliveryAtRisk,
   isQueueCollisionRisk,
+  isPreviousReturnRisk,
   MAX_STANDARD_DELIVERY_DAYS,
   QUEUE_BUFFER_DAYS_BKK,
   QUEUE_BUFFER_DAYS_PROVINCE,
+  PREVIOUS_RETURN_BUFFER_DAYS,
 } from '@cutebunny/shared/delivery';
 
 describe('delivery risk — calendar day calculation', () => {
@@ -148,6 +150,102 @@ describe('delivery risk — calendar day calculation', () => {
 
       it('returns false at 6-day gap with default buffer', () => {
         expect(isQueueCollisionRisk(endDate, new Date('2026-05-26'))).toBe(false);
+      });
+    });
+  });
+
+  describe('previous return risk constant', () => {
+    it('PREVIOUS_RETURN_BUFFER_DAYS is 4', () => {
+      expect(PREVIOUS_RETURN_BUFFER_DAYS).toBe(4);
+    });
+  });
+
+  describe('isPreviousReturnRisk', () => {
+    // Scenario: new rental starts May 20, previous booking ended on various dates
+    const startDate = new Date('2026-05-20');
+
+    describe('gap < 4 → warn', () => {
+      it('returns true when gap = 1 day (prev ended May 19)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-19'))).toBe(true);
+      });
+
+      it('returns true when gap = 2 days (prev ended May 18)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-18'))).toBe(true);
+      });
+
+      it('returns true when gap = 3 days (prev ended May 17)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-17'))).toBe(true);
+      });
+
+      it('returns true when gap = 0 days (prev ended same day)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-20'))).toBe(true);
+      });
+    });
+
+    describe('gap = 4 → no warn (edge)', () => {
+      it('returns false when gap = 4 days exactly (prev ended May 16)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-16'))).toBe(false);
+      });
+    });
+
+    describe('gap = 5+ → no warn', () => {
+      it('returns false when gap = 5 days (prev ended May 15)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-15'))).toBe(false);
+      });
+
+      it('returns false when gap = 7 days (prev ended May 13)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-13'))).toBe(false);
+      });
+
+      it('returns false when gap = 10 days (prev ended May 10)', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-10'))).toBe(false);
+      });
+    });
+
+    describe('previous = null → no warn', () => {
+      it('returns false when previousBookingEnd is null', () => {
+        expect(isPreviousReturnRisk(startDate, null)).toBe(false);
+      });
+
+      it('returns false when previousBookingEnd is null with explicit buffer', () => {
+        expect(isPreviousReturnRisk(startDate, null, 4)).toBe(false);
+      });
+    });
+
+    describe('custom buffer', () => {
+      it('returns true at gap=2 with bufferDays=3', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-18'), 3)).toBe(true);
+      });
+
+      it('returns false at gap=3 with bufferDays=3', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-17'), 3)).toBe(false);
+      });
+
+      it('returns true at gap=1 with bufferDays=2', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-19'), 2)).toBe(true);
+      });
+
+      it('returns false at gap=2 with bufferDays=2', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-18'), 2)).toBe(false);
+      });
+    });
+
+    describe('default buffer uses PREVIOUS_RETURN_BUFFER_DAYS (4)', () => {
+      it('returns true at 3-day gap with default buffer', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-17'))).toBe(true);
+      });
+
+      it('returns false at 4-day gap with default buffer', () => {
+        expect(isPreviousReturnRisk(startDate, new Date('2026-05-16'))).toBe(false);
+      });
+    });
+
+    describe('weekends do not affect calculation', () => {
+      it('gap across weekend still uses calendar days', () => {
+        // Fri May 15 → Mon May 18: gap = 3 calendar days → < 4 → true
+        expect(isPreviousReturnRisk(new Date('2026-05-18'), new Date('2026-05-15'))).toBe(true);
+        // Thu May 14 → Mon May 18: gap = 4 calendar days → = 4 → false
+        expect(isPreviousReturnRisk(new Date('2026-05-18'), new Date('2026-05-14'))).toBe(false);
       });
     });
   });

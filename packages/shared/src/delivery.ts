@@ -15,6 +15,9 @@ export const QUEUE_BUFFER_DAYS_BKK = 2;
 /** Buffer days for queue collision: provinces (return shipping slower). */
 export const QUEUE_BUFFER_DAYS_PROVINCE = 5;
 
+/** Buffer days for previous return: receive + QC before next dispatch. */
+export const PREVIOUS_RETURN_BUFFER_DAYS = 4;
+
 /**
  * Count calendar days between two dates (exclusive of start, inclusive of end).
  */
@@ -52,4 +55,21 @@ export function isQueueCollisionRisk(
   if (!nextBookingStart) return false;
   const gap = countCalendarDays(endDate, nextBookingStart);
   return gap <= bufferDays;
+}
+
+/**
+ * Check whether a rental start date is too close to the previous booking's
+ * end date, leaving insufficient time for return shipping + QC.
+ *
+ * Returns true when the gap (previous_end → new_start) is < bufferDays.
+ * If previousBookingEnd is null (no prior booking), returns false.
+ */
+export function isPreviousReturnRisk(
+  startDate: Date,
+  previousBookingEnd: Date | null,
+  bufferDays: number = PREVIOUS_RETURN_BUFFER_DAYS,
+): boolean {
+  if (!previousBookingEnd) return false;
+  const gap = countCalendarDays(previousBookingEnd, startDate);
+  return gap < bufferDays;
 }

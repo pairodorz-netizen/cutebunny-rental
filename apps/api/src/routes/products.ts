@@ -441,4 +441,38 @@ products.get('/:id/next-booking', async (c) => {
   }
 });
 
+// C05: GET /api/v1/products/:id/previous-booking — Last booked date before a given date
+products.get('/:id/previous-booking', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+  const beforeStr = c.req.query('before');
+
+  if (!beforeStr || !/^\d{4}-\d{2}-\d{2}$/.test(beforeStr)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Query param "before" is required (YYYY-MM-DD)');
+  }
+
+  const beforeDate = new Date(beforeStr + 'T00:00:00.000Z');
+
+  try {
+    const slot = await db.availabilityCalendar.findFirst({
+      where: {
+        productId: id,
+        calendarDate: { lt: beforeDate },
+        slotStatus: { not: 'available' },
+      },
+      orderBy: { calendarDate: 'desc' },
+      select: { calendarDate: true },
+    });
+
+    return success(c, {
+      product_id: id,
+      previous_booking_end: slot
+        ? slot.calendarDate.toISOString().split('T')[0]
+        : null,
+    });
+  } catch {
+    return success(c, { product_id: id, previous_booking_end: null });
+  }
+});
+
 export default products;

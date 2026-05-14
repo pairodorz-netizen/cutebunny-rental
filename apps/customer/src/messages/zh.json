@@ -273,7 +273,11 @@
     "queueCollisionTitle": "与下一订单时间冲突",
     "queueCollisionMessage": "您的归还日期与下一位客户的预订时间过近，可能影响下一位客户的配送。建议提前归还或选择其他日期。",
     "queueCollisionAccept": "确定，接受风险",
-    "queueCollisionCancel": "取消，重新选择日期"
+    "queueCollisionCancel": "取消，重新选择日期",
+    "previousReturnTitle": "前一订单可能尚未归还",
+    "previousReturnMessage": "该套装租赁至 {previousEndDate} — 店铺需要时间接收退还并清洗后才能发货。",
+    "previousReturnAccept": "确定，接受风险",
+    "previousReturnCancel": "取消，重新选择日期"
   },
   "orderStatus": {
     "title": "订单状态",
