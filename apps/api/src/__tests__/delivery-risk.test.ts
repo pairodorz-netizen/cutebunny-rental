@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { countCalendarDays, isDeliveryAtRisk, MAX_STANDARD_DELIVERY_DAYS } from '@cutebunny/shared/delivery';
+import {
+  countCalendarDays,
+  isDeliveryAtRisk,
+  isQueueCollisionRisk,
+  MAX_STANDARD_DELIVERY_DAYS,
+  QUEUE_BUFFER_DAYS_BKK,
+  QUEUE_BUFFER_DAYS_PROVINCE,
+} from '@cutebunny/shared/delivery';
 
 describe('delivery risk — calendar day calculation', () => {
   it('MAX_STANDARD_DELIVERY_DAYS is 4', () => {
@@ -64,6 +71,84 @@ describe('delivery risk — calendar day calculation', () => {
       expect(isDeliveryAtRisk(new Date('2026-05-19'), friday)).toBe(false);
       // From May 15: May 18 = +3 → at risk
       expect(isDeliveryAtRisk(new Date('2026-05-18'), friday)).toBe(true);
+    });
+  });
+
+  describe('queue collision constants', () => {
+    it('QUEUE_BUFFER_DAYS_BKK is 2', () => {
+      expect(QUEUE_BUFFER_DAYS_BKK).toBe(2);
+    });
+
+    it('QUEUE_BUFFER_DAYS_PROVINCE is 5', () => {
+      expect(QUEUE_BUFFER_DAYS_PROVINCE).toBe(5);
+    });
+  });
+
+  describe('isQueueCollisionRisk', () => {
+    const endDate = new Date('2026-05-20');
+
+    describe('BKK threshold (2 days)', () => {
+      it('returns true when gap = 0 days (next booking same day)', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-20'), QUEUE_BUFFER_DAYS_BKK)).toBe(true);
+      });
+
+      it('returns true when gap = 1 day (May 21)', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-21'), QUEUE_BUFFER_DAYS_BKK)).toBe(true);
+      });
+
+      it('returns true when gap = 2 days (May 22) — at threshold', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-22'), QUEUE_BUFFER_DAYS_BKK)).toBe(true);
+      });
+
+      it('returns false when gap = 3 days (May 23) — beyond threshold', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-23'), QUEUE_BUFFER_DAYS_BKK)).toBe(false);
+      });
+    });
+
+    describe('province threshold (5 days)', () => {
+      it('returns true when gap = 1 day (May 21)', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-21'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(true);
+      });
+
+      it('returns true when gap = 3 days (May 23)', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-23'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(true);
+      });
+
+      it('returns true when gap = 5 days (May 25) — at threshold', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-25'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(true);
+      });
+
+      it('returns false when gap = 6 days (May 26) — beyond threshold', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-26'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(false);
+      });
+
+      it('returns false when gap = 10 days (May 30)', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-30'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(false);
+      });
+    });
+
+    describe('no next booking', () => {
+      it('returns false when nextBookingStart is null', () => {
+        expect(isQueueCollisionRisk(endDate, null)).toBe(false);
+      });
+
+      it('returns false when nextBookingStart is null (BKK threshold)', () => {
+        expect(isQueueCollisionRisk(endDate, null, QUEUE_BUFFER_DAYS_BKK)).toBe(false);
+      });
+
+      it('returns false when nextBookingStart is null (province threshold)', () => {
+        expect(isQueueCollisionRisk(endDate, null, QUEUE_BUFFER_DAYS_PROVINCE)).toBe(false);
+      });
+    });
+
+    describe('default buffer uses province threshold', () => {
+      it('returns true at 5-day gap with default buffer', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-25'))).toBe(true);
+      });
+
+      it('returns false at 6-day gap with default buffer', () => {
+        expect(isQueueCollisionRisk(endDate, new Date('2026-05-26'))).toBe(false);
+      });
     });
   });
 });

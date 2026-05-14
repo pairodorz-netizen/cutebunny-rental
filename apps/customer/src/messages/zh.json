@@ -269,7 +269,11 @@
     "riskTitle": "可能无法按时送达",
     "riskMessage": "曼谷市内配送请预留至少2天（含到达日），外府地区请预留3–5天（含到达日）。如您在曼谷且急需使用，建议选择即时快递（当日送达）或选择更晚的日期。",
     "riskAccept": "确定，接受风险",
-    "riskCancel": "取消，重新选择日期"
+    "riskCancel": "取消，重新选择日期",
+    "queueCollisionTitle": "与下一订单时间冲突",
+    "queueCollisionMessage": "您的归还日期与下一位客户的预订时间过近，可能影响下一位客户的配送。建议提前归还或选择其他日期。",
+    "queueCollisionAccept": "确定，接受风险",
+    "queueCollisionCancel": "取消，重新选择日期"
   },
   "orderStatus": {
     "title": "订单状态",
