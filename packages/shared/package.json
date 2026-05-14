@@ -22,7 +22,8 @@
     "./orders-archive-window": "./src/orders-archive-window.ts",
     "./admin-orders-query-keys": "./src/admin-orders-query-keys.ts",
     "./order-status": "./src/order-status.ts",
-    "./customer-pii": "./src/customer-pii.ts"
+    "./customer-pii": "./src/customer-pii.ts",
+    "./delivery": "./src/delivery.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",
