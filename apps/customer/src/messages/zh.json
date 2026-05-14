@@ -258,7 +258,7 @@
   "delivery": {
     "selectMethod": "配送方式",
     "standard": "标准配送",
-    "standardDesc": "快递配送，2-4个工作日",
+    "standardDesc": "快递配送，2-4天",
     "messenger": "即时快递",
     "messengerDesc": "摩托车当日送达",
     "payDirectlyToProvider": "配送费直接支付给服务商 (Grab/Lalamove)",
