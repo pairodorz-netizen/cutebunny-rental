@@ -126,9 +126,8 @@ export default function ProductDetailPage() {
 
   const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
 
-  async function handleRangeSelect(startDate: string, endDate: string, days: number) {
-    const isRangeComplete = startDate !== endDate;
-    if (isRangeComplete && deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
+  async function handleRangeSelect(startDate: string, endDate: string, days: number, isComplete: boolean = false) {
+    if (isComplete && deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
       setPendingStartDate(startDate);
       setPendingEndDate(endDate);
       setPendingDays(days);
@@ -137,7 +136,7 @@ export default function ProductDetailPage() {
       setShowDeliveryRiskModal(true);
       return;
     }
-    if (isRangeComplete && deliveryMethod === 'standard') {
+    if (isComplete && deliveryMethod === 'standard') {
       try {
         const res = await api.products.nextBooking(productId, endDate);
         const nextStart = res.data?.next_booking_start ?? null;
@@ -154,7 +153,7 @@ export default function ProductDetailPage() {
         // endpoint unavailable — skip queue collision check
       }
     }
-    if (isRangeComplete && deliveryMethod === 'standard') {
+    if (isComplete && deliveryMethod === 'standard') {
       try {
         const res = await api.products.previousBooking(productId, startDate);
         const prevEnd = res.data?.previous_booking_end ?? null;
@@ -171,7 +170,7 @@ export default function ProductDetailPage() {
         // endpoint unavailable — skip previous return check
       }
     }
-    applyDateSelection(startDate, isRangeComplete ? endDate : null, days);
+    applyDateSelection(startDate, isComplete ? endDate : null, days);
   }
 
   function applyDateSelection(startDate: string, endDate: string | null, days: number) {

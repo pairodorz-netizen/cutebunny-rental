@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface AvailabilityCalendarProps {
   productId: string;
-  onSelectRange?: (startDate: string, endDate: string, days: number) => void;
+  onSelectRange?: (startDate: string, endDate: string, days: number, isComplete: boolean) => void;
   selectedSize?: string | null;
   selectedColor?: string | null;
 }
@@ -92,7 +92,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
-            onSelectRange?.(dateStr, dateStr, 1);
+            onSelectRange?.(dateStr, dateStr, 1, false);
     } else if (newClickCount === 2 && rangeStart) {
       // Second click = end date
       let start = rangeStart;
@@ -120,14 +120,14 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       const endD = new Date(end);
       const diffMs = endD.getTime() - startD.getTime();
       const totalDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
-      onSelectRange?.(start, end, totalDays);
+      onSelectRange?.(start, end, totalDays, true);
     } else {
       // Third click = reset, new start date
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
       // Notify parent to reset to 1-day price
-      onSelectRange?.(dateStr, dateStr, 1);
+      onSelectRange?.(dateStr, dateStr, 1, false);
     }
   }, [clickCount, rangeStart, onSelectRange, hasBlockedDayInRange]);
 
