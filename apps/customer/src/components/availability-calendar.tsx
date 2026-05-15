@@ -32,6 +32,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [clickCount, setClickCount] = useState(0);
   const clickCountRef = useRef(0);
+  const rangeStartRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (resetKey !== undefined && resetKey > 0) {
@@ -39,6 +40,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       setRangeEnd(null);
       setClickCount(0);
       clickCountRef.current = 0;
+      rangeStartRef.current = null;
     }
   }, [resetKey]);
 
@@ -101,17 +103,19 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     if (newClickCount === 1) {
       // First click = start date
       clickCountRef.current = 1;
+      rangeStartRef.current = dateStr;
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
       onSelectRange?.(dateStr, dateStr, 1, false);
-    } else if (newClickCount === 2 && rangeStart) {
-      // Second click = end date
-      let start = rangeStart;
+    } else if (newClickCount === 2 && rangeStartRef.current) {
+      // Second click = end date (uses ref to avoid stale closure on rapid clicks)
+      let start = rangeStartRef.current;
       let end = dateStr;
       // Ensure start <= end
       if (end < start) {
         [start, end] = [end, start];
+        rangeStartRef.current = start;
         setRangeStart(start);
       }
 
@@ -119,6 +123,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       if (hasBlockedDayInRange(start, end)) {
         // Reset selection — cannot book across blocked days
         clickCountRef.current = 1;
+        rangeStartRef.current = dateStr;
         setRangeStart(dateStr);
         setRangeEnd(null);
         setClickCount(1);
@@ -138,13 +143,14 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     } else {
       // Third click = reset, new start date
       clickCountRef.current = 1;
+      rangeStartRef.current = dateStr;
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
       // Notify parent to reset to 1-day price
       onSelectRange?.(dateStr, dateStr, 1, false);
     }
-  }, [rangeStart, onSelectRange, hasBlockedDayInRange]);
+  }, [onSelectRange, hasBlockedDayInRange]);
 
   return (
     <div className="rounded-lg border p-4">
