@@ -105,6 +105,7 @@
     "trackingNumber": "หมายเลขพัสดุ",
     "note": "หมายเหตุ",
     "afterSales": "หลังการขาย",
+    "deletedCustomerBanner": "ลูกค้ารายนี้ถูกลบแล้ว — ข้อมูลส่วนตัวถูก mask ตาม PDPA",
     "eventType": "ประเภท",
     "selectType": "เลือกประเภท",
     "amount": "จำนวนเงิน",

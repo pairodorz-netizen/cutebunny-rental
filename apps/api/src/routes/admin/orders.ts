@@ -126,6 +126,7 @@ adminOrders.get('/', async (c) => {
         name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
         email: customerDisplayEmail(o.customer.email),
         phone: customerDisplayPhone(o.customer.phone, o.customer.email),
+        _deleted: isCustomerDeleted(o.customer.email),
       },
       items: o.items.map((item) => {
         const product = productMap.get(item.productId);
@@ -310,6 +311,7 @@ adminOrders.get('/:id', async (c) => {
         phone: customerDisplayPhone(order.customer.phone, order.customer.email),
         email: customerDisplayEmail(order.customer.email),
         address: deleted ? {} : order.customer.address,
+        _deleted: deleted,
         // BUG-519: deduplicate customer documents by doc_type (keep latest).
         documents: deleted ? [] : [...order.customer.documents]
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

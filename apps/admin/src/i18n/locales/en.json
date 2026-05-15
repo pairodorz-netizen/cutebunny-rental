@@ -105,6 +105,7 @@
     "trackingNumber": "Tracking Number",
     "note": "Note",
     "afterSales": "After-Sales",
+    "deletedCustomerBanner": "This customer has been deleted — personal data is masked per PDPA",
     "eventType": "Event Type",
     "selectType": "Select type",
     "amount": "Amount",

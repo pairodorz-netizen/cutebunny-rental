@@ -148,6 +148,7 @@ export interface AdminOrder {
     name: string;
     email: string;
     phone: string;
+    _deleted?: boolean;
   };
   items: Array<{
     id: string;
@@ -200,6 +201,7 @@ export interface AdminOrderDetail {
     phone: string;
     email: string;
     address: Record<string, unknown> | null;
+    _deleted?: boolean;
     documents: Array<{
       id: string;
       doc_type: string;
