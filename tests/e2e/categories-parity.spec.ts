@@ -173,6 +173,8 @@ test.describe('BUG-504-A05 categories parity (customer ↔ API)', () => {
   test('gate 6 — /en/products renders name_en (locale switch keeps parity)', async ({
     page,
   }) => {
+    // BUG-544: Thai-only mode — /en/* redirects to /th/*, so this test is skipped
+    test.skip(true, 'BUG-544: Thai-only mode — /en/* now 301-redirects to /th/*');
     await gotoProductsPage(page, '/en/products');
     const rendered = await readRenderedCategoryButtons(page);
     expect(rendered.length).toBeGreaterThan(0);
