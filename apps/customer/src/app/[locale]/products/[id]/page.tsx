@@ -139,23 +139,6 @@ export default function ProductDetailPage() {
     }
     if (isComplete && deliveryMethod === 'standard') {
       try {
-        const res = await api.products.nextBooking(productId, endDate);
-        const nextStart = res.data?.next_booking_start ?? null;
-        if (nextStart && isQueueCollisionRisk(new Date(endDate), new Date(nextStart), QUEUE_BUFFER_DAYS_PROVINCE)) {
-          setPendingStartDate(startDate);
-          setPendingEndDate(endDate);
-          setPendingDays(days);
-          setDeliveryRiskVariant('queueCollision');
-          setRiskMessageParams(undefined);
-          setShowDeliveryRiskModal(true);
-          return;
-        }
-      } catch {
-        // endpoint unavailable — skip queue collision check
-      }
-    }
-    if (isComplete && deliveryMethod === 'standard') {
-      try {
         const res = await api.products.previousBooking(productId, startDate);
         const prevEnd = res.data?.previous_booking_end ?? null;
         if (prevEnd && isPreviousReturnRisk(new Date(startDate), new Date(prevEnd), PREVIOUS_RETURN_BUFFER_DAYS)) {
@@ -169,6 +152,23 @@ export default function ProductDetailPage() {
         }
       } catch {
         // endpoint unavailable — skip previous return check
+      }
+    }
+    if (isComplete && deliveryMethod === 'standard') {
+      try {
+        const res = await api.products.nextBooking(productId, endDate);
+        const nextStart = res.data?.next_booking_start ?? null;
+        if (nextStart && isQueueCollisionRisk(new Date(endDate), new Date(nextStart), QUEUE_BUFFER_DAYS_PROVINCE)) {
+          setPendingStartDate(startDate);
+          setPendingEndDate(endDate);
+          setPendingDays(days);
+          setDeliveryRiskVariant('queueCollision');
+          setRiskMessageParams(undefined);
+          setShowDeliveryRiskModal(true);
+          return;
+        }
+      } catch {
+        // endpoint unavailable — skip queue collision check
       }
     }
     applyDateSelection(startDate, isComplete ? endDate : null, days);
