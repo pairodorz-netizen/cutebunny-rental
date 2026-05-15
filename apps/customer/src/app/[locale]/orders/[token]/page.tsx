@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
 import { ArrowLeft } from 'lucide-react';
 import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
+import { ProductImage } from '@/components/product-image';
 
 function formatDate(dateStr: string, loc: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -99,9 +100,7 @@ export default function OrderStatusPage() {
           {order.items.map((item, idx) => (
             <div key={idx} className="flex items-center gap-4 p-4">
               <div className="w-12 h-16 bg-muted rounded shrink-0 overflow-hidden">
-                {item.thumbnail && (
-                  <img src={item.thumbnail} alt={item.product_name} className="w-full h-full object-cover" />
-                )}
+                <ProductImage src={item.thumbnail} alt={item.product_name} iconSize="w-6 h-6" />
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm">{item.product_name}</p>

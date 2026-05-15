@@ -11,6 +11,7 @@ import type { DeliveryMethodType } from '@/components/delivery-method-selector';
 import { api, type ProductListItem } from '@/lib/api';
 import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
+import { ProductImage } from '@/components/product-image';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
 import type { DeliveryRiskVariant } from '@/components/delivery-risk-modal';
@@ -286,17 +287,11 @@ export default function ProductDetailPage() {
             )}
             {/* Main photo */}
             <div className="flex-1 rounded-2xl bg-white overflow-hidden shadow-soft" style={{ height: 680 }}>
-              {product.images.length > 0 ? (
-                <img
-                  src={product.images[selectedImage]?.url}
-                  alt={product.images[selectedImage]?.alt_text ?? product.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-cb-secondary">
-                  {product.name}
-                </div>
-              )}
+              <ProductImage
+                src={product.images[selectedImage]?.url}
+                alt={product.images[selectedImage]?.alt_text ?? product.name}
+                iconSize="w-16 h-16"
+              />
             </div>
           </div>
 
@@ -499,9 +494,11 @@ export default function ProductDetailPage() {
                   className="group rounded-2xl bg-white overflow-hidden hover:shadow-lift transition-all"
                 >
                   <div className="aspect-[3/4] bg-muted overflow-hidden">
-                    {rp.thumbnail && (
-                      <img src={rp.thumbnail} alt={rp.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    )}
+                    <ProductImage
+                      src={rp.thumbnail}
+                      alt={rp.name}
+                      className="group-hover:scale-105 transition-transform duration-500"
+                    />
                   </div>
                   <div className="p-4">
                     <p className="text-sm font-medium text-cb-heading line-clamp-1">{rp.name}</p>

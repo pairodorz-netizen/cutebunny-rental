@@ -5,6 +5,7 @@ import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 import { Heart } from 'lucide-react';
 import type { ProductListItem } from '@/lib/api';
+import { ProductImage } from './product-image';
 
 interface ProductCardProps {
   product: ProductListItem;
@@ -21,17 +22,11 @@ export function ProductCard({ product, badge }: ProductCardProps) {
       className="group block rounded-2xl bg-white overflow-hidden hover:shadow-lift transition-all duration-300"
     >
       <div className="aspect-[3/4] bg-muted relative overflow-hidden">
-        {product.thumbnail ? (
-          <img
-            src={product.thumbnail}
-            alt={product.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-cb-secondary text-sm">
-            {product.name}
-          </div>
-        )}
+        <ProductImage
+          src={product.thumbnail}
+          alt={product.name}
+          className="group-hover:scale-105 transition-transform duration-500"
+        />
         {/* Badge */}
         {badge === 'bestseller' && (
           <span className="absolute top-3 left-3 bg-cb-active text-white text-[10px] font-bold uppercase px-2.5 py-1 rounded-full tracking-wide">

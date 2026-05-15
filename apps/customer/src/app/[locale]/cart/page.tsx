@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { api, OrderResponse, CustomerProfile } from '@/lib/api';
 import { Trash2, Upload, FileCheck, X, Bike, Check } from 'lucide-react';
+import { ProductImage } from '@/components/product-image';
 
 const TOKEN_KEY = 'cb_customer_token';
 
@@ -347,9 +348,7 @@ export default function CartPage() {
             {items.map((item) => (
               <div key={item.product_id} className="flex items-center gap-4 rounded-lg border p-4">
                 <div className="w-16 h-20 bg-muted rounded overflow-hidden shrink-0">
-                  {item.thumbnail && (
-                    <img src={item.thumbnail} alt={item.product_name} className="w-full h-full object-cover" />
-                  )}
+                  <ProductImage src={item.thumbnail} alt={item.product_name} iconSize="w-7 h-7" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium truncate">{item.product_name}</h3>
