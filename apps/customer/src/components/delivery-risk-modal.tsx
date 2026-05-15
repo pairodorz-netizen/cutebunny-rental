@@ -3,24 +3,27 @@
 import { useTranslations } from 'next-intl';
 import { AlertTriangle } from 'lucide-react';
 
-export type DeliveryRiskVariant = 'delivery' | 'queueCollision';
+export type DeliveryRiskVariant = 'delivery' | 'queueCollision' | 'previousReturn';
 
 interface DeliveryRiskModalProps {
   open: boolean;
   variant?: DeliveryRiskVariant;
+  messageParams?: Record<string, string>;
   onAccept: () => void;
   onCancel: () => void;
 }
 
-export function DeliveryRiskModal({ open, variant = 'delivery', onAccept, onCancel }: DeliveryRiskModalProps) {
+export function DeliveryRiskModal({ open, variant = 'delivery', messageParams, onAccept, onCancel }: DeliveryRiskModalProps) {
   const t = useTranslations('delivery');
 
   if (!open) return null;
 
-  const titleKey = variant === 'queueCollision' ? 'queueCollisionTitle' : 'riskTitle';
-  const messageKey = variant === 'queueCollision' ? 'queueCollisionMessage' : 'riskMessage';
-  const acceptKey = variant === 'queueCollision' ? 'queueCollisionAccept' : 'riskAccept';
-  const cancelKey = variant === 'queueCollision' ? 'queueCollisionCancel' : 'riskCancel';
+  const keyMap: Record<DeliveryRiskVariant, { title: string; message: string; accept: string; cancel: string }> = {
+    delivery: { title: 'riskTitle', message: 'riskMessage', accept: 'riskAccept', cancel: 'riskCancel' },
+    queueCollision: { title: 'queueCollisionTitle', message: 'queueCollisionMessage', accept: 'queueCollisionAccept', cancel: 'queueCollisionCancel' },
+    previousReturn: { title: 'previousReturnTitle', message: 'previousReturnMessage', accept: 'previousReturnAccept', cancel: 'previousReturnCancel' },
+  };
+  const { title: titleKey, message: messageKey, accept: acceptKey, cancel: cancelKey } = keyMap[variant];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -37,7 +40,7 @@ export function DeliveryRiskModal({ open, variant = 'delivery', onAccept, onCanc
         </div>
 
         <p className="text-sm text-cb-secondary leading-relaxed">
-          {t(messageKey)}
+          {t(messageKey, messageParams)}
         </p>
 
         <div className="flex flex-col gap-2 pt-2">

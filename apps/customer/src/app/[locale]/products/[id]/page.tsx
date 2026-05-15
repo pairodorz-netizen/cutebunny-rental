@@ -14,7 +14,7 @@ import { ProductCard } from '@/components/product-card';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
 import type { DeliveryRiskVariant } from '@/components/delivery-risk-modal';
-import { isDeliveryAtRisk, isQueueCollisionRisk, QUEUE_BUFFER_DAYS_PROVINCE } from '@cutebunny/shared/delivery';
+import { isDeliveryAtRisk, isQueueCollisionRisk, isPreviousReturnRisk, QUEUE_BUFFER_DAYS_PROVINCE, PREVIOUS_RETURN_BUFFER_DAYS } from '@cutebunny/shared/delivery';
 
 const RENTAL_TIERS = [
   { days: 1, key: '1day' as const },
@@ -60,6 +60,7 @@ export default function ProductDetailPage() {
   const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
   const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
   const [pendingDays, setPendingDays] = useState<number | null>(null);
+  const [riskMessageParams, setRiskMessageParams] = useState<Record<string, string> | undefined>(undefined);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
 
   useEffect(() => {
@@ -132,6 +133,7 @@ export default function ProductDetailPage() {
       setPendingEndDate(endDate);
       setPendingDays(days);
       setDeliveryRiskVariant('delivery');
+      setRiskMessageParams(undefined);
       setShowDeliveryRiskModal(true);
       return;
     }
@@ -144,11 +146,29 @@ export default function ProductDetailPage() {
           setPendingEndDate(endDate);
           setPendingDays(days);
           setDeliveryRiskVariant('queueCollision');
+          setRiskMessageParams(undefined);
           setShowDeliveryRiskModal(true);
           return;
         }
       } catch {
         // endpoint unavailable — skip queue collision check
+      }
+    }
+    if (isRangeComplete && deliveryMethod === 'standard') {
+      try {
+        const res = await api.products.previousBooking(productId, startDate);
+        const prevEnd = res.data?.previous_booking_end ?? null;
+        if (prevEnd && isPreviousReturnRisk(new Date(startDate), new Date(prevEnd), PREVIOUS_RETURN_BUFFER_DAYS)) {
+          setPendingStartDate(startDate);
+          setPendingEndDate(endDate);
+          setPendingDays(days);
+          setDeliveryRiskVariant('previousReturn');
+          setRiskMessageParams({ previousEndDate: prevEnd });
+          setShowDeliveryRiskModal(true);
+          return;
+        }
+      } catch {
+        // endpoint unavailable — skip previous return check
       }
     }
     applyDateSelection(startDate, isRangeComplete ? endDate : null, days);
@@ -500,6 +520,7 @@ export default function ProductDetailPage() {
       <DeliveryRiskModal
         open={showDeliveryRiskModal}
         variant={deliveryRiskVariant}
+        messageParams={riskMessageParams}
         onAccept={handleRiskAccept}
         onCancel={handleRiskCancel}
       />

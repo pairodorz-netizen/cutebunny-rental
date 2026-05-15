@@ -235,6 +235,8 @@ export const api = {
     },
     nextBooking: (id: string, after: string) =>
       request<{ data: { product_id: string; next_booking_start: string | null } }>(`/api/v1/products/${id}/next-booking?after=${after}`),
+    previousBooking: (id: string, before: string) =>
+      request<{ data: { product_id: string; previous_booking_end: string | null } }>(`/api/v1/products/${id}/previous-booking?before=${before}`),
   },
   cart: {
     create: (items: Array<{ product_id: string; rental_days: number; rental_start: string }>) =>

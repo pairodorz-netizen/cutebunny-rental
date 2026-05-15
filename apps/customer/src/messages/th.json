@@ -274,7 +274,11 @@
     "queueCollisionTitle": "ชนคิวรออเดอร์ถัดไป",
     "queueCollisionMessage": "วันคืนของคุณชนคิวรออเดอร์ถัดไป อาจมีผลต่อลูกค้ารายถัดไป แนะนำให้เลือกวันคืนเร็วขึ้นหรือเลือกวันอื่น",
     "queueCollisionAccept": "ตกลง ยอมรับความเสี่ยง",
-    "queueCollisionCancel": "ยกเลิก เลือกวันใหม่"
+    "queueCollisionCancel": "ยกเลิก เลือกวันใหม่",
+    "previousReturnTitle": "ออเดอร์ก่อนหน้าอาจยังไม่กลับ",
+    "previousReturnMessage": "ชุดนี้ถูกเช่าจบวันที่ {previousEndDate} — ร้านต้องใช้เวลารับชุดคืน+ทำความสะอาดก่อนจัดส่ง",
+    "previousReturnAccept": "ตกลง ยอมรับความเสี่ยง",
+    "previousReturnCancel": "ยกเลิก เลือกวันใหม่"
   },
   "orderStatus": {
     "title": "สถานะคำสั่งซื้อ",
