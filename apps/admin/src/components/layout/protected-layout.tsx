@@ -2,7 +2,6 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthStore } from '@/stores/auth-store';
 import { Sidebar } from './sidebar';
-import { LocaleSwitcher } from './locale-switcher';
 import { useTranslation } from 'react-i18next';
 import { Menu } from 'lucide-react';
 
@@ -34,7 +33,6 @@ export function ProtectedLayout() {
             </h2>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <LocaleSwitcher />
             <span className="text-xs sm:text-sm text-muted-foreground truncate max-w-[120px] sm:max-w-none">{user?.email}</span>
           </div>
         </header>

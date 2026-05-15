@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { LocaleSwitcher } from '@/components/layout/locale-switcher';
+
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -31,9 +31,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="absolute top-4 right-4">
-        <LocaleSwitcher />
-      </div>
+
       <div className="w-full max-w-sm space-y-6 p-8 rounded-lg border bg-card shadow-sm">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-primary">CuteBunny</h1>
