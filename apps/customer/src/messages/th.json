@@ -276,7 +276,7 @@
     "queueCollisionAccept": "ตกลง ยอมรับความเสี่ยง",
     "queueCollisionCancel": "ยกเลิก เลือกวันใหม่",
     "previousReturnTitle": "อาจจัดส่งไม่ทันวันที่เช่า",
-    "previousReturnMessage": "ชุดนี้พึ่งถูกเช่าจบวันที่ {previousEndDate} — ร้านอาจมีเวลาไม่พอพลตรวจสภาพ+ทำความสะอาด+จัดส่งให้ถึงทันวันที่เช่า",
+    "previousReturnMessage": "ชุดนี้เพิ่งถูกเช่าจบวันที่ {previousEndDate} — ร้านอาจมีเวลาไม่พอตรวจสภาพ + ทำความสะอาด + จัดส่งให้ทันวันที่เช่า",
     "previousReturnAccept": "ตกลง ยอมรับความเสี่ยง",
     "previousReturnCancel": "ยกเลิก เลือกวันใหม่"
   },
