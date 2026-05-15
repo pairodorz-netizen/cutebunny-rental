@@ -1081,9 +1081,13 @@ adminProducts.get('/:id/detail', async (c) => {
   }
 
   // Calculate P&L
-  const completedStatuses = ['returned', 'cleaning', 'repair', 'finished'];
-  const completedItems = product.orderItems.filter((oi) => completedStatuses.includes(oi.order.status));
-  const totalRentalRevenue = completedItems.reduce((sum, oi) => sum + oi.subtotal, 0);
+  // BUG-544: Include paid_locked and shipped orders — customer has already paid
+  const paidStatuses = ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
+  const paidItems = product.orderItems.filter((oi) => paidStatuses.includes(oi.order.status));
+  const totalRentalRevenue = paidItems.reduce((sum, oi) => sum + oi.subtotal, 0);
+  const rentalCount = paidItems.length;
+  const variableCost = product.variableCost ?? 0;
+  const totalVariableCost = variableCost * rentalCount;
 
   return success(c, {
     id: product.id,
@@ -1140,8 +1144,12 @@ adminProducts.get('/:id/detail', async (c) => {
     profit_summary: {
       buying_cost: product.costPrice,
       total_rental_revenue: totalRentalRevenue,
+      rental_count: rentalCount,
+      variable_cost_per_rental: variableCost,
+      total_variable_cost: totalVariableCost,
       selling_price: product.sellingPrice,
-      net_pl: totalRentalRevenue + product.sellingPrice - product.costPrice,
+      gross_profit: totalRentalRevenue - totalVariableCost,
+      net_pl: totalRentalRevenue - product.costPrice - totalVariableCost + product.sellingPrice,
     },
   });
 });
@@ -1172,10 +1180,13 @@ adminProducts.get('/:id/roi', async (c) => {
   }
 
   const purchaseCost = product.costPrice;
-  const completedOrders = product.orderItems.filter((oi) =>
-    ['returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
+  // BUG-544: Include paid_locked and shipped — customer has already paid
+  const paidOrders = product.orderItems.filter((oi) =>
+    ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
   );
-  const totalRentals = completedOrders.length;
+  const totalRentals = paidOrders.length;
+  const variableCostPerRental = product.variableCost ?? 0;
+  const totalVariableCost = variableCostPerRental * totalRentals;
 
   // Revenue from finance transactions linked to this product
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
@@ -1194,8 +1205,11 @@ adminProducts.get('/:id/roi', async (c) => {
 
   // If no product-linked transactions, estimate from order item subtotals
   if (totalRevenue === 0 && totalRentals > 0) {
-    totalRevenue = completedOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
+    totalRevenue = paidOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
   }
+
+  // BUG-544: Include variable cost in expenses
+  totalExpenses += totalVariableCost;
 
   // BUG-525: Net Profit must include purchaseCost to be consistent with ROI%
   const netProfit = totalRevenue - totalExpenses - purchaseCost;
@@ -1249,13 +1263,15 @@ adminProducts.get('/roi/summary', async (c) => {
 
   const roiData = products.map((product) => {
     const purchaseCost = product.costPrice;
-    const completedOrders = product.orderItems.filter((oi) =>
-      ['returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
+    // BUG-544: Include paid_locked and shipped — customer has already paid
+    const paidOrders = product.orderItems.filter((oi) =>
+      ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
     );
-    const totalRentals = completedOrders.length;
+    const totalRentals = paidOrders.length;
+    const variableCostPerRental = product.variableCost ?? 0;
 
     let totalRevenue = 0;
-    let totalExpenses = 0;
+    let totalExpenses = variableCostPerRental * totalRentals;
 
     for (const tx of product.financeTransactions) {
       if (revenueTypes.includes(tx.txType)) totalRevenue += tx.amount;
@@ -1263,7 +1279,7 @@ adminProducts.get('/roi/summary', async (c) => {
     }
 
     if (totalRevenue === 0 && totalRentals > 0) {
-      totalRevenue = completedOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
+      totalRevenue = paidOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
     }
 
     const roi = purchaseCost > 0 ? ((totalRevenue - totalExpenses - purchaseCost) / purchaseCost) * 100 : 0;
