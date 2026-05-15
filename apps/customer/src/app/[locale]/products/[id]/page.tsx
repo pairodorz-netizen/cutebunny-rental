@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
@@ -59,6 +59,7 @@ export default function ProductDetailPage() {
   const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
   const [pendingDays, setPendingDays] = useState<number | null>(null);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
+  const riskCheckGenRef = useRef(0);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
 
   useEffect(() => {
@@ -145,11 +146,19 @@ export default function ProductDetailPage() {
   }
 
   async function handleRangeSelect(startDate: string, endDate: string, days: number, isComplete: boolean = false) {
-    if (isComplete && deliveryMethod === 'standard') {
+    const currentGen = ++riskCheckGenRef.current;
+
+    if (!isComplete) {
+      applyDateSelection(startDate, null, days);
+      return;
+    }
+
+    if (deliveryMethod === 'standard') {
       const shouldWarn =
         isDeliveryAtRisk(new Date(startDate)) ||
         await checkPreviousReturnRisk(startDate) ||
         await checkQueueCollisionRisk(endDate);
+      if (currentGen !== riskCheckGenRef.current) return;
       if (shouldWarn) {
         setPendingStartDate(startDate);
         setPendingEndDate(endDate);
@@ -158,7 +167,7 @@ export default function ProductDetailPage() {
         return;
       }
     }
-    applyDateSelection(startDate, isComplete ? endDate : null, days);
+    applyDateSelection(startDate, endDate, days);
   }
 
   function applyDateSelection(startDate: string, endDate: string | null, days: number) {
