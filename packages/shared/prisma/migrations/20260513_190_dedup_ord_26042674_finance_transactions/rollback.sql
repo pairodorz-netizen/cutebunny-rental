@@ -1,0 +1,33 @@
+-- BUG-543: Rollback — re-insert deleted duplicate rows
+--
+-- Before running the migration, capture the rows that will be deleted:
+--
+--   \copy (
+--     SELECT id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at
+--     FROM finance_transactions
+--     WHERE id IN (
+--       SELECT id FROM (
+--         SELECT ft.id,
+--                ROW_NUMBER() OVER (
+--                  PARTITION BY ft.order_id, ft.tx_type, ft.amount
+--                  ORDER BY ft.created_at ASC, ft.id ASC
+--                ) AS rn
+--         FROM finance_transactions ft
+--         INNER JOIN orders o ON o.id = ft.order_id
+--         WHERE o.order_number = 'ORD-26042674'
+--       ) ranked WHERE rn > 1
+--     )
+--   ) TO '/tmp/deleted_ft_ord_26042674.csv' WITH CSV HEADER;
+--
+-- Then to rollback, restore from the CSV:
+--
+--   \copy finance_transactions (id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at)
+--   FROM '/tmp/deleted_ft_ord_26042674.csv' WITH CSV HEADER;
+--
+-- Alternatively, if you know the exact rows that were deleted, insert them manually:
+--
+-- INSERT INTO finance_transactions (id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at)
+-- VALUES
+--   ('uuid-here', 'order-uuid', NULL, NULL, 'rental_revenue', 590, NULL, NULL, '2026-04-22T...');
+--
+-- Replace the values above with the actual data from the dry-run output or the CSV backup.
