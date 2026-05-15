@@ -1,33 +1,39 @@
--- BUG-543: Rollback — re-insert deleted duplicate rows
+-- BUG-543: Rollback — re-insert both deleted rows
 --
 -- Before running the migration, capture the rows that will be deleted:
 --
 --   \copy (
 --     SELECT id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at
---     FROM finance_transactions
---     WHERE id IN (
---       SELECT id FROM (
---         SELECT ft.id,
---                ROW_NUMBER() OVER (
---                  PARTITION BY ft.order_id, ft.tx_type, ft.amount
---                  ORDER BY ft.created_at ASC, ft.id ASC
---                ) AS rn
---         FROM finance_transactions ft
---         INNER JOIN orders o ON o.id = ft.order_id
---         WHERE o.order_number = 'ORD-26042674'
---       ) ranked WHERE rn > 1
---     )
+--     FROM finance_transactions ft
+--     INNER JOIN orders o ON o.id = ft.order_id
+--     WHERE o.order_number = 'ORD-26042674'
+--       AND ft.tx_type = 'rental_revenue'
+--       AND (
+--         (ft.amount < 0 AND ft.note LIKE 'BUG-517%')
+--         OR ft.id = (
+--           SELECT ft2.id FROM finance_transactions ft2
+--           INNER JOIN orders o2 ON o2.id = ft2.order_id
+--           WHERE o2.order_number = 'ORD-26042674'
+--             AND ft2.tx_type = 'rental_revenue' AND ft2.amount > 0
+--           ORDER BY ft2.created_at ASC LIMIT 1
+--         )
+--       )
 --   ) TO '/tmp/deleted_ft_ord_26042674.csv' WITH CSV HEADER;
 --
--- Then to rollback, restore from the CSV:
+-- To rollback, restore from the CSV:
 --
 --   \copy finance_transactions (id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at)
 --   FROM '/tmp/deleted_ft_ord_26042674.csv' WITH CSV HEADER;
 --
--- Alternatively, if you know the exact rows that were deleted, insert them manually:
+-- Or insert manually using the exact IDs from the dry-run output:
 --
--- INSERT INTO finance_transactions (id, order_id, product_id, category_id, tx_type, amount, note, created_by, created_at)
+-- BEGIN;
+-- INSERT INTO finance_transactions (id, order_id, tx_type, amount, note, created_at)
 -- VALUES
---   ('uuid-here', 'order-uuid', NULL, NULL, 'rental_revenue', 590, NULL, NULL, '2026-04-22T...');
+--   -- Row 1: original duplicate +590
+--   ('0cf9e80e-3180-47fa-aa2e-ab276dd99f8c', '<order-uuid>', 'rental_revenue', 590, 'Rental revenue', '<timestamp>'),
+--   -- Row 2: BUG-517 reconciliation reversal -590
+--   ('ba1f0251-026a-403c-b009-73051ca6946a', '<order-uuid>', 'rental_revenue', -590, 'BUG-517 reconciliation: remove duplicate revenue record', '<timestamp>');
+-- COMMIT;
 --
--- Replace the values above with the actual data from the dry-run output or the CSV backup.
+-- Replace <order-uuid> and <timestamp> with actual values from dry-run output.
