@@ -275,8 +275,8 @@
     "queueCollisionMessage": "Your return date is too close to the next customer's booking. This may affect the next customer's delivery. We recommend choosing an earlier return date or selecting different dates.",
     "queueCollisionAccept": "OK, accept the risk",
     "queueCollisionCancel": "Cancel, choose another date",
-    "previousReturnTitle": "Previous order may not be returned yet",
-    "previousReturnMessage": "This outfit was rented until {previousEndDate} — the shop needs time to receive the return and clean it before dispatching.",
+    "previousReturnTitle": "Delivery may not arrive on time",
+    "previousReturnMessage": "This item was just returned on {previousEndDate} — the shop may not have enough time to inspect, clean, and ship before your rental start date",
     "previousReturnAccept": "OK, accept the risk",
     "previousReturnCancel": "Cancel, choose another date"
   },
