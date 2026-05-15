@@ -61,6 +61,7 @@ export default function ProductDetailPage() {
   const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
   const [pendingDays, setPendingDays] = useState<number | null>(null);
   const [riskMessageParams, setRiskMessageParams] = useState<Record<string, string> | undefined>(undefined);
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
 
   useEffect(() => {
@@ -192,6 +193,7 @@ export default function ProductDetailPage() {
     setPendingStartDate(null);
     setPendingEndDate(null);
     setPendingDays(null);
+    setCalendarResetKey(k => k + 1);
   }
 
   function handlePresetClick(days: number) {
@@ -416,6 +418,7 @@ export default function ProductDetailPage() {
               onSelectRange={handleRangeSelect}
               selectedSize={selectedSize}
               selectedColor={selectedColor}
+              resetKey={calendarResetKey}
             />
 
             {/* Summary Bar */}

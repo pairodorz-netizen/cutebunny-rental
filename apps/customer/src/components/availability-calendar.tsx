@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -13,9 +13,10 @@ interface AvailabilityCalendarProps {
   onSelectRange?: (startDate: string, endDate: string, days: number, isComplete: boolean) => void;
   selectedSize?: string | null;
   selectedColor?: string | null;
+  resetKey?: number;
 }
 
-export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor }: AvailabilityCalendarProps) {
+export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor, resetKey }: AvailabilityCalendarProps) {
   const t = useTranslations('calendar');
   const locale = useLocale();
   const now = new Date();
@@ -30,6 +31,14 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [clickCount, setClickCount] = useState(0);
+
+  useEffect(() => {
+    if (resetKey !== undefined && resetKey > 0) {
+      setRangeStart(null);
+      setRangeEnd(null);
+      setClickCount(0);
+    }
+  }, [resetKey]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['calendar', productId, year, month, selectedSize, selectedColor],
