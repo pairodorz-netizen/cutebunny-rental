@@ -276,6 +276,7 @@
     "maintenance": "ทำความสะอาด/ซ่อม",
     "profitSummary": "สรุปกำไร",
     "totalRentalRevenue": "รายได้จากการเช่าทั้งหมด",
+    "grossProfit": "กำไรขั้นต้น",
     "netPL": "กำไร/ขาดทุนสุทธิ",
     "rentalHistory": "ประวัติการเช่า",
     "rentalDates": "ช่วงเวลาเช่า",

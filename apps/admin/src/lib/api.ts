@@ -346,7 +346,11 @@ export interface AdminProductDetail {
   profit_summary: {
     buying_cost: number;
     total_rental_revenue: number;
+    rental_count: number;
+    variable_cost_per_rental: number;
+    total_variable_cost: number;
     selling_price: number;
+    gross_profit: number;
     net_pl: number;
   };
 }

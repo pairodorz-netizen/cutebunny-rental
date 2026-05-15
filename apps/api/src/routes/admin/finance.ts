@@ -560,6 +560,22 @@ adminFinance.get('/summary', async (c) => {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10);
 
+  // BUG-544: Calculate total variable costs from product settings × rental counts
+  // This is NOT in financeTransaction table — it's a derived cost from product.variableCost
+  let totalVariableCosts = 0;
+  const productIds = [...rentalCountMap.keys()];
+  if (productIds.length > 0) {
+    const productsWithVC = await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, variableCost: true, costPrice: true },
+    });
+    for (const p of productsWithVC) {
+      const rentals = rentalCountMap.get(p.id) ?? 0;
+      totalVariableCosts += (p.variableCost ?? 0) * rentals;
+    }
+  }
+  const adjustedTotalExpenses = totalExpenses + totalVariableCosts;
+
   return success(c, {
     periods: Object.entries(periods)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -572,8 +588,10 @@ adminFinance.get('/summary', async (c) => {
       })),
     totals: {
       total_revenue: totalRevenue,
-      total_expenses: totalExpenses,
-      net_profit: totalRevenue - totalExpenses,
+      total_expenses: adjustedTotalExpenses,
+      total_variable_costs: totalVariableCosts,
+      total_recorded_expenses: totalExpenses,
+      net_profit: totalRevenue - adjustedTotalExpenses,
       total_orders: orders.length,
       deposit_received: totalDepositReceived,
       deposit_returned: totalDepositReturned,

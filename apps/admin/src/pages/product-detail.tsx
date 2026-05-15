@@ -573,12 +573,22 @@ export function ProductDetailPage() {
             <h3 className="text-sm font-semibold mb-3">{t('products.profitSummary')}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">{t('products.buyingCost')}</span>
-                <span className="text-red-600">-{pl.buying_cost.toLocaleString()}</span>
+                <span className="text-muted-foreground">{t('products.totalRentalRevenue')} ({pl.rental_count} rentals)</span>
+                <span className="text-green-600">+{pl.total_rental_revenue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">{t('products.totalRentalRevenue')}</span>
-                <span className="text-green-600">+{pl.total_rental_revenue.toLocaleString()}</span>
+                <span className="text-muted-foreground">{t('products.variableCost')} ({pl.variable_cost_per_rental.toLocaleString()} × {pl.rental_count})</span>
+                <span className="text-red-600">-{pl.total_variable_cost.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1">
+                <span className="text-muted-foreground font-medium">{t('products.grossProfit')}</span>
+                <span className={pl.gross_profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {pl.gross_profit >= 0 ? '+' : ''}{pl.gross_profit.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{t('products.buyingCost')}</span>
+                <span className="text-red-600">-{pl.buying_cost.toLocaleString()}</span>
               </div>
               {pl.selling_price > 0 && (
                 <div className="flex justify-between">
