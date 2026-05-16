@@ -18,6 +18,12 @@ import {
 } from '@cutebunny/shared/admin-orders-query-keys';
 import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
 
+/** Detect deleted customer from masked display values (works even if API _deleted flag is not yet deployed) */
+function isDeletedCustomer(customer: { name?: string; email?: string; phone?: string; _deleted?: boolean }): boolean {
+  if (customer._deleted) return true;
+  return customer.name === '[Deleted customer]' || customer.email === '***@***';
+}
+
 const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
 
 const FORWARD_TRANSITIONS: Record<string, string[]> = {
@@ -962,7 +968,7 @@ export function OrdersPage() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className={`text-sm truncate ${order.customer._deleted ? 'italic text-muted-foreground' : ''}`}>{order.customer.name}</div>
+                      <div className={`text-sm truncate ${isDeletedCustomer(order.customer) ? 'italic text-muted-foreground' : ''}`}>{order.customer.name}</div>
                       <div className="text-[11px] text-muted-foreground">{order.customer.phone}</div>
                     </div>
                     <div className="w-20 text-center space-y-0.5">
@@ -998,7 +1004,7 @@ export function OrdersPage() {
                   {/* Expanded item details */}
                   {isExpanded && (
                     <div className="bg-muted/10 border-t px-6 py-3">
-                      {order.customer._deleted && (
+                      {isDeletedCustomer(order.customer) && (
                         <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0"><path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
                           {t('orders.deletedCustomerBanner')}
@@ -1153,8 +1159,8 @@ export function OrdersPage() {
               <button onClick={() => setEditOrderId(null)}><X className="h-4 w-4" /></button>
             </div>
             <div className="p-4 space-y-4">
-              {/* PDPA banner for deleted customers */}
-              {orderDetail?.customer._deleted && (
+              {/* PDPA banner for deleted customers — use list-level or detail-level detection */}
+              {(editCustomerName === '[Deleted customer]' || (orderDetail && isDeletedCustomer(orderDetail.customer))) && (
                 <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0"><path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
                   {t('orders.deletedCustomerBanner')}
@@ -1167,7 +1173,7 @@ export function OrdersPage() {
                   value={editCustomerName}
                   onChange={(e) => setEditCustomerName(e.target.value)}
                   className="mt-1 h-8 text-sm"
-                  disabled={orderDetail?.customer._deleted}
+                  disabled={editCustomerName === '[Deleted customer]' || (orderDetail ? isDeletedCustomer(orderDetail.customer) : false)}
                 />
               </div>
               {/* Customer Address */}
