@@ -71,11 +71,18 @@ describe('BUG-526/528: Rental count parity', () => {
     mockDb.order.groupBy.mockResolvedValue([]);
     mockDb.order.findMany.mockResolvedValue([]);
     // BUG-535: getProductRentalCounts now uses $queryRaw (raw SQL)
-    mockDb.$queryRaw.mockResolvedValue([
-      { productId: 'prod-boho', count: 2 },
-      { productId: 'prod-lace', count: 1 },
-      { productId: 'prod-memo', count: 1 },
-    ]);
+    // BUG-548: finance summary also uses $queryRaw for per-period variable costs
+    mockDb.$queryRaw.mockImplementation(async (...args: unknown[]) => {
+      const strings = args[0];
+      if (Array.isArray(strings) && strings.some((s: string) => typeof s === 'string' && s.includes('variable_cost'))) {
+        return [];
+      }
+      return [
+        { productId: 'prod-boho', count: 2 },
+        { productId: 'prod-lace', count: 1 },
+        { productId: 'prod-memo', count: 1 },
+      ];
+    });
     mockDb.financeTransaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
     mockDb.customer.count.mockResolvedValue(0);
     mockDb.product.count.mockResolvedValue(0);

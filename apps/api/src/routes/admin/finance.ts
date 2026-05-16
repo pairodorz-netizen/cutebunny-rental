@@ -454,7 +454,7 @@ adminFinance.get('/summary', async (c) => {
   const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
   const depositTypes = ['deposit_received', 'deposit_returned'];
 
-  const [transactions, orders, categories] = await Promise.all([
+  const [transactions, orders, categories, vcRows] = await Promise.all([
     db.financeTransaction.findMany({
       where: { createdAt: { gte: startDate, lte: endDate } },
       include: { category: { select: { name: true, type: true } } },
@@ -464,6 +464,22 @@ adminFinance.get('/summary', async (c) => {
       select: { createdAt: true },
     }),
     db.financeCategory.findMany(),
+    // BUG-548: per-period variable costs from order items (date-filtered)
+    (async () => {
+      try {
+        return await db.$queryRaw`
+          SELECT o.created_at AS "createdAt", COALESCE(p.variable_cost, 0)::int AS "variableCost"
+          FROM order_items oi
+          JOIN orders o ON oi.order_id = o.id
+          JOIN products p ON oi.product_id = p.id
+          WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+            AND o.created_at >= ${startDate}
+            AND o.created_at <= ${endDate}
+        ` as Array<{ createdAt: Date; variableCost: number }>;
+      } catch {
+        return [] as Array<{ createdAt: Date; variableCost: number }>;
+      }
+    })(),
   ]);
 
   // Aggregate by period
@@ -494,6 +510,16 @@ adminFinance.get('/summary', async (c) => {
     const key = getPeriodKey(order.createdAt);
     if (!periods[key]) periods[key] = { revenue: 0, expenses: 0, orders: 0 };
     periods[key].orders++;
+  }
+
+  // BUG-548: distribute variable costs into period-level expenses
+  let totalVariableCosts = 0;
+  for (const row of vcRows) {
+    if (!row.createdAt || row.variableCost == null) continue;
+    const key = getPeriodKey(row.createdAt);
+    if (!periods[key]) periods[key] = { revenue: 0, expenses: 0, orders: 0 };
+    periods[key].expenses += row.variableCost;
+    totalVariableCosts += row.variableCost;
   }
 
   let totalRevenue = 0;
@@ -560,20 +586,6 @@ adminFinance.get('/summary', async (c) => {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10);
 
-  // BUG-544: Calculate total variable costs from product settings × rental counts
-  // This is NOT in financeTransaction table — it's a derived cost from product.variableCost
-  let totalVariableCosts = 0;
-  const productIds = [...rentalCountMap.keys()];
-  if (productIds.length > 0) {
-    const productsWithVC = await db.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, variableCost: true, costPrice: true },
-    });
-    for (const p of productsWithVC) {
-      const rentals = rentalCountMap.get(p.id) ?? 0;
-      totalVariableCosts += (p.variableCost ?? 0) * rentals;
-    }
-  }
   const adjustedTotalExpenses = totalExpenses + totalVariableCosts;
 
   return success(c, {
