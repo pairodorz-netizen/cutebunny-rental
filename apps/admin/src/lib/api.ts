@@ -297,10 +297,10 @@ export interface AdminProduct {
   variable_cost: number;
   extra_day_rate: number;
   created_at: string;
-  // BUG-549: pre-computed P/L from API
-  total_rental_revenue: number;
-  gross_profit: number;
-  net_pl: number;
+  // BUG-549: pre-computed P/L from API (optional for backwards compat)
+  total_rental_revenue?: number;
+  gross_profit?: number;
+  net_pl?: number;
 }
 
 export interface AdminProductDetail {
