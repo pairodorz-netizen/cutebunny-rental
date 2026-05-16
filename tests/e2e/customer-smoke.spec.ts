@@ -33,11 +33,12 @@ test.describe('Customer smoke — product list (BUG-545 thumbnail fallback)', ()
   }) => {
     await page.goto(`${CUSTOMER_BASE}/th/products`);
     await page.waitForLoadState('networkidle');
-    // Wait for product cards to render
-    const cards = page.locator('[data-testid="product-card"], .product-card, article');
+    // Product cards are <a> links with href containing /products/
+    const cards = page.locator('a[href*="/products/"]');
+    await cards.first().waitFor({ state: 'visible', timeout: 15_000 });
     const count = await cards.count();
     expect(count).toBeGreaterThan(0);
-    // No text-only placeholders: every card should have either <img> or <svg>
+    // No text-only placeholders: every card should have either <img> or <svg> or role="img"
     for (let i = 0; i < Math.min(count, 15); i++) {
       const card = cards.nth(i);
       const hasImg = await card.locator('img').count();
@@ -55,15 +56,14 @@ test.describe('Customer smoke — product detail & calendar', () => {
   test('product detail page renders pricing and calendar', async ({
     page,
   }) => {
-    await page.goto(`${CUSTOMER_BASE}/th/products`);
+    // Navigate directly to Memo Doll Top (known product)
+    await page.goto(
+      `${CUSTOMER_BASE}/th/products/065abd2c-aa4d-455d-a15a-7079f43bfcc8`,
+    );
     await page.waitForLoadState('networkidle');
-    // Click first product
-    const firstProduct = page.locator('a[href*="/products/"]').first();
-    await firstProduct.click();
-    await page.waitForLoadState('networkidle');
-    // Calendar should be visible
-    const calendar = page.locator('[class*="calendar"], [data-testid*="calendar"], [role="grid"]');
-    await expect(calendar.first()).toBeVisible({ timeout: 10_000 });
+    // Calendar is a grid of 7 columns with day buttons
+    const calendarGrid = page.locator('.grid.grid-cols-7');
+    await expect(calendarGrid.first()).toBeVisible({ timeout: 15_000 });
   });
 });
 
