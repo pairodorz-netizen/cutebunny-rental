@@ -249,4 +249,63 @@ describe('delivery risk — calendar day calculation', () => {
       });
     });
   });
+
+  describe('BUG-543: 1-day range (start === end) — all popup variants', () => {
+    // Scenario: user clicks May 31 twice → start=end="2026-05-31", days=1
+    // All shared risk functions should work identically for 1-day ranges
+    const today = new Date('2026-05-14');
+
+    describe('delivery risk on 1-day range', () => {
+      it('triggers when start=end is within 4 calendar days of today', () => {
+        // today+1 → start=end="2026-05-15"
+        expect(isDeliveryAtRisk(new Date('2026-05-15'), today)).toBe(true);
+      });
+
+      it('triggers at +3 days (start=end="2026-05-17")', () => {
+        expect(isDeliveryAtRisk(new Date('2026-05-17'), today)).toBe(true);
+      });
+
+      it('does not trigger at +4 days (start=end="2026-05-18")', () => {
+        expect(isDeliveryAtRisk(new Date('2026-05-18'), today)).toBe(false);
+      });
+    });
+
+    describe('queue collision on 1-day range', () => {
+      it('triggers when 1-day end is close to next booking (gap=1)', () => {
+        // end="2026-05-31", next booking="2026-06-01" → gap=1 ≤ 5 → true
+        expect(isQueueCollisionRisk(new Date('2026-05-31'), new Date('2026-06-01'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(true);
+      });
+
+      it('triggers at BKK threshold (gap=2)', () => {
+        expect(isQueueCollisionRisk(new Date('2026-05-31'), new Date('2026-06-02'), QUEUE_BUFFER_DAYS_BKK)).toBe(true);
+      });
+
+      it('does not trigger when gap > province threshold', () => {
+        // end="2026-05-31", next="2026-06-06" → gap=6 > 5 → false
+        expect(isQueueCollisionRisk(new Date('2026-05-31'), new Date('2026-06-06'), QUEUE_BUFFER_DAYS_PROVINCE)).toBe(false);
+      });
+    });
+
+    describe('previous return on 1-day range (BUG-543 primary case)', () => {
+      it('triggers when start=end="2026-05-31", previous ended May 30 (gap=1)', () => {
+        expect(isPreviousReturnRisk(new Date('2026-05-31'), new Date('2026-05-30'))).toBe(true);
+      });
+
+      it('triggers when start=end="2026-05-31", previous ended May 29 (gap=2)', () => {
+        expect(isPreviousReturnRisk(new Date('2026-05-31'), new Date('2026-05-29'))).toBe(true);
+      });
+
+      it('triggers when start=end="2026-05-31", previous ended May 28 (gap=3)', () => {
+        expect(isPreviousReturnRisk(new Date('2026-05-31'), new Date('2026-05-28'))).toBe(true);
+      });
+
+      it('does not trigger when gap = 4 (edge, previous ended May 27)', () => {
+        expect(isPreviousReturnRisk(new Date('2026-05-31'), new Date('2026-05-27'))).toBe(false);
+      });
+
+      it('does not trigger when no previous booking', () => {
+        expect(isPreviousReturnRisk(new Date('2026-05-31'), null)).toBe(false);
+      });
+    });
+  });
 });

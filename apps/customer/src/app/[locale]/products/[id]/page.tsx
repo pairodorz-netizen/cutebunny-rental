@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
@@ -13,7 +13,6 @@ import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
-import type { DeliveryRiskVariant } from '@/components/delivery-risk-modal';
 import { isDeliveryAtRisk, isQueueCollisionRisk, isPreviousReturnRisk, QUEUE_BUFFER_DAYS_PROVINCE, PREVIOUS_RETURN_BUFFER_DAYS } from '@cutebunny/shared/delivery';
 
 const RENTAL_TIERS = [
@@ -56,11 +55,11 @@ export default function ProductDetailPage() {
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethodType>('standard');
   const [messengerEnabled, setMessengerEnabled] = useState(false);
   const [showDeliveryRiskModal, setShowDeliveryRiskModal] = useState(false);
-  const [deliveryRiskVariant, setDeliveryRiskVariant] = useState<DeliveryRiskVariant>('delivery');
   const [pendingStartDate, setPendingStartDate] = useState<string | null>(null);
   const [pendingEndDate, setPendingEndDate] = useState<string | null>(null);
   const [pendingDays, setPendingDays] = useState<number | null>(null);
-  const [riskMessageParams, setRiskMessageParams] = useState<Record<string, string> | undefined>(undefined);
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
+  const riskCheckGenRef = useRef(0);
   const setCartDeliveryMethod = useCartStore((s) => s.setDeliveryMethod);
 
   useEffect(() => {
@@ -126,52 +125,49 @@ export default function ProductDetailPage() {
 
   const pricePerDay = actualDays > 0 ? Math.round(rentalPrice / actualDays) : 0;
 
-  async function handleRangeSelect(startDate: string, endDate: string, days: number) {
-    const isRangeComplete = startDate !== endDate;
-    if (isRangeComplete && deliveryMethod === 'standard' && isDeliveryAtRisk(new Date(startDate))) {
-      setPendingStartDate(startDate);
-      setPendingEndDate(endDate);
-      setPendingDays(days);
-      setDeliveryRiskVariant('delivery');
-      setRiskMessageParams(undefined);
-      setShowDeliveryRiskModal(true);
+  async function checkPreviousReturnRisk(startDate: string): Promise<boolean> {
+    try {
+      const res = await api.products.previousBooking(productId, startDate);
+      const prevEnd = res.data?.previous_booking_end ?? null;
+      return !!prevEnd && isPreviousReturnRisk(new Date(startDate), new Date(prevEnd), PREVIOUS_RETURN_BUFFER_DAYS);
+    } catch {
+      return false;
+    }
+  }
+
+  async function checkQueueCollisionRisk(endDate: string): Promise<boolean> {
+    try {
+      const res = await api.products.nextBooking(productId, endDate);
+      const nextStart = res.data?.next_booking_start ?? null;
+      return !!nextStart && isQueueCollisionRisk(new Date(endDate), new Date(nextStart), QUEUE_BUFFER_DAYS_PROVINCE);
+    } catch {
+      return false;
+    }
+  }
+
+  async function handleRangeSelect(startDate: string, endDate: string, days: number, isComplete: boolean = false) {
+    const currentGen = ++riskCheckGenRef.current;
+
+    if (!isComplete) {
+      applyDateSelection(startDate, null, days);
       return;
     }
-    if (isRangeComplete && deliveryMethod === 'standard') {
-      try {
-        const res = await api.products.nextBooking(productId, endDate);
-        const nextStart = res.data?.next_booking_start ?? null;
-        if (nextStart && isQueueCollisionRisk(new Date(endDate), new Date(nextStart), QUEUE_BUFFER_DAYS_PROVINCE)) {
-          setPendingStartDate(startDate);
-          setPendingEndDate(endDate);
-          setPendingDays(days);
-          setDeliveryRiskVariant('queueCollision');
-          setRiskMessageParams(undefined);
-          setShowDeliveryRiskModal(true);
-          return;
-        }
-      } catch {
-        // endpoint unavailable — skip queue collision check
+
+    if (deliveryMethod === 'standard') {
+      const shouldWarn =
+        isDeliveryAtRisk(new Date(startDate)) ||
+        await checkPreviousReturnRisk(startDate) ||
+        await checkQueueCollisionRisk(endDate);
+      if (currentGen !== riskCheckGenRef.current) return;
+      if (shouldWarn) {
+        setPendingStartDate(startDate);
+        setPendingEndDate(endDate);
+        setPendingDays(days);
+        setShowDeliveryRiskModal(true);
+        return;
       }
     }
-    if (isRangeComplete && deliveryMethod === 'standard') {
-      try {
-        const res = await api.products.previousBooking(productId, startDate);
-        const prevEnd = res.data?.previous_booking_end ?? null;
-        if (prevEnd && isPreviousReturnRisk(new Date(startDate), new Date(prevEnd), PREVIOUS_RETURN_BUFFER_DAYS)) {
-          setPendingStartDate(startDate);
-          setPendingEndDate(endDate);
-          setPendingDays(days);
-          setDeliveryRiskVariant('previousReturn');
-          setRiskMessageParams({ previousEndDate: prevEnd });
-          setShowDeliveryRiskModal(true);
-          return;
-        }
-      } catch {
-        // endpoint unavailable — skip previous return check
-      }
-    }
-    applyDateSelection(startDate, isRangeComplete ? endDate : null, days);
+    applyDateSelection(startDate, endDate, days);
   }
 
   function applyDateSelection(startDate: string, endDate: string | null, days: number) {
@@ -193,6 +189,7 @@ export default function ProductDetailPage() {
     setPendingStartDate(null);
     setPendingEndDate(null);
     setPendingDays(null);
+    setCalendarResetKey(k => k + 1);
   }
 
   function handlePresetClick(days: number) {
@@ -417,6 +414,7 @@ export default function ProductDetailPage() {
               onSelectRange={handleRangeSelect}
               selectedSize={selectedSize}
               selectedColor={selectedColor}
+              resetKey={calendarResetKey}
             />
 
             {/* Summary Bar */}
@@ -519,8 +517,6 @@ export default function ProductDetailPage() {
 
       <DeliveryRiskModal
         open={showDeliveryRiskModal}
-        variant={deliveryRiskVariant}
-        messageParams={riskMessageParams}
         onAccept={handleRiskAccept}
         onCancel={handleRiskCancel}
       />

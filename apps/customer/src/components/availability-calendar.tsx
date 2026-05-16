@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -10,12 +10,13 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface AvailabilityCalendarProps {
   productId: string;
-  onSelectRange?: (startDate: string, endDate: string, days: number) => void;
+  onSelectRange?: (startDate: string, endDate: string, days: number, isComplete: boolean) => void;
   selectedSize?: string | null;
   selectedColor?: string | null;
+  resetKey?: number;
 }
 
-export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor }: AvailabilityCalendarProps) {
+export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, selectedColor, resetKey }: AvailabilityCalendarProps) {
   const t = useTranslations('calendar');
   const locale = useLocale();
   const now = new Date();
@@ -30,6 +31,18 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
   const [rangeStart, setRangeStart] = useState<string | null>(null);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [clickCount, setClickCount] = useState(0);
+  const clickCountRef = useRef(0);
+  const rangeStartRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (resetKey !== undefined && resetKey > 0) {
+      setRangeStart(null);
+      setRangeEnd(null);
+      setClickCount(0);
+      clickCountRef.current = 0;
+      rangeStartRef.current = null;
+    }
+  }, [resetKey]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['calendar', productId, year, month, selectedSize, selectedColor],
@@ -85,33 +98,39 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     // Prevent selecting past dates
     if (isPastDate(dateStr)) return;
 
-    const newClickCount = clickCount + 1;
+    const newClickCount = clickCountRef.current + 1;
 
     if (newClickCount === 1) {
       // First click = start date
+      clickCountRef.current = 1;
+      rangeStartRef.current = dateStr;
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
-            onSelectRange?.(dateStr, dateStr, 1);
-    } else if (newClickCount === 2 && rangeStart) {
-      // Second click = end date
-      let start = rangeStart;
+      onSelectRange?.(dateStr, dateStr, 1, false);
+    } else if (newClickCount === 2 && rangeStartRef.current) {
+      // Second click = end date (uses ref to avoid stale closure on rapid clicks)
+      let start = rangeStartRef.current;
       let end = dateStr;
       // Ensure start <= end
       if (end < start) {
         [start, end] = [end, start];
+        rangeStartRef.current = start;
         setRangeStart(start);
       }
 
       // BUG-403: Reject range if any day between start and end is blocked
       if (hasBlockedDayInRange(start, end)) {
         // Reset selection — cannot book across blocked days
+        clickCountRef.current = 1;
+        rangeStartRef.current = dateStr;
         setRangeStart(dateStr);
         setRangeEnd(null);
         setClickCount(1);
         return;
       }
 
+      clickCountRef.current = 2;
       setRangeEnd(end);
       setClickCount(2);
 
@@ -120,16 +139,18 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       const endD = new Date(end);
       const diffMs = endD.getTime() - startD.getTime();
       const totalDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
-      onSelectRange?.(start, end, totalDays);
+      onSelectRange?.(start, end, totalDays, true);
     } else {
       // Third click = reset, new start date
+      clickCountRef.current = 1;
+      rangeStartRef.current = dateStr;
       setRangeStart(dateStr);
       setRangeEnd(null);
       setClickCount(1);
       // Notify parent to reset to 1-day price
-      onSelectRange?.(dateStr, dateStr, 1);
+      onSelectRange?.(dateStr, dateStr, 1, false);
     }
-  }, [clickCount, rangeStart, onSelectRange, hasBlockedDayInRange]);
+  }, [onSelectRange, hasBlockedDayInRange]);
 
   return (
     <div className="rounded-lg border p-4">
