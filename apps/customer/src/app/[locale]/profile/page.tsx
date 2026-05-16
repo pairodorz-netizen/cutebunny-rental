@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type CustomerProfile, type CustomerOrder } from '@/lib/api';
 import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
 import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
+import { ProductImage } from '@/components/product-image';
 
 function formatDate(dateStr: string, loc: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -481,11 +482,7 @@ export default function ProfilePage() {
                           {order.items.map((item, idx) => (
                             <div key={idx} className="flex items-center gap-3">
                               <div className="w-10 h-12 rounded-lg bg-muted overflow-hidden shrink-0">
-                                {item.thumbnail ? (
-                                  <img src={item.thumbnail} alt={item.product_name} loading="lazy" className="w-full h-full object-cover" />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">—</div>
-                                )}
+                                <ProductImage src={item.thumbnail} alt={item.product_name} iconSize="w-5 h-5" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm text-cb-heading truncate">{item.product_name}</p>

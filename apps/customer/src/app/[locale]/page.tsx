@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@/i18n/routing';
 import { api, type ProductListItem } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
+import { ProductImage } from '@/components/product-image';
 import { ChevronRight, ChevronLeft, Truck, Sparkles } from 'lucide-react';
 import { useRef } from 'react';
 
@@ -95,20 +96,11 @@ export default function HomePage() {
                 <div className="absolute top-0 right-0 w-64 h-80 rounded-2xl bg-cb-lavender-200/20 transform rotate-3" />
                 <div className="absolute top-4 right-8 w-64 h-80 rounded-2xl bg-cb-lavender-300/20 transform -rotate-2" />
                 <div className="absolute top-8 right-4 w-64 h-80 rounded-2xl bg-white shadow-card overflow-hidden">
-                  {(popularProducts[0]?.thumbnail || newProducts[0]?.thumbnail) ? (
-                    <img
-                      src={(popularProducts[0]?.thumbnail || newProducts[0]?.thumbnail)!}
-                      alt="Featured dress"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-pastel-gradient flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-5xl mb-2">✨</div>
-                        <span className="text-sm font-medium text-cb-secondary">CuteBunny</span>
-                      </div>
-                    </div>
-                  )}
+                  <ProductImage
+                    src={popularProducts[0]?.thumbnail || newProducts[0]?.thumbnail}
+                    alt="Featured dress"
+                    iconSize="w-14 h-14"
+                  />
                 </div>
               </div>
               {/* Floating price overlay */}
