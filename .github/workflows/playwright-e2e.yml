@@ -1,0 +1,72 @@
+name: Playwright E2E
+
+on:
+  pull_request:
+    paths:
+      - 'apps/customer/**'
+      - 'apps/admin/**'
+      - 'packages/shared/**'
+      - 'tests/e2e/**'
+      - 'playwright.config.ts'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      E2E_CUSTOMER_URL: https://customer-eta-ruby.vercel.app
+      E2E_ADMIN_URL: https://admin-eight-rouge.vercel.app
+      E2E_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Wait for Vercel preview deployment
+        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
+        id: vercel
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          max_timeout: 300
+          check_interval: 10
+        continue-on-error: true
+
+      - name: Set preview URLs if available
+        if: steps.vercel.outcome == 'success' && steps.vercel.outputs.url != ''
+        run: |
+          echo "E2E_CUSTOMER_URL=${{ steps.vercel.outputs.url }}" >> $GITHUB_ENV
+
+      - name: Run Playwright E2E (${{ matrix.browser }})
+        run: pnpm exec playwright test --project=${{ matrix.browser }}
+
+      - name: Upload traces and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.browser }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
