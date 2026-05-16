@@ -105,6 +105,7 @@
     "trackingNumber": "物流单号",
     "note": "备注",
     "afterSales": "售后",
+    "deletedCustomerBanner": "此客户已被删除 — 个人数据已按 PDPA 规定进行脱敏处理",
     "eventType": "事件类型",
     "selectType": "选择类型",
     "amount": "金额",
