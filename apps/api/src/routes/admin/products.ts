@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { safeAuditLogCreate } from '../../lib/safe-audit-log';
 import { getProductRentalCounts } from '../../lib/rental-stats';
 import { customerDisplayName, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
+import { computeProductPL, computeProductROI } from '../../lib/pl-calc';
 
 const adminProducts = new Hono();
 
@@ -241,7 +242,25 @@ adminProducts.get('/', async (c) => {
     where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
   }
 
-  const [products, total, productRentalMap] = await Promise.all([
+  // BUG-549: fetch actual rental revenue per product for consistent P/L
+  const getProductRevenueMap = async (): Promise<Map<string, number>> => {
+    try {
+      const rows: Array<{ productId: string; totalRevenue: number }> = await db.$queryRaw`
+        SELECT oi.product_id AS "productId", COALESCE(SUM(oi.subtotal), 0)::int AS "totalRevenue"
+        FROM order_items oi
+        JOIN orders o ON oi.order_id = o.id
+        WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+        GROUP BY oi.product_id
+      `;
+      const map = new Map<string, number>();
+      for (const row of rows) map.set(row.productId, row.totalRevenue);
+      return map;
+    } catch {
+      return new Map<string, number>();
+    }
+  };
+
+  const [products, total, productRentalMap, productRevenueMap] = await Promise.all([
     db.product.findMany({
       where,
       include: {
@@ -257,6 +276,7 @@ adminProducts.get('/', async (c) => {
     db.product.count({ where }),
     // BUG-528: actual rental counts from order_items
     getProductRentalCounts(db),
+    getProductRevenueMap(),
   ]);
 
   const data = products.map((p) => ({
@@ -294,6 +314,10 @@ adminProducts.get('/', async (c) => {
     variable_cost: p.variableCost,
     extra_day_rate: p.extraDayRate ?? 0,
     created_at: p.createdAt.toISOString(),
+    // BUG-549: pre-computed P/L for list view consistency
+    total_rental_revenue: productRevenueMap.get(p.id) ?? 0,
+    gross_profit: (productRevenueMap.get(p.id) ?? 0) - (p.variableCost ?? 0) * (productRentalMap.get(p.id) ?? 0),
+    net_pl: (productRevenueMap.get(p.id) ?? 0) - p.costPrice - (p.variableCost ?? 0) * (productRentalMap.get(p.id) ?? 0) + p.sellingPrice,
   }));
 
   return success(c, data, {
@@ -1080,14 +1104,13 @@ adminProducts.get('/:id/detail', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Product not found');
   }
 
-  // Calculate P&L
-  // BUG-544: Include paid_locked and shipped orders — customer has already paid
-  const paidStatuses = ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
-  const paidItems = product.orderItems.filter((oi) => paidStatuses.includes(oi.order.status));
-  const totalRentalRevenue = paidItems.reduce((sum, oi) => sum + oi.subtotal, 0);
-  const rentalCount = paidItems.length;
-  const variableCost = product.variableCost ?? 0;
-  const totalVariableCost = variableCost * rentalCount;
+  // BUG-549: Use shared P/L helper for consistency across all views
+  const profitSummary = computeProductPL({
+    costPrice: product.costPrice,
+    sellingPrice: product.sellingPrice,
+    variableCost: product.variableCost,
+    orderItems: product.orderItems,
+  });
 
   return success(c, {
     id: product.id,
@@ -1141,16 +1164,7 @@ adminProducts.get('/:id/detail', async (c) => {
       status: oi.order.status,
       order_number: oi.order.orderNumber,
     })),
-    profit_summary: {
-      buying_cost: product.costPrice,
-      total_rental_revenue: totalRentalRevenue,
-      rental_count: rentalCount,
-      variable_cost_per_rental: variableCost,
-      total_variable_cost: totalVariableCost,
-      selling_price: product.sellingPrice,
-      gross_profit: totalRentalRevenue - totalVariableCost,
-      net_pl: totalRentalRevenue - product.costPrice - totalVariableCost + product.sellingPrice,
-    },
+    profit_summary: profitSummary,
   });
 });
 
@@ -1179,44 +1193,13 @@ adminProducts.get('/:id/roi', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Product not found');
   }
 
-  const purchaseCost = product.costPrice;
-  // BUG-544: Include paid_locked and shipped — customer has already paid
-  const paidOrders = product.orderItems.filter((oi) =>
-    ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
-  );
-  const totalRentals = paidOrders.length;
-  const variableCostPerRental = product.variableCost ?? 0;
-  const totalVariableCost = variableCostPerRental * totalRentals;
-
-  // Revenue from finance transactions linked to this product
-  const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  const expenseTypes = ['cleaning', 'repair', 'cogs', 'shipping'];
-
-  let totalRevenue = 0;
-  let totalExpenses = 0;
-
-  for (const tx of product.financeTransactions) {
-    if (revenueTypes.includes(tx.txType)) {
-      totalRevenue += tx.amount;
-    } else if (expenseTypes.includes(tx.txType)) {
-      totalExpenses += Math.abs(tx.amount);
-    }
-  }
-
-  // If no product-linked transactions, estimate from order item subtotals
-  if (totalRevenue === 0 && totalRentals > 0) {
-    totalRevenue = paidOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
-  }
-
-  // BUG-544: Include variable cost in expenses
-  totalExpenses += totalVariableCost;
-
-  // BUG-525: Net Profit must include purchaseCost to be consistent with ROI%
-  const netProfit = totalRevenue - totalExpenses - purchaseCost;
-  // BUG-533: Align with /roi/summary formula — subtract totalExpenses
-  const roi = purchaseCost > 0 ? ((totalRevenue - totalExpenses - purchaseCost) / purchaseCost) * 100 : 0;
-  const revenuePerRental = totalRentals > 0 ? Math.round(totalRevenue / totalRentals) : 0;
-  const breakEvenRentals = revenuePerRental > 0 ? Math.ceil(purchaseCost / revenuePerRental) : 0;
+  // BUG-549: Use shared ROI helper for consistency
+  const roiResult = computeProductROI({
+    costPrice: product.costPrice,
+    variableCost: product.variableCost,
+    orderItems: product.orderItems,
+    financeTransactions: product.financeTransactions,
+  });
 
   const costHistory = product.financeTransactions.map((tx) => ({
     date: tx.createdAt.toISOString().split('T')[0],
@@ -1229,14 +1212,7 @@ adminProducts.get('/:id/roi', async (c) => {
     product_id: product.id,
     product_name: product.name,
     sku: product.sku,
-    purchase_cost: purchaseCost,
-    total_revenue: totalRevenue,
-    total_expenses: totalExpenses,
-    net_profit: netProfit,
-    roi: Math.round(roi * 100) / 100,
-    total_rentals: totalRentals,
-    revenue_per_rental: revenuePerRental,
-    break_even_rentals: breakEvenRentals,
+    ...roiResult,
     cost_history: costHistory,
   });
 });
@@ -1258,43 +1234,20 @@ adminProducts.get('/roi/summary', async (c) => {
     },
   });
 
-  const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
-  const expenseTypes = ['cleaning', 'repair', 'cogs', 'shipping'];
-
+  // BUG-549: Use shared ROI helper for consistency
   const roiData = products.map((product) => {
-    const purchaseCost = product.costPrice;
-    // BUG-544: Include paid_locked and shipped — customer has already paid
-    const paidOrders = product.orderItems.filter((oi) =>
-      ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(oi.order.status)
-    );
-    const totalRentals = paidOrders.length;
-    const variableCostPerRental = product.variableCost ?? 0;
-
-    let totalRevenue = 0;
-    let totalExpenses = variableCostPerRental * totalRentals;
-
-    for (const tx of product.financeTransactions) {
-      if (revenueTypes.includes(tx.txType)) totalRevenue += tx.amount;
-      else if (expenseTypes.includes(tx.txType)) totalExpenses += Math.abs(tx.amount);
-    }
-
-    if (totalRevenue === 0 && totalRentals > 0) {
-      totalRevenue = paidOrders.reduce((sum, oi) => sum + oi.subtotal, 0);
-    }
-
-    const roi = purchaseCost > 0 ? ((totalRevenue - totalExpenses - purchaseCost) / purchaseCost) * 100 : 0;
+    const result = computeProductROI({
+      costPrice: product.costPrice,
+      variableCost: product.variableCost,
+      orderItems: product.orderItems,
+      financeTransactions: product.financeTransactions,
+    });
 
     return {
       product_id: product.id,
       product_name: product.name,
       sku: product.sku,
-      purchase_cost: purchaseCost,
-      total_revenue: totalRevenue,
-      total_expenses: totalExpenses,
-      // BUG-525: Net Profit = TotalRevenue - PurchaseCost (consistent with ROI%)
-      net_profit: totalRevenue - totalExpenses - purchaseCost,
-      roi: Math.round(roi * 100) / 100,
-      total_rentals: totalRentals,
+      ...result,
     };
   });
 

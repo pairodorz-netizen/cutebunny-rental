@@ -495,8 +495,8 @@ function CurrentProductsTable({
           ) : products.length === 0 ? (
             <tr><td colSpan={14} className="p-8 text-center text-muted-foreground">{t('products.empty')}</td></tr>
           ) : products.map((p) => {
-            const totalRevenue = p.rental_count * p.rental_prices['1day'];
-            const pl = totalRevenue - p.cost_price;
+            // BUG-549: use API-provided net_pl instead of client-side estimate
+            const pl = p.net_pl;
             return (
               <tr
                 key={p.id}
@@ -672,8 +672,8 @@ function SoldProductsTable({
           ) : products.length === 0 ? (
             <tr><td colSpan={8} className="p-8 text-center text-muted-foreground">{t('products.noSoldProducts')}</td></tr>
           ) : products.map((p) => {
-            const totalRevenue = p.rental_count * p.rental_prices['1day'];
-            const pl = totalRevenue + p.selling_price - p.cost_price;
+            // BUG-549: use API-provided net_pl instead of client-side estimate
+            const pl = p.net_pl;
             return (
               <tr key={p.id} className="hover:bg-muted/30">
                 <td className="p-2">
