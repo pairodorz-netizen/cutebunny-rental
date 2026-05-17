@@ -578,9 +578,9 @@ describe('BUG-504-A06 step 2/3 — backfill + dual-write trigger (commit 2)', ()
   describe('gate 5 — read payloads expose category from FK slug, not legacy enum', () => {
     it('GET /admin/products list wire `category` is sourced from categoryRef.slug', () => {
       const source = readAdminProducts();
-      // The list-response projection is the first `const data = products.map(`.
+      // The list-response projection: either arrow-return or block-return style
       const listProjection = source.match(
-        /const\s+data\s*=\s*products\.map\(\(p\)\s*=>\s*\(\{[\s\S]*?\}\)\);/,
+        /const\s+data\s*=\s*products\.map\(\(p\)\s*=>\s*(?:\(\{|\{)[\s\S]*?category:\s*p\.categoryRef\.slug[\s\S]*?\}\);/,
       );
       expect(listProjection, 'list projection not found').not.toBeNull();
       const body = listProjection![0];

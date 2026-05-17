@@ -242,25 +242,7 @@ adminProducts.get('/', async (c) => {
     where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
   }
 
-  // BUG-549: fetch actual rental revenue per product for consistent P/L
-  const getProductRevenueMap = async (): Promise<Map<string, number>> => {
-    try {
-      const rows: Array<{ productId: string; totalRevenue: number }> = await db.$queryRaw`
-        SELECT oi.product_id AS "productId", COALESCE(SUM(oi.subtotal), 0)::int AS "totalRevenue"
-        FROM order_items oi
-        JOIN orders o ON oi.order_id = o.id
-        WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
-        GROUP BY oi.product_id
-      `;
-      const map = new Map<string, number>();
-      for (const row of rows) map.set(row.productId, row.totalRevenue);
-      return map;
-    } catch {
-      return new Map<string, number>();
-    }
-  };
-
-  const [products, total, productRentalMap, productRevenueMap] = await Promise.all([
+  const [products, total, productRentalMap] = await Promise.all([
     db.product.findMany({
       where,
       include: {
@@ -276,49 +258,76 @@ adminProducts.get('/', async (c) => {
     db.product.count({ where }),
     // BUG-528: actual rental counts from order_items
     getProductRentalCounts(db),
-    getProductRevenueMap(),
   ]);
 
-  const data = products.map((p) => ({
-    id: p.id,
-    sku: p.sku,
-    name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
-    name_i18n: (p.nameI18n as Record<string, string>) ?? {},
-    // BUG-504-A06 commit 3 — wire `category` resolved from FK slug.
-    // Verbatim string equivalence with the legacy enum keeps the admin
-    // SPA wire-compatible.
-    category: p.categoryRef.slug,
-    category_id: p.categoryId,
-    brand: p.brand?.name ?? null,
-    thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
-    size: p.size,
-    color: p.color,
-    rental_prices: {
-      '1day': p.rentalPrice1Day,
-      '3day': p.rentalPrice3Day,
-      '5day': p.rentalPrice5Day,
-    },
-    retail_price: p.retailPrice,
-    deposit: p.deposit,
-    stock: p.stockQuantity,
-    stock_on_hand: p.stockOnHand,
-    low_stock_threshold: p.lowStockThreshold,
-    // BUG-528: use actual rental count from order_items
-    rental_count: productRentalMap.get(p.id) ?? 0,
-    available: p.available,
-    cost_price: p.costPrice,
-    selling_price: p.sellingPrice,
-    product_status: p.productStatus,
-    sold_at: p.soldAt?.toISOString() ?? null,
-    deleted_at: p.deletedAt?.toISOString() ?? null,
-    variable_cost: p.variableCost,
-    extra_day_rate: p.extraDayRate ?? 0,
-    created_at: p.createdAt.toISOString(),
-    // BUG-549: pre-computed P/L for list view consistency
-    total_rental_revenue: productRevenueMap.get(p.id) ?? 0,
-    gross_profit: (productRevenueMap.get(p.id) ?? 0) - (p.variableCost ?? 0) * (productRentalMap.get(p.id) ?? 0),
-    net_pl: (productRevenueMap.get(p.id) ?? 0) - p.costPrice - (p.variableCost ?? 0) * (productRentalMap.get(p.id) ?? 0) + p.sellingPrice,
-  }));
+  // BUG-549 hotfix: batch-fetch order items via Prisma (not raw SQL) then
+  // run computeProductPL() per product — same helper as product detail.
+  const productIds = products.map((p) => p.id);
+  const allOrderItems = productIds.length > 0
+    ? await db.orderItem.findMany({
+        where: {
+          productId: { in: productIds },
+          order: {
+            status: { in: ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'] },
+          },
+        },
+        select: { productId: true, subtotal: true, order: { select: { status: true } } },
+      })
+    : [];
+  const orderItemsByProduct = new Map<string, typeof allOrderItems>();
+  for (const item of allOrderItems) {
+    const arr = orderItemsByProduct.get(item.productId) ?? [];
+    arr.push(item);
+    orderItemsByProduct.set(item.productId, arr);
+  }
+
+  const data = products.map((p) => {
+    const pl = computeProductPL({
+      costPrice: p.costPrice,
+      sellingPrice: p.sellingPrice,
+      variableCost: p.variableCost,
+      orderItems: (orderItemsByProduct.get(p.id) ?? []).map((oi) => ({
+        subtotal: oi.subtotal,
+        order: oi.order,
+      })),
+    });
+    return {
+      id: p.id,
+      sku: p.sku,
+      name: localizeField(p.nameI18n as Record<string, string> | null, p.name, locale),
+      name_i18n: (p.nameI18n as Record<string, string>) ?? {},
+      category: p.categoryRef.slug,
+      category_id: p.categoryId,
+      brand: p.brand?.name ?? null,
+      thumbnail: p.images[0]?.url ?? p.thumbnailUrl,
+      size: p.size,
+      color: p.color,
+      rental_prices: {
+        '1day': p.rentalPrice1Day,
+        '3day': p.rentalPrice3Day,
+        '5day': p.rentalPrice5Day,
+      },
+      retail_price: p.retailPrice,
+      deposit: p.deposit,
+      stock: p.stockQuantity,
+      stock_on_hand: p.stockOnHand,
+      low_stock_threshold: p.lowStockThreshold,
+      rental_count: productRentalMap.get(p.id) ?? 0,
+      available: p.available,
+      cost_price: p.costPrice,
+      selling_price: p.sellingPrice,
+      product_status: p.productStatus,
+      sold_at: p.soldAt?.toISOString() ?? null,
+      deleted_at: p.deletedAt?.toISOString() ?? null,
+      variable_cost: p.variableCost,
+      extra_day_rate: p.extraDayRate ?? 0,
+      created_at: p.createdAt.toISOString(),
+      // BUG-549 hotfix: use computeProductPL() — same helper as product detail
+      total_rental_revenue: pl.total_rental_revenue,
+      gross_profit: pl.gross_profit,
+      net_pl: pl.net_pl,
+    };
+  });
 
   return success(c, data, {
     page,
