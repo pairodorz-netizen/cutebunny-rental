@@ -26,6 +26,7 @@ import adminSettings from './routes/admin/settings';
 import adminCategories from './routes/admin/categories';
 import adminComboSets from './routes/admin/combo-sets';
 import customerAuth from './routes/customer-auth';
+import stripeWebhooks from './routes/webhooks/stripe';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -128,6 +129,9 @@ app.route('/api/v1/orders', orders);
 app.route('/api/v1/shipping', shipping);
 app.route('/api/v1/settings', publicSettings);
 app.route('/api/v1/customer/auth', customerAuth);
+
+// ─── Webhooks (public, no auth — signature-verified) ───────────────────
+app.route('/api/v1/webhooks/stripe', stripeWebhooks);
 
 // ─── Admin APIs (v1) ───────────────────────────────────────────────────
 // Auth (public, rate-limited)
