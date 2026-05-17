@@ -9,6 +9,8 @@ const DB_MODELS = [
   'financeCategory', 'systemConfig', 'notificationLog',
   // BUG-504-A01: product taxonomy table (consumed by A02 route).
   'category',
+  // BUG-550: Stripe webhook idempotency
+  'stripeWebhookEvent',
 ] as const;
 
 /**
@@ -19,6 +21,9 @@ export function createMockDb() {
   const db: Record<string, any> = {
     $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
     $queryRawUnsafe: vi.fn().mockResolvedValue([]),
+    $transaction: vi.fn().mockImplementation((args: unknown) =>
+      Array.isArray(args) ? Promise.all(args) : Promise.resolve(args),
+    ),
   };
 
   for (const model of DB_MODELS) {
@@ -30,6 +35,7 @@ export function createMockDb() {
       create: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       update: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       delete: vi.fn().mockResolvedValue({ id: 'mock-id' }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       upsert: vi.fn().mockResolvedValue({ id: 'mock-id' }),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: 0 } }),

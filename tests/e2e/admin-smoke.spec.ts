@@ -1,5 +1,5 @@
-// Admin smoke tests — regression guards for BUG-544/546/547/548/549 sprint fixes.
-// Covers: login page, finance consistency, deleted customer display, P/L consistency.
+// Admin smoke tests — regression guards for BUG-544/546/547/548/549/550 sprint fixes.
+// Covers: login page, finance consistency, deleted customer display, P/L consistency, webhook endpoint.
 // Requires: E2E_ADMIN_URL (Vercel preview or production)
 
 import { test, expect } from '@playwright/test';
@@ -123,5 +123,30 @@ test.describe('Admin smoke — P/L consistency (BUG-549)', () => {
         p.total_rental_revenue - p.cost_price - vc + p.selling_price;
       expect(p.net_pl).toBe(expectedNetPL);
     }
+  });
+});
+
+test.describe('Admin smoke — Stripe webhook endpoint (BUG-550)', () => {
+  // BUG-550: Verify webhook endpoint exists and rejects unsigned requests
+  test('webhook endpoint returns 400 for unsigned POST', async ({
+    request,
+  }) => {
+    const res = await request.post(
+      `${API_BASE}/api/v1/webhooks/stripe`,
+      {
+        data: JSON.stringify({ id: 'evt_test', type: 'checkout.session.completed' }),
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+    // Should return 400 (bad signature) or 500 (not configured) — NOT 404
+    expect([400, 500]).toContain(res.status());
+  });
+
+  test('webhook endpoint rejects GET method', async ({ request }) => {
+    const res = await request.get(
+      `${API_BASE}/api/v1/webhooks/stripe`,
+    );
+    // GET not supported — 404 or 405
+    expect(res.status()).toBeGreaterThanOrEqual(400);
   });
 });

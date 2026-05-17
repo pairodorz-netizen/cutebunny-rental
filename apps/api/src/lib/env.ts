@@ -10,6 +10,8 @@ export interface Env {
   JWT_SECRET: string;
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
   ENVIRONMENT?: string;
   NODE_ENV?: string;
   PORT?: string;
