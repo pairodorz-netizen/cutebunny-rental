@@ -11,6 +11,7 @@ import { computeDerivedFlags } from '../scheduled';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
 import { getCartStore } from './cart';
+import { createCheckoutSession } from '../lib/stripe-checkout';
 
 function getJwtSecret(): string {
   return getEnv().JWT_SECRET || 'dev-secret-change-in-production';
@@ -441,6 +442,69 @@ orders.post('/', async (c) => {
       }
     }
     return error(c, 500, 'ORDER_CREATION_FAILED', 'Failed to create order. Please try again.');
+  }
+});
+
+// POST /api/v1/orders/:order_token/checkout-session — Create Stripe Checkout Session for an order
+orders.post('/:order_token/checkout-session', async (c) => {
+  const db = getDb();
+  const env = getEnv();
+  const orderToken = c.req.param('order_token');
+
+  if (!env.STRIPE_SECRET_KEY) {
+    return error(c, 500, 'CONFIG_ERROR', 'Stripe is not configured');
+  }
+
+  const order = await db.order.findUnique({
+    where: { id: orderToken },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      totalAmount: true,
+      customer: {
+        select: { email: true, firstName: true, lastName: true },
+      },
+    },
+  });
+
+  if (!order) {
+    return error(c, 404, 'NOT_FOUND', 'Order not found');
+  }
+
+  if (order.status !== 'unpaid') {
+    return error(c, 409, 'ALREADY_PAID', `Order is already in status "${order.status}"`);
+  }
+
+  const bodySchema = z.object({
+    success_url: z.string().url(),
+    cancel_url: z.string().url(),
+  });
+  const parsed = bodySchema.safeParse(await c.req.json());
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'success_url and cancel_url are required');
+  }
+
+  try {
+    const session = await createCheckoutSession(env.STRIPE_SECRET_KEY, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+      customerEmail: order.customer?.email ?? undefined,
+      customerName: order.customer
+        ? `${order.customer.firstName} ${order.customer.lastName}`.trim()
+        : undefined,
+      successUrl: parsed.data.success_url,
+      cancelUrl: parsed.data.cancel_url,
+    });
+
+    return success(c, {
+      checkout_url: session.url,
+      session_id: session.sessionId,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to create checkout session';
+    return error(c, 500, 'STRIPE_ERROR', msg);
   }
 });
 

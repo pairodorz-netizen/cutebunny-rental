@@ -6,7 +6,7 @@ import { useRouter } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/stores/cart-store';
 import { api, OrderResponse, CustomerProfile } from '@/lib/api';
-import { Trash2, Upload, FileCheck, X, Bike, Check } from 'lucide-react';
+import { Trash2, Upload, FileCheck, X, Bike, Check, CreditCard } from 'lucide-react';
 import { ProductImage } from '@/components/product-image';
 
 const TOKEN_KEY = 'cb_customer_token';
@@ -200,6 +200,9 @@ export default function CartPage() {
   // Order confirmation state (step 4)
   const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
 
+  // Stripe checkout state
+  const [stripeLoading, setStripeLoading] = useState(false);
+
   const totals = getTotal();
 
   useEffect(() => {
@@ -323,6 +326,26 @@ export default function CartPage() {
       setError(err instanceof Error ? err.message : t('checkoutError'));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleStripePayment() {
+    if (!orderResult) return;
+    setStripeLoading(true);
+    setError(null);
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/${locale}/orders/${orderResult.order_token}?payment=success`;
+      const cancelUrl = `${origin}/${locale}/orders/${orderResult.order_token}?payment=cancelled`;
+      const result = await api.orders.createCheckoutSession(
+        orderResult.order_token,
+        successUrl,
+        cancelUrl,
+      );
+      window.location.href = result.data.checkout_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('checkoutError'));
+      setStripeLoading(false);
     }
   }
 
@@ -771,13 +794,39 @@ export default function CartPage() {
             </div>
           </div>
 
+          <div className="rounded-lg border-2 border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-indigo-600" />
+              <h3 className="font-semibold text-sm text-indigo-900">{t('stripePayTitle')}</h3>
+            </div>
+            <p className="text-sm text-indigo-700">{t('stripePayDescription')}</p>
+            <Button
+              onClick={handleStripePayment}
+              disabled={stripeLoading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700"
+            >
+              {stripeLoading ? t('stripePayLoading') : t('stripePayButton')}
+            </Button>
+          </div>
+
+          <div className="relative flex items-center justify-center my-2">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+            <span className="relative bg-background px-3 text-xs text-muted-foreground">{t('orPayByTransfer')}</span>
+          </div>
+
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
             <p className="text-sm font-medium mb-2">{t('lineNoticeTitle')}</p>
             <p className="text-sm text-muted-foreground">{t('lineNoticeMessage')}</p>
           </div>
 
+          {error && (
+            <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+              {error}
+            </div>
+          )}
+
           <div className="flex justify-center">
-            <Button onClick={() => router.push('/products')}>{t('continueShopping')}</Button>
+            <Button variant="outline" onClick={() => router.push('/products')}>{t('continueShopping')}</Button>
           </div>
         </div>
       )}
