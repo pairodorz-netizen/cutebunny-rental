@@ -3,7 +3,7 @@
 > **Sprint period**: 2026-05-17 – 2026-05-17
 > **Engineer**: Devin (AI)
 > **Reviewer**: @pairodorz-netizen (Qew)
-> **Status**: PR merged, pending production infra setup (migration + secrets)
+> **Status**: PR merged, infra partially set up (Stripe + CF secrets done, migration pending)
 
 ---
 
@@ -17,9 +17,15 @@
 6. [Database Schema](#database-schema)
 7. [Test Coverage](#test-coverage)
 8. [Post-Merge Checklist](#post-merge-checklist)
-9. [Runbook](#runbook)
-10. [Open Risks & Follow-ups](#open-risks--follow-ups)
-11. [Files Changed](#files-changed)
+9. [Migration SQL Package](#migration-sql-package)
+10. [Sandbox E2E Test Plan](#sandbox-e2e-test-plan)
+11. [ENV Verification](#env-verification)
+12. [Pre-flight: Sandbox → Live](#pre-flight-sandbox--live)
+13. [Known Tech Debt](#known-tech-debt)
+14. [Incident Runbooks](#incident-runbooks)
+15. [Runbook](#runbook)
+16. [Open Risks & Follow-ups](#open-risks--follow-ups)
+17. [Files Changed](#files-changed)
 
 ---
 
@@ -193,16 +199,18 @@ enum StripeWebhookEventStatus {
 
 ## Post-Merge Checklist
 
-> **Status: PENDING** — User chose to defer infra setup
+> **Status: IN PROGRESS** — Infrastructure partially set up (2026-05-14)
 
 | Step | Command | Status |
 |------|---------|--------|
-| 1. Run migration | `DATABASE_URL="..." npx prisma migrate deploy` | ⏳ Pending |
-| 2. Set Stripe secret key | `npx wrangler secret put STRIPE_SECRET_KEY` | ⏳ Pending |
-| 3. Set webhook signing secret | `npx wrangler secret put STRIPE_WEBHOOK_SECRET` | ⏳ Pending |
-| 4. Configure Stripe Dashboard | Add endpoint URL + select 5 event types | ⏳ Pending |
-| 5. Send test webhook | Stripe Dashboard → Send test event | ⏳ Pending |
-| 6. Monitor Cloudflare logs | Watch for 15 min, check for consecutive failures | ⏳ Pending |
+| 1. Run migration | Supabase SQL Editor (idempotent SQL provided) | ⏳ Awaiting user |
+| 2. Set Stripe secret key | `npx wrangler secret put STRIPE_SECRET_KEY` | ✅ Done |
+| 3. Set webhook signing secret | `npx wrangler secret put STRIPE_WEBHOOK_SECRET` | ✅ Done |
+| 4. Configure Stripe Dashboard | Endpoint active, 5 events enabled | ✅ Done |
+| 5. Verify table + send test webhook | Verification queries + Stripe test event | ⏳ Awaiting migration |
+| 6. E2E test 5 event types | Step 2 test plan (CLI/Dashboard triggers) | ⏳ Awaiting migration |
+| 7. Monitor Cloudflare logs | 15 min observation window | ⏳ Awaiting E2E test |
+| 8. Sandbox → Live migration | Replace sandbox keys with live keys | ⏳ Future |
 
 **Stripe Dashboard endpoint URL**: `https://cutebunny-api.cutebunny-rental.workers.dev/api/v1/webhooks/stripe`
 
@@ -212,6 +220,172 @@ enum StripeWebhookEventStatus {
 - `payment_intent.succeeded`
 - `payment_intent.payment_failed`
 - `charge.refunded`
+
+---
+
+## Migration SQL Package
+
+Idempotent SQL for Supabase SQL Editor — safe to run multiple times:
+
+```sql
+-- 1. Create enum
+DO $$ BEGIN
+  CREATE TYPE "StripeWebhookEventStatus" AS ENUM (
+    'received', 'processing', 'processed', 'failed', 'pending_order'
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- 2. Create table
+CREATE TABLE IF NOT EXISTS "stripe_webhook_events" (
+    "id"                 UUID           NOT NULL DEFAULT uuid_generate_v4(),
+    "stripe_event_id"    TEXT           NOT NULL,
+    "event_type"         TEXT           NOT NULL,
+    "payload"            JSONB          NOT NULL,
+    "status"             "StripeWebhookEventStatus" NOT NULL DEFAULT 'received',
+    "order_id"           UUID,
+    "payment_intent_id"  TEXT,
+    "error_message"      TEXT,
+    "processed_at"       TIMESTAMP(3),
+    "retry_count"        INTEGER        NOT NULL DEFAULT 0,
+    "created_at"         TIMESTAMP(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "stripe_webhook_events_pkey" PRIMARY KEY ("id")
+);
+
+-- 3. Create indexes
+CREATE UNIQUE INDEX IF NOT EXISTS "stripe_webhook_events_stripe_event_id_key"
+  ON "stripe_webhook_events"("stripe_event_id");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_payment_intent_id_idx"
+  ON "stripe_webhook_events"("payment_intent_id");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_status_idx"
+  ON "stripe_webhook_events"("status");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_created_at_idx"
+  ON "stripe_webhook_events"("created_at");
+
+-- 4. Enable RLS
+ALTER TABLE "stripe_webhook_events" ENABLE ROW LEVEL SECURITY;
+```
+
+### Verification Query
+
+```sql
+SELECT column_name, data_type, column_default, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'stripe_webhook_events'
+ORDER BY ordinal_position;
+
+SELECT indexname, indexdef FROM pg_indexes
+WHERE tablename = 'stripe_webhook_events';
+
+SELECT enumlabel FROM pg_enum
+JOIN pg_type ON pg_enum.enumtypid = pg_type.oid
+WHERE pg_type.typname = 'StripeWebhookEventStatus'
+ORDER BY enumsortorder;
+```
+
+**Expected**: 11 columns, 5 indexes, 5 enum values, RLS enabled.
+
+### Rollback SQL
+
+```sql
+-- ⚠️ DESTRUCTIVE
+DROP TABLE IF EXISTS "stripe_webhook_events" CASCADE;
+DROP TYPE IF EXISTS "StripeWebhookEventStatus" CASCADE;
+```
+
+---
+
+## Sandbox E2E Test Plan
+
+| # | Event | Trigger | Verify DB | Verify Logs |
+|---|-------|---------|-----------|-------------|
+| 1 | checkout.session.completed | Stripe CLI/Dashboard | status=processed, order=paid_locked, finance record | outcome:processed |
+| 2 | Duplicate replay | Resend same event | no new records | outcome:duplicate |
+| 3 | checkout.session.expired | Stripe CLI/Dashboard | status=processed | outcome:processed |
+| 4 | payment_intent.payment_failed | Stripe CLI/Dashboard | status=processed | outcome:processed |
+| 5 | charge.refunded | Stripe CLI/Dashboard | negative finance entry | outcome:processed |
+| 6 | Monitor 15 min | — | — | no stripe_webhook_alert |
+
+---
+
+## ENV Verification
+
+| Variable | Source | Required | Status |
+|----------|--------|----------|--------|
+| `DATABASE_URL` | wrangler secret | ✅ | Set |
+| `JWT_SECRET` | wrangler secret | ✅ | Set |
+| `STRIPE_SECRET_KEY` | wrangler secret | ✅ | Set (sk_test_*) |
+| `STRIPE_WEBHOOK_SECRET` | wrangler secret | ✅ | Set (whsec_*, must match Stripe Dashboard) |
+| `ENVIRONMENT` | wrangler.toml vars | ✅ | "development" (change to "production" for live) |
+
+**Vercel admin/customer**: No Stripe env vars needed (webhook is API-only).
+
+---
+
+## Pre-flight: Sandbox → Live
+
+| # | Task | Owner | Status |
+|---|------|-------|--------|
+| 1 | Run migration SQL | User | ⏳ |
+| 2 | Verify table (11 cols, 5 indexes) | User | ⏳ |
+| 3 | curl test → 400 | User | ⏳ |
+| 4 | Send test webhook from Stripe | User | ⏳ |
+| 5 | E2E test 5 event types | User | ⏳ |
+| 6 | Duplicate replay → idempotency | User | ⏳ |
+| 7 | Monitor CF logs 15 min | User | ⏳ |
+| 8 | Change ENVIRONMENT to "production" | User | ⏳ Future |
+| 9 | Create Stripe live webhook endpoint | User | ⏳ Future |
+| 10 | Set live STRIPE_SECRET_KEY | User | ⏳ Future |
+| 11 | Set live STRIPE_WEBHOOK_SECRET | User | ⏳ Future |
+| 12 | Frontend Checkout session creation | Devin | ⏳ P2 |
+| 13 | External alerting (Slack/email) | Devin/User | ⏳ P2 |
+
+---
+
+## Known Tech Debt
+
+| # | Item | Severity | Sprint | Description |
+|---|------|----------|--------|-------------|
+| 1 | Stripe Checkout session creation | P1 | Next | Frontend needs to create Checkout with client_reference_id = order ID |
+| 2 | Currency unit mismatch | P1 | Next | Stripe amounts in cents vs finance_transactions possibly in THB |
+| 3 | Alert infrastructure | P2 | Next+1 | In-isolate counter resets on Worker restart |
+| 4 | Admin webhook dashboard | P2 | Next+1 | UI to view/retry failed events |
+| 5 | Customer email notifications | P2 | Next+1 | Payment confirmation/failure emails |
+| 6 | R2 product image migration | P3 | Backlog | Still using SVG fallback |
+| 7 | Admin E2E auth | P3 | Backlog | No automated admin login test |
+| 8 | Multi-unit holds | P3 | Backlog | releaseOrderHolds uses simple deleteMany |
+
+---
+
+## Incident Runbooks
+
+### Incident 1: Signature Mismatch (all webhooks 400)
+
+**Detection**: CF logs → `type: "stripe_webhook_signature_failed"`
+
+**Fix**:
+1. Stripe Dashboard → Webhooks → endpoint → copy Signing secret
+2. `cd apps/api && npx wrangler secret put STRIPE_WEBHOOK_SECRET`
+3. Verify: `curl -X POST <endpoint> -d '{}'` → should get 400 (not 500)
+4. Resend failed events from Stripe Dashboard
+
+### Incident 2: Duplicate Flood (retry storm)
+
+**Detection**: CF logs → many `outcome: "duplicate"` in short period
+
+**Fix**: Handler returns 200 always → prevents retry storm. If persistent:
+1. Check `stripe_webhook_events` for `status = 'failed'` with error details
+2. Temporarily disable endpoint in Stripe Dashboard if needed
+3. Fix root cause, re-enable
+
+### Incident 3: Supabase Outage (DB unreachable)
+
+**Detection**: CF logs → `success: false`, connection errors + `stripe_webhook_alert`
+
+**Fix**:
+1. Check https://status.supabase.com/
+2. When DB recovers, reset failed events: `UPDATE stripe_webhook_events SET status = 'received' WHERE status = 'failed' AND created_at > NOW() - INTERVAL '1 hour'`
+3. Resend from Stripe Dashboard
 
 ---
 
