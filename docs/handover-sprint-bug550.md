@@ -3,7 +3,7 @@
 > **Sprint period**: 2026-05-17 – 2026-05-17
 > **Engineer**: Devin (AI)
 > **Reviewer**: @pairodorz-netizen (Qew)
-> **Status**: PR merged, infra partially set up (Stripe + CF secrets done, migration pending)
+> **Status**: COMPLETE (sandbox) — all PRs merged, infra deployed, E2E verified 6/6 (2026-05-14)
 
 ---
 
@@ -47,6 +47,8 @@ Built a production-ready Stripe webhook handler for the CuteBunny Rental payment
 | # | PR | Bug | Title | Merge Commit | CI |
 |---|---|---|---|---|---|
 | 1 | [#209](https://github.com/pairodorz-netizen/cutebunny-rental/pull/209) | BUG-550 | Stripe webhook hardening with idempotency, out-of-order handling, and observability | `cd726d5` | 13/13 |
+| 2 | [#210](https://github.com/pairodorz-netizen/cutebunny-rental/pull/210) | BUG-550 | Handover document for Stripe webhook hardening | merged | 11/11 |
+| 3 | [#211](https://github.com/pairodorz-netizen/cutebunny-rental/pull/211) | BUG-550 | Handover update — migration SQL, E2E test plan, ENV verification, incident runbooks | `7b42886` | 11/11 |
 
 ---
 
@@ -199,17 +201,17 @@ enum StripeWebhookEventStatus {
 
 ## Post-Merge Checklist
 
-> **Status: IN PROGRESS** — Infrastructure partially set up (2026-05-14)
+> **Status: COMPLETE (sandbox)** — All sandbox verification passed (2026-05-14)
 
 | Step | Command | Status |
 |------|---------|--------|
-| 1. Run migration | Supabase SQL Editor (idempotent SQL provided) | ⏳ Awaiting user |
+| 1. Run migration | Supabase SQL Editor (11 cols, 5 indexes, RLS) | ✅ Done (2026-05-14) |
 | 2. Set Stripe secret key | `npx wrangler secret put STRIPE_SECRET_KEY` | ✅ Done |
 | 3. Set webhook signing secret | `npx wrangler secret put STRIPE_WEBHOOK_SECRET` | ✅ Done |
 | 4. Configure Stripe Dashboard | Endpoint active, 5 events enabled | ✅ Done |
-| 5. Verify table + send test webhook | Verification queries + Stripe test event | ⏳ Awaiting migration |
-| 6. E2E test 5 event types | Step 2 test plan (CLI/Dashboard triggers) | ⏳ Awaiting migration |
-| 7. Monitor Cloudflare logs | 15 min observation window | ⏳ Awaiting E2E test |
+| 5. Verify table + send test webhook | 6 events triggered, all 200 OK | ✅ Done (2026-05-14) |
+| 6. E2E test 5 event types | All passed — see [test report](./test-report-bug550-e2e.md) | ✅ Done (2026-05-14) |
+| 7. Monitor Cloudflare logs | No signature errors, no alerts | ✅ Done (2026-05-14) |
 | 8. Sandbox → Live migration | Replace sandbox keys with live keys | ⏳ Future |
 
 **Stripe Dashboard endpoint URL**: `https://cutebunny-api.cutebunny-rental.workers.dev/api/v1/webhooks/stripe`
