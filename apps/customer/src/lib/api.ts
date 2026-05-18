@@ -278,6 +278,11 @@ export const api = {
         method: 'POST',
         body: formData,
       }).then((res) => res.json()),
+    createCheckoutSession: (token: string, successUrl: string, cancelUrl: string) =>
+      request<{ data: { checkout_url: string; session_id: string } }>(`/api/v1/orders/${token}/checkout-session`, {
+        method: 'POST',
+        body: JSON.stringify({ success_url: successUrl, cancel_url: cancelUrl }),
+      }),
   },
   shipping: {
     calculate: (provinceCode: string, itemCount: number = 1) =>
