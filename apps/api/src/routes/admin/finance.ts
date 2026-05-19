@@ -341,6 +341,15 @@ adminFinance.get('/report', async (c) => {
     }
   }
 
+  // BUG-220: Invariant — deposit_returned must not exceed deposit_received
+  // within the same reporting period. This prevents temporal mismatch where
+  // deposits are returned (at order finish) long after they were collected
+  // (at payment time), causing misleading values in date-filtered reports.
+  if (totalDepositReturned > totalDepositReceived) {
+    totalDepositReturned = totalDepositReceived;
+    depositBreakdown['deposit_returned'] = totalDepositReceived;
+  }
+
   const grouped: Record<string, { revenue: number; expenses: number; orders: number }> = {};
 
   if (group_by === 'category') {
@@ -531,6 +540,12 @@ adminFinance.get('/summary', async (c) => {
     else if (expenseTypes.includes(tx.txType)) totalExpenses += Math.abs(tx.amount);
     else if (tx.txType === 'deposit_received') totalDepositReceived += tx.amount;
     else if (tx.txType === 'deposit_returned') totalDepositReturned += Math.abs(tx.amount);
+  }
+
+  // BUG-220: Invariant — deposit_returned must not exceed deposit_received
+  // within the same reporting period (temporal mismatch guard).
+  if (totalDepositReturned > totalDepositReceived) {
+    totalDepositReturned = totalDepositReceived;
   }
 
   // By category — use signed amounts for revenue (so reversals subtract),
