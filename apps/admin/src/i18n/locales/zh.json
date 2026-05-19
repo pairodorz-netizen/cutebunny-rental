@@ -120,6 +120,7 @@
     "confirmSubmit": "确认并提交",
     "reviewAndConfirm": "审核并确认",
     "deletedCustomerBanner": "此客户已被删除 — 个人数据已按 PDPA 规定进行脱敏处理",
+    "pdpaTooltip": "数据已按PDPA遮蔽 — 客户行使了删除权",
     "eventType": "事件类型",
     "selectType": "选择类型",
     "amount": "金额",
@@ -410,7 +411,8 @@
     "shopNotes": "店铺备注",
     "notePlaceholder": "添加关于此客户的备注...",
     "noNotes": "暂无备注",
-    "edited": "编辑于"
+    "edited": "编辑于",
+    "pdpaTooltip": "个人数据已按照泰国个人数据保护法(PDPA)进行遮蔽 — 客户行使了删除权"
   },
   "calendar": {
     "title": "日历",

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle, Pencil, Trash2, Tag, MessageSquare, X, Save } from 'lucide-react';
+import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle, Pencil, Trash2, Tag, MessageSquare, X, Save, Info } from 'lucide-react';
 
 const TIER_COLORS: Record<string, string> = {
   bronze: 'bg-orange-100 text-orange-800',
@@ -165,13 +165,25 @@ export function CustomersPage() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Mail className="h-4 w-4" /> {t('customers.email')}
                 </div>
-                <p className="font-medium">{customer.email}</p>
+                <p className="font-medium">
+                  {customer.email === '***@***' ? (
+                    <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                      {customer.email} <Info className="h-3 w-3" />
+                    </span>
+                  ) : customer.email}
+                </p>
               </div>
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Phone className="h-4 w-4" /> {t('customers.phone')}
                 </div>
-                <p className="font-medium">{customer.phone}</p>
+                <p className="font-medium">
+                  {customer.phone === '***' ? (
+                    <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                      {customer.phone} <Info className="h-3 w-3" />
+                    </span>
+                  ) : customer.phone}
+                </p>
               </div>
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -294,7 +306,7 @@ export function CustomersPage() {
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">{t('customers.email')}</label>
-                    <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="h-8" />
+                    <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="h-8" placeholder="somchai@email.co.th" />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground">LINE ID</label>
@@ -530,8 +542,20 @@ export function CustomersPage() {
                   className="border-b hover:bg-muted/30 cursor-pointer"
                   onClick={() => setSelectedId(c.id)}
                 >
-                  <td className="p-4 text-sm font-medium">{c.name}</td>
-                  <td className="p-4 text-sm text-muted-foreground">{c.email}</td>
+                  <td className="p-4 text-sm font-medium">
+                    {c.name === '[Deleted customer]' ? (
+                      <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                        {c.name} <Info className="h-3 w-3" />
+                      </span>
+                    ) : c.name}
+                  </td>
+                  <td className="p-4 text-sm text-muted-foreground">
+                    {c.email === '***@***' ? (
+                      <span className="inline-flex items-center gap-1" title={t('customers.pdpaTooltip')}>
+                        {c.email} <Info className="h-3 w-3" />
+                      </span>
+                    ) : c.email}
+                  </td>
                   <td className="p-4">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${TIER_COLORS[c.tier] ?? 'bg-gray-100'}`}>
                       {c.tier}

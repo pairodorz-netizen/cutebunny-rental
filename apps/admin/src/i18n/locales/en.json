@@ -120,6 +120,7 @@
     "confirmSubmit": "Confirm & Submit",
     "reviewAndConfirm": "Review & Confirm",
     "deletedCustomerBanner": "This customer has been deleted — personal data is masked per PDPA",
+    "pdpaTooltip": "Data masked per PDPA — customer exercised right to deletion",
     "eventType": "Event Type",
     "selectType": "Select type",
     "amount": "Amount",
@@ -410,7 +411,8 @@
     "shopNotes": "Shop Notes",
     "notePlaceholder": "Add a note about this customer...",
     "noNotes": "No notes yet",
-    "edited": "edited"
+    "edited": "edited",
+    "pdpaTooltip": "Personal data masked per PDPA (Thai Personal Data Protection Act) — customer exercised right to deletion"
   },
   "calendar": {
     "title": "Calendar",
