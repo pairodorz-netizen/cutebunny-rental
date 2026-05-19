@@ -27,6 +27,7 @@ import adminCategories from './routes/admin/categories';
 import adminComboSets from './routes/admin/combo-sets';
 import customerAuth from './routes/customer-auth';
 import stripeWebhooks from './routes/webhooks/stripe';
+import adminWebhooks from './routes/admin/webhooks';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -153,6 +154,7 @@ app.use('/api/v1/admin/settings/*', requireAuth);
 app.use('/api/v1/admin/categories', requireAuth);
 app.use('/api/v1/admin/categories/*', requireAuth);
 app.use('/api/v1/admin/combo-sets/*', requireAuth);
+app.use('/api/v1/admin/webhooks/*', requireAuth);
 
 app.route('/api/v1/admin/dashboard', adminDashboard);
 app.route('/api/v1/admin/orders', adminOrders);
@@ -165,6 +167,7 @@ app.route('/api/v1/admin/images', adminImages);
 app.route('/api/v1/admin/settings', adminSettings);
 app.route('/api/v1/admin/categories', adminCategories);
 app.route('/api/v1/admin/combo-sets', adminComboSets);
+app.route('/api/v1/admin/webhooks', adminWebhooks);
 
 export default app;
 export type AppType = typeof app;

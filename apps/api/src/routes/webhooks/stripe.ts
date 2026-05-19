@@ -16,6 +16,10 @@ import {
   logWebhookEvent,
   trackFailureRate,
 } from '../../lib/stripe-webhook';
+import {
+  trackWebhookFailure,
+  type WebhookAlertKV,
+} from '../../lib/webhook-alert';
 
 const stripeWebhooks = new Hono();
 
@@ -60,7 +64,12 @@ stripeWebhooks.post('/', async (c) => {
   logWebhookEvent(result);
   trackFailureRate(result);
 
-  // 6. Always return 200 to Stripe (even for processing failures)
+  // 6. Persistent failure tracking + alert dispatch (KV-backed)
+  const alertKv = (c.env as { WEBHOOK_ALERT_KV?: WebhookAlertKV } | undefined)
+    ?.WEBHOOK_ALERT_KV;
+  await trackWebhookFailure(alertKv, result, env.WEBHOOK_ALERT_URL);
+
+  // 7. Always return 200 to Stripe (even for processing failures)
   // to prevent Stripe from retrying the same broken event endlessly.
   // Failed events are tracked in stripe_webhook_events for manual retry.
   return c.json({

@@ -53,6 +53,19 @@ invocation_logs = true
 # id = "<paste-from-wrangler-kv-namespace-create>"
 # preview_id = "<paste-from-wrangler-kv-namespace-create-preview>"
 
+# Webhook alert failure tracking. Counters survive Worker redeploys +
+# isolate restarts. Falls back to in-memory when not bound.
+#
+# One-time owner setup:
+#   pnpm --filter @cutebunny/api exec wrangler kv:namespace create WEBHOOK_ALERT_KV
+#
+# Copy the returned `id` and `preview_id` below, then uncomment + push.
+#
+# [[kv_namespaces]]
+# binding = "WEBHOOK_ALERT_KV"
+# id = "<paste-from-wrangler-kv-namespace-create>"
+# preview_id = "<paste-from-wrangler-kv-namespace-create-preview>"
+
 # Cron triggers for scheduled jobs:
 #
 # BUG-505 — Hourly order status auto-advance.
