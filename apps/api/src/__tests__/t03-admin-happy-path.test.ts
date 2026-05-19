@@ -334,6 +334,7 @@ describe('T03: Admin Happy Path E2E', () => {
         body: JSON.stringify({
           event_type: 'late_fee',
           amount: 500,
+          reason: 'Returned 2 days late per courier tracking record',
           note: '2 days late',
         }),
       });
@@ -374,6 +375,7 @@ describe('T03: Admin Happy Path E2E', () => {
         body: JSON.stringify({
           event_type: 'damage_fee',
           amount: 2000,
+          reason: 'Torn fabric on left sleeve area found during inspection',
           note: 'Torn fabric on left sleeve',
         }),
       });
@@ -400,6 +402,7 @@ describe('T03: Admin Happy Path E2E', () => {
         body: JSON.stringify({
           event_type: 'force_buy',
           amount: 25000,
+          reason: 'Irreparable damage to dress, customer agreed to purchase',
           note: 'Irreparable damage',
         }),
       });
@@ -427,6 +430,7 @@ describe('T03: Admin Happy Path E2E', () => {
         body: JSON.stringify({
           event_type: 'partial_refund',
           amount: 1000,
+          reason: 'Goodwill refund due to minor stain found on delivery',
           note: 'Goodwill refund',
         }),
       });
@@ -448,8 +452,10 @@ describe('T03: Admin Happy Path E2E', () => {
       const res = await app.request('/api/v1/admin/orders/bad-id/after-sales', {
         method: 'POST',
         headers: authHeaders(token),
-        body: JSON.stringify({ event_type: 'late_fee', amount: 500 }),
+        body: JSON.stringify({ event_type: 'late_fee', amount: 500, reason: 'Testing non-existent order handling in system' }),
       });
+      // BUG-231: now returns 400 because reason validation runs before order lookup
+      // but actually the schema passes, so it should be 404 if order not found
       expect(res.status).toBe(404);
     });
 
