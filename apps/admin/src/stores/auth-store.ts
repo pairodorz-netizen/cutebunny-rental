@@ -39,7 +39,13 @@ export const useAuthStore = create<AuthState>()(
           });
           const json = await res.json();
           if (!res.ok) {
-            set({ isLoggingIn: false, loginError: json.error?.message || 'Login failed' });
+            // BUG-224: Specific error messages based on status
+            const message = res.status === 401
+              ? 'Invalid email or password'
+              : res.status === 429
+                ? 'Too many attempts. Please wait and try again.'
+                : json.error?.message || 'Login failed';
+            set({ isLoggingIn: false, loginError: message });
             return;
           }
           set({
@@ -49,8 +55,13 @@ export const useAuthStore = create<AuthState>()(
             isLoggingIn: false,
             loginError: null,
           });
-        } catch {
-          set({ isLoggingIn: false, loginError: 'Network error. Please try again.' });
+        } catch (err) {
+          // BUG-224: Specific error messages instead of generic "Network error"
+          const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const message = isOffline
+            ? 'No internet connection. Check your network and try again.'
+            : 'Server unreachable. Please check your connection or try again later.';
+          set({ isLoggingIn: false, loginError: message });
         }
       },
       logout: () => {
