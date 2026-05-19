@@ -402,7 +402,7 @@ function EventRow({
                 </div>
               )}
 
-              {detail?.payload && (
+              {detail != null && (
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">Payload</p>
                   <pre className="bg-card border rounded p-3 text-xs overflow-x-auto max-h-[300px]">
