@@ -59,10 +59,11 @@ export function LoginPage() {
   }
 
   // Determine error type for specific messaging
+  const errorLower = loginError?.toLowerCase() ?? '';
   const errorType = loginError
-    ? loginError.includes('Network') || loginError.includes('fetch') || loginError.includes('unreachable')
+    ? errorLower.includes('network') || errorLower.includes('fetch') || errorLower.includes('unreachable') || errorLower.includes('internet') || errorLower.includes('connection')
       ? 'network'
-      : loginError.includes('401') || loginError.includes('nvalid') || loginError.includes('credentials')
+      : errorLower.includes('401') || errorLower.includes('invalid') || errorLower.includes('credentials') || errorLower.includes('password')
         ? 'credentials'
         : 'generic'
     : null;
