@@ -13,7 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
   ready: '#22c55e',
 };
 
-function SimpleBarChart({ data }: { data: Record<string, number> }) {
+function SimpleBarChart({ data, statusLabels }: { data: Record<string, number>; statusLabels: Record<string, string> }) {
   const entries = Object.entries(data);
   const maxVal = Math.max(...entries.map(([, v]) => v), 1);
 
@@ -30,7 +30,7 @@ function SimpleBarChart({ data }: { data: Record<string, number> }) {
             }}
           />
           <span className="text-[10px] text-muted-foreground mt-1 truncate w-full text-center">
-            {key.replace('_', ' ')}
+            {statusLabels[key] ?? key.replace('_', ' ')}
           </span>
         </div>
       ))}
@@ -208,7 +208,7 @@ export function DashboardPage() {
           {/* Orders by Status Chart */}
           <div className="rounded-lg border p-4 mb-6">
             <h3 className="font-semibold mb-4">{t('dashboard.ordersByStatus')}</h3>
-            <SimpleBarChart data={overview.orders_by_status} />
+            <SimpleBarChart data={overview.orders_by_status} statusLabels={t('orders.statusLabel', { returnObjects: true }) as Record<string, string>} />
           </div>
 
           {/* Recent Orders Table */}
@@ -239,7 +239,7 @@ export function DashboardPage() {
                           className="inline-block px-2 py-0.5 rounded-full text-xs font-medium text-white"
                           style={{ backgroundColor: STATUS_COLORS[order.status] ?? '#6b7280' }}
                         >
-                          {order.status}
+                          {t(`orders.statusLabel.${order.status}`, order.status)}
                         </span>
                       </td>
                       <td className="p-3 text-sm text-right font-medium">{order.total_amount.toLocaleString()} THB</td>
