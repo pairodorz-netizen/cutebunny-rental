@@ -37,10 +37,12 @@ const FORWARD_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
+// BUG-223: Removed invalid "jump to finished" from early states.
+// Only states late in the rental cycle can transition to finished.
 const BACKWARD_TRANSITIONS: Record<string, string[]> = {
-  unpaid: ['finished', 'cancelled'],
-  paid_locked: ['unpaid', 'finished', 'cancelled'],
-  shipped: ['paid_locked', 'finished', 'cancelled'],
+  unpaid: ['cancelled'],
+  paid_locked: ['unpaid', 'cancelled'],
+  shipped: ['paid_locked', 'cancelled'],
   returned: ['shipped', 'finished', 'cancelled'],
   cleaning: ['returned', 'cancelled'],
   repair: ['cleaning', 'cancelled'],
