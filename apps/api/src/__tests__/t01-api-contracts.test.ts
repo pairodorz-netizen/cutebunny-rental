@@ -313,10 +313,9 @@ describe('T01: API Contract Tests', () => {
       expect(body.error.details.allowed_transitions).toContain('paid_locked');
     });
 
-    it('allows shipped → finished (flexible state machine)', async () => {
+    // BUG-223: shipped → finished is no longer valid (must go through returned/cleaning)
+    it('rejects shipped → finished (BUG-223 FSM guard)', async () => {
       mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'shipped' });
-      mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'finished' });
-      mockDb.auditLog.create.mockResolvedValue({});
 
       const { createToken } = await import('../middleware/auth');
       const token = await createToken('00000000-0000-0000-0000-000000000099', 'admin@test.com', 'superadmin');
@@ -329,7 +328,7 @@ describe('T01: API Contract Tests', () => {
         },
         body: JSON.stringify({ to_status: 'finished' }),
       });
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(422);
     });
 
     it('rejects finished → unpaid (not in allowed transitions)', async () => {
