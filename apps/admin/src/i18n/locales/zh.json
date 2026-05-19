@@ -195,7 +195,8 @@
     "feeNote": "费用备注",
     "feeNotePlaceholder": "收费原因（内部）",
     "feeGuardWarning": "费用总额超过3倍租金小计（{{limit}} 泰铢），服务器将拒绝。",
-    "feeExceedsGuard": "费用总额超过安全限额"
+    "feeExceedsGuard": "费用总额超过安全限额",
+    "dateTooFarFuture": "日期不能超过未来2年"
   },
   "products": {
     "title": "商品",

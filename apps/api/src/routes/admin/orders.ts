@@ -7,6 +7,7 @@ import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
 import { confirmHolds, createLifecycleBlocks } from '../../lib/availability';
 import { computePagination } from '@cutebunny/shared/orders-archive-window';
+import { isDateWithinBookingWindow } from '@cutebunny/shared/date-bounds';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
 import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
 import { safeAuditLogCreate, safeAuditLogQuery } from '../../lib/safe-audit-log';
@@ -1407,6 +1408,14 @@ adminOrders.post('/', async (c) => {
   }
 
   const { customer_name, customer_phone, customer_email, rental_start_date, rental_end_date, items, deposit, delivery_fee, note, mark_as_paid } = parsed.data;
+
+  // BUG-229: Reject dates beyond the booking window (today + 2 years)
+  if (!isDateWithinBookingWindow(rental_start_date)) {
+    return error(c, 400, 'DATE_OUT_OF_RANGE', 'Rental start date is too far in the future (max 2 years ahead)');
+  }
+  if (!isDateWithinBookingWindow(rental_end_date)) {
+    return error(c, 400, 'DATE_OUT_OF_RANGE', 'Rental end date is too far in the future (max 2 years ahead)');
+  }
 
   // Find or create customer by phone
   let customer = await db.customer.findFirst({ where: { phone: customer_phone } });

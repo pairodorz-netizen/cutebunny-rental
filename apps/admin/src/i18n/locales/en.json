@@ -195,7 +195,8 @@
     "feeNote": "Fee Notes",
     "feeNotePlaceholder": "Reason for fees (internal)",
     "feeGuardWarning": "Combined fees exceed 3× subtotal ({{limit}} THB). Server will reject.",
-    "feeExceedsGuard": "Fee total exceeds safety limit"
+    "feeExceedsGuard": "Fee total exceeds safety limit",
+    "dateTooFarFuture": "Date cannot be more than 2 years in the future"
   },
   "products": {
     "title": "Products",
