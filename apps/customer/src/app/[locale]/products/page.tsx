@@ -2,10 +2,11 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api, type Category } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { getMaxBookingDate } from '@cutebunny/shared/date-bounds';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 
@@ -148,6 +149,7 @@ export default function ProductsPage() {
           value={availDate}
           onChange={(e) => { setAvailDate(e.target.value); setPage(1); }}
           min={new Date().toISOString().split('T')[0]}
+          max={getMaxBookingDate()}
           className="w-full rounded-xl border border-border bg-white px-3 py-2.5 text-sm text-cb-heading focus:outline-none focus:ring-2 focus:ring-cb-active/50"
         />
       </div>

@@ -2,9 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { isMonthNavigable } from '@cutebunny/shared/date-bounds';
 
 
 
@@ -61,7 +62,15 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
     else setMonth(month - 1);
   }
 
+  // BUG-229: Check if we can navigate forward (max today + 2 years)
+  const canGoNext = useMemo(() => {
+    const nextM = month === 12 ? 1 : month + 1;
+    const nextY = month === 12 ? year + 1 : year;
+    return isMonthNavigable(nextY, nextM);
+  }, [year, month]);
+
   function nextMonth() {
+    if (!canGoNext) return;
     if (month === 12) { setYear(year + 1); setMonth(1); }
     else setMonth(month + 1);
   }
@@ -161,7 +170,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
         <h3 className="font-semibold text-sm">
           {monthName} {year}
         </h3>
-        <button onClick={nextMonth} className="p-1 hover:bg-muted rounded" aria-label={t('next')}>
+        <button onClick={nextMonth} className={`p-1 rounded ${canGoNext ? 'hover:bg-muted' : 'opacity-30 cursor-not-allowed'}`} aria-label={t('next')} disabled={!canGoNext}>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>

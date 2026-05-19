@@ -11,6 +11,7 @@ import {
   resolveOrdersDatePreset,
   type OrdersDatePreset,
 } from '@cutebunny/shared/orders-archive-window';
+import { getMaxBookingDate, getTodayDate } from '@cutebunny/shared/date-bounds';
 import {
   ADMIN_ORDERS_LIST_QUERY_KEY,
   ADMIN_ORDERS_COUNTS_QUERY_KEY,
@@ -1854,11 +1855,11 @@ export function OrdersPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-xs font-medium">{t('orders.rentalStart')} *</label>
-                  <Input className="h-8 text-sm" type="date" value={createStartDate} onChange={(e) => setCreateStartDate(e.target.value)} />
+                  <Input className="h-8 text-sm" type="date" value={createStartDate} onChange={(e) => setCreateStartDate(e.target.value)} min={getTodayDate()} max={getMaxBookingDate()} />
                 </div>
                 <div>
                   <label className="text-xs font-medium">{t('orders.rentalEnd')} *</label>
-                  <Input className="h-8 text-sm" type="date" value={createEndDate} onChange={(e) => setCreateEndDate(e.target.value)} />
+                  <Input className="h-8 text-sm" type="date" value={createEndDate} onChange={(e) => setCreateEndDate(e.target.value)} min={getTodayDate()} max={getMaxBookingDate()} />
                 </div>
               </div>
 
