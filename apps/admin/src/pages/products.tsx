@@ -932,6 +932,11 @@ function ProductForm({
     if (!price1 || Number(price1) <= 0) { setFormError('1-day rental price is required'); return; }
     if (!price3 || Number(price3) <= 0) { setFormError('3-day rental price is required'); return; }
     if (!price5 || Number(price5) <= 0) { setFormError('5-day rental price is required'); return; }
+    // BUG-233: Reject negative values for stock and cost fields
+    if (Number(costPrice) < 0 || Number(variableCost) < 0 || Number(retailPrice) < 0 || Number(deposit) < 0) {
+      setFormError(t('products.negativeNotAllowed', 'จำนวนต้องไม่ติดลบ'));
+      return;
+    }
 
     // Bracket serialization for H3-b separation (serialization started but
     // fetch never fired ⇒ pre-fetch failure).
@@ -1079,19 +1084,19 @@ function ProductForm({
           <div className="grid grid-cols-4 gap-3 mt-1">
             <div>
               <span className="text-xs text-muted-foreground">1 {t('products.day')}</span>
-              <Input type="number" value={price1} onChange={(e) => setPrice1(e.target.value)} />
+              <Input type="number" min="0" value={price1} onChange={(e) => setPrice1(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">3 {t('products.days')}</span>
-              <Input type="number" value={price3} onChange={(e) => setPrice3(e.target.value)} />
+              <Input type="number" min="0" value={price3} onChange={(e) => setPrice3(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">5 {t('products.days')}</span>
-              <Input type="number" value={price5} onChange={(e) => setPrice5(e.target.value)} />
+              <Input type="number" min="0" value={price5} onChange={(e) => setPrice5(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">{t('products.extraDay')}</span>
-              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
+              <Input type="number" min="0" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
             </div>
           </div>
         </div>
@@ -1099,19 +1104,19 @@ function ProductForm({
         <div className="grid grid-cols-4 gap-4">
           <div>
             <label className="text-sm font-medium">{t('products.buyingCost')}</label>
-            <Input type="number" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
+            <Input type="number" min="0" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} placeholder="0" />
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.variableCost')}</label>
-            <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} placeholder="100" />
+            <Input type="number" min="0" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} placeholder="100" />
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.retailPrice')}</label>
-            <Input type="number" value={retailPrice} onChange={(e) => setRetailPrice(e.target.value)} placeholder="0" />
+            <Input type="number" min="0" value={retailPrice} onChange={(e) => setRetailPrice(e.target.value)} placeholder="0" />
           </div>
           <div>
             <label className="text-sm font-medium">{t('products.deposit')}</label>
-            <Input type="number" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
+            <Input type="number" min="0" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="0" />
           </div>
         </div>
 
@@ -1597,26 +1602,26 @@ function ComboSetForm({
           <div className="grid grid-cols-4 gap-3 mt-1">
             <div>
               <span className="text-xs text-muted-foreground">1 {t('products.day')}</span>
-              <Input type="number" value={price1} onChange={(e) => setPrice1(e.target.value)} />
+              <Input type="number" min="0" value={price1} onChange={(e) => setPrice1(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">3 {t('products.days')}</span>
-              <Input type="number" value={price3} onChange={(e) => setPrice3(e.target.value)} />
+              <Input type="number" min="0" value={price3} onChange={(e) => setPrice3(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">5 {t('products.days')}</span>
-              <Input type="number" value={price5} onChange={(e) => setPrice5(e.target.value)} />
+              <Input type="number" min="0" value={price5} onChange={(e) => setPrice5(e.target.value)} />
             </div>
             <div>
               <span className="text-xs text-muted-foreground">{t('products.extraDay')}</span>
-              <Input type="number" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
+              <Input type="number" min="0" value={extraDayRate} onChange={(e) => setExtraDayRate(e.target.value)} placeholder="0" />
             </div>
           </div>
         </div>
 
         <div>
           <label className="text-sm font-medium">{t('products.variableCost')}</label>
-          <Input type="number" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} className="max-w-xs" />
+          <Input type="number" min="0" value={variableCost} onChange={(e) => setVariableCost(e.target.value)} className="max-w-xs" />
         </div>
 
         {/* Thumbnail Upload */}

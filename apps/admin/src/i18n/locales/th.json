@@ -309,7 +309,8 @@
     "comboDeleteActiveRentals": "ลบไม่ได้: Combo Set นี้มีการเช่าอยู่ {{count}} รายการ",
     "comboDeleteNotFound": "ไม่พบ Combo Set — รีเฟรชรายการแล้ว",
     "comboDeleteAuthLost": "เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่",
-    "comboDeleteNetwork": "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง"
+    "comboDeleteNetwork": "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง",
+    "negativeNotAllowed": "จำนวนสต็อก/ราคาต้องไม่ติดลบ"
   },
   "stock": {
     "title": "จัดการสต็อก",

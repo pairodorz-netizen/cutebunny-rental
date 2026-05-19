@@ -13,6 +13,7 @@ import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
 import { safeAuditLogCreate, safeAuditLogQuery } from '../../lib/safe-audit-log';
 import type { OrderStatus, Prisma } from '@prisma/client';
 import { customerDisplayName, customerDisplayEmail, customerDisplayPhone, isCustomerDeleted } from '@cutebunny/shared/customer-pii';
+import { normalizePhone } from '@cutebunny/shared/phone-normalize';
 
 const adminOrders = new Hono();
 
@@ -1433,15 +1434,17 @@ adminOrders.post('/', async (c) => {
   }
 
   // Find or create customer by phone
-  let customer = await db.customer.findFirst({ where: { phone: customer_phone } });
+  // BUG-234: Normalize phone for consistent lookup and storage
+  const normalizedCustomerPhone = normalizePhone(customer_phone) || customer_phone;
+  let customer = await db.customer.findFirst({ where: { phone: normalizedCustomerPhone } });
   if (!customer) {
     const nameParts = customer_name.trim().split(/\s+/);
     customer = await db.customer.create({
       data: {
         firstName: nameParts[0] || '',
         lastName: nameParts.slice(1).join(' ') || '',
-        phone: customer_phone,
-        email: customer_email ?? `${customer_phone}@placeholder.local`,
+        phone: normalizedCustomerPhone,
+        email: customer_email ?? `${normalizedCustomerPhone}@placeholder.local`,
         locale: 'th',
       },
     });

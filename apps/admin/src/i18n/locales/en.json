@@ -309,7 +309,8 @@
     "comboDeleteActiveRentals": "Cannot delete: combo set has {{count}} active rental(s)",
     "comboDeleteNotFound": "Combo set not found — list refreshed",
     "comboDeleteAuthLost": "Session expired — please sign in again",
-    "comboDeleteNetwork": "Could not reach the server. Please try again."
+    "comboDeleteNetwork": "Could not reach the server. Please try again.",
+    "negativeNotAllowed": "Quantity/price must not be negative"
   },
   "stock": {
     "title": "Stock Management",
