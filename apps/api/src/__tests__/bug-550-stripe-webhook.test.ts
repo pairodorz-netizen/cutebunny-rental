@@ -39,7 +39,7 @@ function makeStripeEvent(overrides: Partial<StripeEvent> = {}): StripeEvent {
         id: 'cs_test_123',
         client_reference_id: MOCK_ORDER.id,
         payment_intent: 'pi_test_456',
-        amount_total: 6600,
+        amount_total: 660000, // 6600 THB in satang
         metadata: { order_id: MOCK_ORDER.id },
       },
     },
@@ -452,8 +452,8 @@ describe('processWebhookEvent', () => {
           object: {
             id: 'ch_test_refund',
             payment_intent: 'pi_test_456',
-            amount: 6600,
-            amount_refunded: 6600,
+            amount: 660000, // 6600 THB in satang
+            amount_refunded: 660000, // 6600 THB in satang
             metadata: {},
           },
         },
@@ -462,13 +462,13 @@ describe('processWebhookEvent', () => {
 
       expect(result.success).toBe(true);
       expect(result.outcome).toBe('processed');
-      // Negative amount in finance ledger
+      // Negative amount in finance ledger (converted from satang to THB)
       expect(db.financeTransaction.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             orderId: MOCK_ORDER.id,
             txType: 'rental_revenue',
-            amount: -6600,
+            amount: -6600, // satangToThb(660000) = 6600 THB
           }),
         }),
       );
@@ -490,8 +490,8 @@ describe('processWebhookEvent', () => {
           object: {
             id: 'ch_test_refund',
             payment_intent: 'pi_test_456',
-            amount: 6600,
-            amount_refunded: 6600,
+            amount: 660000, // 6600 THB in satang
+            amount_refunded: 660000, // 6600 THB in satang (full refund)
             metadata: {},
           },
         },
@@ -516,8 +516,8 @@ describe('processWebhookEvent', () => {
           object: {
             id: 'ch_test_refund_p',
             payment_intent: 'pi_test_456',
-            amount: 6600,
-            amount_refunded: 1000,
+            amount: 660000, // 6600 THB in satang
+            amount_refunded: 100000, // 1000 THB in satang (partial refund)
             metadata: {},
           },
         },

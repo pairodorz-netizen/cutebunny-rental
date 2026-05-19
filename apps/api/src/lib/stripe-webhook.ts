@@ -12,6 +12,7 @@
 
 import type { PrismaClient, OrderStatus } from '@prisma/client';
 import { isValidTransition } from './state-machine';
+import { satangToThb } from './stripe-currency';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -323,7 +324,7 @@ async function handleCheckoutCompleted(
       data: {
         orderId: order.id,
         txType: 'rental_revenue',
-        amount: (session.amount_total as number) ?? 0,
+        amount: satangToThb((session.amount_total as number) ?? 0),
         note: `Stripe payment ${event.id}`,
       },
     }),
@@ -523,21 +524,22 @@ async function handleChargeRefunded(
     return { success: false, outcome: 'failed', error: `Order ${orderId} not found for refund` };
   }
 
-  const refundAmount = (charge.amount_refunded as number) ?? 0;
+  const refundAmountSatang = (charge.amount_refunded as number) ?? 0;
+  const refundAmountThb = satangToThb(refundAmountSatang);
 
-  // Record refund in finance ledger (negative revenue)
+  // Record refund in finance ledger (negative revenue, converted from satang to THB)
   await db.financeTransaction.create({
     data: {
       orderId: order.id,
       txType: 'rental_revenue',
-      amount: -refundAmount,
+      amount: -refundAmountThb,
       note: `Stripe charge.refunded (${event.id})`,
     },
   });
 
   // If fully refunded and order is paid, cancel it
-  const chargeAmount = (charge.amount as number) ?? 0;
-  if (refundAmount >= chargeAmount && order.status === 'paid_locked') {
+  const chargeAmountSatang = (charge.amount as number) ?? 0;
+  if (refundAmountSatang >= chargeAmountSatang && order.status === 'paid_locked') {
     await db.$transaction([
       db.order.update({
         where: { id: order.id },
