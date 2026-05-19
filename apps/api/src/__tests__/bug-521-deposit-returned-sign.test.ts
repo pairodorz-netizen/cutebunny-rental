@@ -166,8 +166,10 @@ describe('BUG-521: deposit_returned sign and direction', () => {
   });
 
   it('BUG-537: summary endpoint: deposit_returned is NOT in total_expenses, shown separately', async () => {
+    // BUG-220: include deposit_received so invariant (returned ≤ received) is satisfied
     const txData = [
       { txType: 'rental_revenue', amount: 2750, createdAt: new Date('2026-05-10'), category: null },
+      { txType: 'deposit_received', amount: 5000, createdAt: new Date('2026-05-10'), category: null },
       { txType: 'deposit_returned', amount: 4140, createdAt: new Date('2026-05-10'), category: null },
     ];
 
@@ -197,8 +199,8 @@ describe('BUG-521: deposit_returned sign and direction', () => {
     expect(totals.net_profit).toBe(2750);
     // Deposit shown separately
     expect(totals.deposit_returned).toBe(4140);
-    expect(totals.deposit_received).toBe(0);
-    expect(totals.net_deposit).toBe(-4140);
+    expect(totals.deposit_received).toBe(5000);
+    expect(totals.net_deposit).toBe(860);
   });
 
   it('BUG-537: by_category tags deposit_returned as DEPOSIT type', async () => {

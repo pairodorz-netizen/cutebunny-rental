@@ -520,7 +520,7 @@ function CurrentProductsTable({
                 <td className="p-2 text-sm font-medium">{p.name}</td>
                 <td className="p-2 text-xs">{p.color?.join(', ') || '-'}</td>
                 <td className="p-2 text-xs">{p.size?.join(', ') || '-'}</td>
-                <td className={`p-2 text-xs text-center font-medium ${p.stock_on_hand <= p.low_stock_threshold ? 'text-red-600' : 'text-foreground'}`}>{p.stock_on_hand}</td>
+                <td className={`p-2 text-xs text-center font-medium ${p.stock_on_hand < p.low_stock_threshold ? 'text-red-600' : 'text-foreground'}`}>{p.stock_on_hand}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['1day'].toLocaleString()}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['3day'].toLocaleString()}</td>
                 <td className="p-2 text-xs text-right">{p.rental_prices['5day'].toLocaleString()}</td>

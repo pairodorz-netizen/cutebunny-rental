@@ -5,8 +5,9 @@ import { success, error, created } from '../../lib/response';
 import { isValidTransition, getAllowedTransitions, getTransitionError } from '../../lib/state-machine';
 import { getAdmin } from '../../middleware/auth';
 import { sendOrderStatusNotification } from '../../lib/notifications';
-import { createLifecycleBlocks } from '../../lib/availability';
+import { confirmHolds, createLifecycleBlocks } from '../../lib/availability';
 import { computePagination } from '@cutebunny/shared/orders-archive-window';
+import { isDateWithinBookingWindow } from '@cutebunny/shared/date-bounds';
 import { buildOrdersWhere, buildOrdersCountsWhere } from '../../lib/orders-query';
 import { computeDerivedFlags, backfillStaleOrders } from '../../scheduled';
 import { safeAuditLogCreate, safeAuditLogQuery } from '../../lib/safe-audit-log';
@@ -740,6 +741,22 @@ adminOrders.patch('/:id/status', async (c) => {
   // handler for guaranteed response delivery, matching the spec's
   // "fail quiet" side-effect rule. Upstream telemetry (BUG-401) and
   // NotificationLog rows already capture the signals we need.
+
+  // BUG-219: Sync calendar availability when order transitions to paid_locked.
+  // This ensures orders that go from unpaid → paid_locked via admin panel
+  // also block dates on the calendar.
+  if (toStatus === 'paid_locked') {
+    try {
+      const orderItems = await db.orderItem.findMany({ where: { orderId } });
+      const rentalDays = Math.max(1, Math.ceil(
+        (order.rentalEndDate.getTime() - order.rentalStartDate.getTime()) / (1000 * 60 * 60 * 24),
+      ));
+      for (const item of orderItems) {
+        await confirmHolds(db, item.productId, order.rentalStartDate, rentalDays, orderId);
+      }
+    } catch { /* calendar sync failure is non-blocking */ }
+  }
+
   // FEAT-512: Use the manually-entered order-level fees (not auto-calc from items)
   const totalLateFee = enteredLateFee;
   const totalDamageFee = enteredDamageFee;
@@ -1392,6 +1409,14 @@ adminOrders.post('/', async (c) => {
 
   const { customer_name, customer_phone, customer_email, rental_start_date, rental_end_date, items, deposit, delivery_fee, note, mark_as_paid } = parsed.data;
 
+  // BUG-229: Reject dates beyond the booking window (today + 2 years)
+  if (!isDateWithinBookingWindow(rental_start_date)) {
+    return error(c, 400, 'DATE_OUT_OF_RANGE', 'Rental start date is too far in the future (max 2 years ahead)');
+  }
+  if (!isDateWithinBookingWindow(rental_end_date)) {
+    return error(c, 400, 'DATE_OUT_OF_RANGE', 'Rental end date is too far in the future (max 2 years ahead)');
+  }
+
   // Find or create customer by phone
   let customer = await db.customer.findFirst({ where: { phone: customer_phone } });
   if (!customer) {
@@ -1477,6 +1502,19 @@ adminOrders.post('/', async (c) => {
       changedBy: admin.sub,
     },
   });
+
+  // BUG-219: Sync calendar availability for admin-created orders.
+  // When mark_as_paid is true, the order goes directly to paid_locked and
+  // calendar slots must be booked immediately (matching customer flow).
+  if (mark_as_paid) {
+    for (const item of items) {
+      try {
+        await confirmHolds(db, item.product_id, startDate, totalDays, order.id);
+      } catch {
+        // Non-blocking: calendar sync failure should not break order creation
+      }
+    }
+  }
 
   // Audit log
   // BUG-508 resilient

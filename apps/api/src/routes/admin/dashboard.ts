@@ -48,10 +48,11 @@ async function fetchSummaryData() {
       where: { deletedAt: null },
       select: { id: true, sku: true, name: true, thumbnailUrl: true },
     }),
+    // BUG-221: use stockOnHand < lowStockThreshold (not hardcoded <= 1)
     db.product.findMany({
-      where: { stockQuantity: { lte: 1 }, available: true },
-      select: { id: true, sku: true, name: true, stockQuantity: true },
-    }),
+      where: { deletedAt: null },
+      select: { id: true, sku: true, name: true, stockOnHand: true, lowStockThreshold: true },
+    }).then((ps) => ps.filter((p) => p.stockOnHand < p.lowStockThreshold)),
     db.customer.count({ where: { email: { not: { startsWith: 'deleted_' } } } }),
     db.order.count(),
     db.product.count(),
@@ -73,12 +74,12 @@ async function fetchSummaryData() {
     db.product.findMany({
       where: { deletedAt: null },
       select: { id: true, sku: true, name: true, thumbnailUrl: true, stockOnHand: true, lowStockThreshold: true },
-    }).then((ps) => ps.filter((p) => p.stockOnHand <= p.lowStockThreshold))
+    }).then((ps) => ps.filter((p) => p.stockOnHand < p.lowStockThreshold))
       .catch(async () => {
         return await db.$queryRaw`
           SELECT id, sku, name, thumbnail_url as "thumbnailUrl", stock_on_hand as "stockOnHand", low_stock_threshold as "lowStockThreshold"
           FROM products
-          WHERE deleted_at IS NULL AND stock_on_hand <= low_stock_threshold
+          WHERE deleted_at IS NULL AND stock_on_hand < low_stock_threshold
           ORDER BY stock_on_hand ASC
           LIMIT 10
         ` as Array<{ id: string; sku: string; name: string; thumbnailUrl: string | null; stockOnHand: number; lowStockThreshold: number }>;
@@ -111,7 +112,7 @@ async function fetchSummaryData() {
         rental_count: p.rentalCount, thumbnail: p.thumbnailUrl,
       })),
       low_stock_alert: lowStockAlert.map((p) => ({
-        id: p.id, sku: p.sku, name: p.name, stock: p.stockQuantity,
+        id: p.id, sku: p.sku, name: p.name, stock: p.stockOnHand,
       })),
     },
     overview: {
@@ -200,14 +201,15 @@ dashboard.get('/stats', async (c) => {
       },
     }),
     db.product.findMany({
-      where: { stockQuantity: { lte: 1 }, available: true },
+      where: { deletedAt: null },
       select: {
         id: true,
         sku: true,
         name: true,
-        stockQuantity: true,
+        stockOnHand: true,
+        lowStockThreshold: true,
       },
-    }),
+    }).then((ps) => ps.filter((p) => p.stockOnHand < p.lowStockThreshold)),
     db.customer.count({ where: { email: { not: { startsWith: 'deleted_' } } } }),
     db.order.count(),
     getProductRentalCounts(db),
@@ -238,7 +240,7 @@ dashboard.get('/stats', async (c) => {
       id: p.id,
       sku: p.sku,
       name: p.name,
-      stock: p.stockQuantity,
+      stock: p.stockOnHand,
     })),
   });
 });
@@ -313,11 +315,10 @@ dashboard.get('/low-stock', async (c) => {
   const db = getDb();
   const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10)));
 
-  // Products where stock_on_hand <= lowStockThreshold, not deleted
+  // BUG-221: Products where stock_on_hand < lowStockThreshold (strictly less than), not deleted
   const lowStockProducts = await db.product.findMany({
     where: {
       deletedAt: null,
-      stockOnHand: { lte: db.product.fields?.lowStockThreshold as unknown as number ?? 5 },
     },
     select: {
       id: true,
@@ -328,13 +329,13 @@ dashboard.get('/low-stock', async (c) => {
       lowStockThreshold: true,
     },
     orderBy: { stockOnHand: 'asc' },
-    take: limit,
-  }).catch(async () => {
+  }).then((ps) => ps.filter((p) => p.stockOnHand < p.lowStockThreshold).slice(0, limit))
+    .catch(async () => {
     // Fallback: use raw comparison since Prisma doesn't support field-to-field comparison easily
     return await db.$queryRaw`
       SELECT id, sku, name, thumbnail_url as "thumbnailUrl", stock_on_hand as "stockOnHand", low_stock_threshold as "lowStockThreshold"
       FROM products
-      WHERE deleted_at IS NULL AND stock_on_hand <= low_stock_threshold
+      WHERE deleted_at IS NULL AND stock_on_hand < low_stock_threshold
       ORDER BY stock_on_hand ASC
       LIMIT ${limit}
     ` as Array<{ id: string; sku: string; name: string; thumbnailUrl: string | null; stockOnHand: number; lowStockThreshold: number }>;
@@ -380,8 +381,9 @@ dashboard.post('/low-stock-digest', async (c) => {
     },
   }).catch(() => []);
 
+  // BUG-221: strict less-than (stock < threshold, NOT <=)
   const belowThreshold = lowStockProducts.filter(
-    (p) => p.stockOnHand <= p.lowStockThreshold
+    (p) => p.stockOnHand < p.lowStockThreshold
   );
 
   // No-op: log what would be sent

@@ -25,7 +25,14 @@
     "password": "密码",
     "submit": "登录",
     "forgotPassword": "忘记密码？",
-    "error": "邮箱或密码无效"
+    "error": "邮箱或密码无效",
+    "sessionExpired": "会话已过期，请重新登录。",
+    "errors": {
+      "invalidCredentials": "邮箱或密码无效，请重试。",
+      "serverUnreachable": "无法连接服务器",
+      "checkConnection": "请检查网络连接或稍后再试。",
+      "retry": "重试"
+    }
   },
   "sidebar": {
     "dashboard": "仪表盘",
@@ -188,7 +195,8 @@
     "feeNote": "费用备注",
     "feeNotePlaceholder": "收费原因（内部）",
     "feeGuardWarning": "费用总额超过3倍租金小计（{{limit}} 泰铢），服务器将拒绝。",
-    "feeExceedsGuard": "费用总额超过安全限额"
+    "feeExceedsGuard": "费用总额超过安全限额",
+    "dateTooFarFuture": "日期不能超过未来2年"
   },
   "products": {
     "title": "商品",

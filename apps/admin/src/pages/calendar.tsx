@@ -22,6 +22,7 @@ import {
   dayOfMonth,
   endOfMonthYMD,
 } from '@cutebunny/shared/calendar-dates';
+import { isMonthNavigable } from '@cutebunny/shared/date-bounds';
 import {
   CALENDAR_LEFT_COLUMNS,
   stickyLeftStyle,
@@ -199,7 +200,16 @@ export function CalendarPage() {
     setStartDate(`${py}-${String(pm).padStart(2, '0')}-01`);
   }
 
+  // BUG-229: Cap forward navigation at today + 2 years
+  const canGoNext = useMemo(() => {
+    const [y, m] = startDate.split('-').map(Number);
+    const nm = m === 12 ? 1 : m + 1;
+    const ny = m === 12 ? y + 1 : y;
+    return isMonthNavigable(ny, nm);
+  }, [startDate]);
+
   function nextMonth() {
+    if (!canGoNext) return;
     const [y, m] = startDate.split('-').map(Number);
     const nm = m === 12 ? 1 : m + 1;
     const ny = m === 12 ? y + 1 : y;
@@ -215,7 +225,7 @@ export function CalendarPage() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h2 className="text-lg font-semibold">{monthName}</h2>
-        <button onClick={nextMonth} className="p-2 hover:bg-muted rounded">
+        <button onClick={nextMonth} className={`p-2 rounded ${canGoNext ? 'hover:bg-muted' : 'opacity-30 cursor-not-allowed'}`} disabled={!canGoNext}>
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>

@@ -23,7 +23,8 @@
     "./admin-orders-query-keys": "./src/admin-orders-query-keys.ts",
     "./order-status": "./src/order-status.ts",
     "./customer-pii": "./src/customer-pii.ts",
-    "./delivery": "./src/delivery.ts"
+    "./delivery": "./src/delivery.ts",
+    "./date-bounds": "./src/date-bounds.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

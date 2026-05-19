@@ -297,6 +297,8 @@ async function handleCheckoutCompleted(
       status: true,
       orderNumber: true,
       customerId: true,
+      subtotal: true,
+      deposit: true,
       totalAmount: true,
       totalDays: true,
       rentalStartDate: true,
@@ -332,15 +334,29 @@ async function handleCheckoutCompleted(
         note: `Stripe checkout.session.completed (${event.id})`,
       },
     }),
-    // Create finance transaction for rental revenue
+    // BUG-232: Record rental_revenue from order.subtotal only (not session.amount_total
+    // which includes deposit + delivery fee). Deposits are liability, not revenue.
     db.financeTransaction.create({
       data: {
         orderId: order.id,
         txType: 'rental_revenue',
-        amount: satangToThb((session.amount_total as number) ?? 0),
+        amount: order.subtotal,
         note: `Stripe payment ${event.id}`,
       },
     }),
+    // BUG-232: Record deposit_received separately (will be returned/forfeited at order finish)
+    ...(order.deposit > 0
+      ? [
+          db.financeTransaction.create({
+            data: {
+              orderId: order.id,
+              txType: 'deposit_received',
+              amount: order.deposit,
+              note: `Deposit collected via Stripe ${event.id}`,
+            },
+          }),
+        ]
+      : []),
   ]);
 
   // Process any buffered payment_intent.succeeded events for this payment intent

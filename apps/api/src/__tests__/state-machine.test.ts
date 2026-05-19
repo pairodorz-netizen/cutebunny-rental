@@ -35,8 +35,9 @@ describe('Order State Machine', () => {
       expect(isValidTransition('unpaid', 'shipped')).toBe(false);
     });
 
-    it('allows shipped → finished (skip forward)', () => {
-      expect(isValidTransition('shipped', 'finished')).toBe(true);
+    // BUG-223: shipped → finished is no longer valid (must go through returned/cleaning cycle)
+    it('rejects shipped → finished (no skip forward)', () => {
+      expect(isValidTransition('shipped', 'finished')).toBe(false);
     });
 
     it('allows finished → cleaning (reopen for cleaning)', () => {
@@ -54,15 +55,18 @@ describe('Order State Machine', () => {
 
   describe('getAllowedTransitions', () => {
     it('returns transitions for unpaid', () => {
-      expect(getAllowedTransitions('unpaid')).toEqual(['paid_locked', 'finished', 'cancelled']);
+      // BUG-223: removed 'finished' from early-state transitions
+      expect(getAllowedTransitions('unpaid')).toEqual(['paid_locked', 'cancelled']);
     });
 
     it('returns transitions for paid_locked', () => {
-      expect(getAllowedTransitions('paid_locked')).toEqual(['shipped', 'unpaid', 'finished', 'cancelled']);
+      // BUG-223: removed 'finished' from early-state transitions
+      expect(getAllowedTransitions('paid_locked')).toEqual(['shipped', 'unpaid', 'cancelled']);
     });
 
     it('returns transitions for shipped', () => {
-      expect(getAllowedTransitions('shipped')).toEqual(['returned', 'paid_locked', 'finished', 'cancelled']);
+      // BUG-223: removed 'finished' from early-state transitions
+      expect(getAllowedTransitions('shipped')).toEqual(['returned', 'paid_locked', 'cancelled']);
     });
 
     it('returns transitions for returned', () => {

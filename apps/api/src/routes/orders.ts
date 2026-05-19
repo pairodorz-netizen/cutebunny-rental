@@ -7,6 +7,7 @@ import { getDb } from '../lib/db';
 import { getEnv } from '../lib/env';
 import { success, created, error } from '../lib/response';
 import { confirmHolds, createLifecycleBlocks, releaseTentativeHolds } from '../lib/availability';
+import { isDateWithinBookingWindow } from '@cutebunny/shared/date-bounds';
 import { computeDerivedFlags } from '../scheduled';
 import { calculateShippingFee, getShippingFeeEnabled } from '../lib/shipping';
 import { getMessengerConfig, estimateMessenger, resolveReturnMethod } from '../lib/messenger';
@@ -80,6 +81,13 @@ orders.post('/', async (c) => {
   if (cartData.expiresAt <= Date.now()) {
     getCartStore().delete(parsed.data.cart_token);
     return error(c, 404, 'CART_EXPIRED', 'Cart session has expired');
+  }
+
+  // BUG-229: Validate rental dates are within booking window (today + 2 years)
+  for (const item of cartData.items) {
+    if (!isDateWithinBookingWindow(item.rental_start)) {
+      return error(c, 400, 'DATE_OUT_OF_RANGE', `Rental start date ${item.rental_start} is too far in the future (max 2 years ahead)`);
+    }
   }
 
   // Clean up stale tentative holds older than 30 minutes
