@@ -36,6 +36,7 @@
     "finance": "Finance",
     "shipping": "Shipping",
     "settings": "Settings",
+    "webhooks": "Webhooks",
     "logout": "Logout"
   },
   "dashboard": {

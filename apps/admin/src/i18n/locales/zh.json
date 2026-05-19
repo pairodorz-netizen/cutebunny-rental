@@ -36,6 +36,7 @@
     "finance": "财务",
     "shipping": "物流",
     "settings": "设置",
+    "webhooks": "Webhooks",
     "logout": "退出"
   },
   "dashboard": {

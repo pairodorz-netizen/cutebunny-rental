@@ -13,6 +13,7 @@ import { FinancePage } from '@/pages/finance';
 import { SettingsPage } from '@/pages/settings';
 import { ShippingLabelPage } from '@/pages/shipping-label';
 import { ProductDetailPage } from '@/pages/product-detail';
+import { WebhooksPage } from '@/pages/webhooks';
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ function App() {
             <Route path="/shipping" element={<Navigate to="/settings?tab=shipping" replace />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/orders/:id/shipping-label" element={<ShippingLabelPage />} />
+            <Route path="/webhooks" element={<WebhooksPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -6,6 +6,7 @@
  * - POST /failures/reset — reset counters
  * - GET /events — list webhook events with filters
  * - GET /events/:id — single event with payload
+ * - POST /events/:id/retry — reprocess a failed event
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -52,7 +53,18 @@ vi.mock('../lib/db', () => ({
       findUnique: vi.fn().mockImplementation(({ where }: { where: { id: string } }) => {
         return Promise.resolve(mockEvents.find((e) => e.id === where.id) ?? null);
       }),
+      update: vi.fn().mockResolvedValue({ retryCount: 3 }),
     },
+  }),
+}));
+
+vi.mock('../lib/stripe-webhook', () => ({
+  processWebhookEvent: vi.fn().mockResolvedValue({
+    success: true,
+    eventId: 'evt_test_2',
+    type: 'charge.refunded',
+    outcome: 'processed',
+    durationMs: 50,
   }),
 }));
 
@@ -148,6 +160,45 @@ describe('admin webhooks API', () => {
       const app = createApp();
       const res = await app.request(
         '/webhooks/events/99999999-9999-9999-9999-999999999999',
+      );
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /webhooks/events/:id/retry', () => {
+    it('retries a failed event and returns new status', async () => {
+      const app = createApp();
+      const res = await app.request(
+        `/webhooks/events/${mockEvents[1].id}/retry`,
+        { method: 'POST' },
+      );
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.data.eventId).toBe('evt_test_2');
+      expect(body.data.previousStatus).toBe('failed');
+      expect(body.data.newStatus).toBe('processed');
+      expect(body.data.outcome).toBe('processed');
+      expect(body.data.retryCount).toBe(3);
+    });
+
+    it('rejects retry on already-processed event', async () => {
+      const app = createApp();
+      const res = await app.request(
+        `/webhooks/events/${mockEvents[0].id}/retry`,
+        { method: 'POST' },
+      );
+      expect(res.status).toBe(400);
+
+      const body = await res.json();
+      expect(body.error).toContain('already processed');
+    });
+
+    it('returns 404 for non-existent event', async () => {
+      const app = createApp();
+      const res = await app.request(
+        '/webhooks/events/99999999-9999-9999-9999-999999999999/retry',
+        { method: 'POST' },
       );
       expect(res.status).toBe(404);
     });

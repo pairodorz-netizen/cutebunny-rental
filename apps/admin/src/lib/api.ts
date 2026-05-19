@@ -1111,4 +1111,51 @@ export const adminApi = {
     delete: (imageId: string) =>
       request<{ data: { deleted: boolean } }>(`/api/v1/admin/images/${imageId}`, { method: 'DELETE' }),
   },
+  webhooks: {
+    failures: () =>
+      request<{ data: {
+        consecutiveFailures: number;
+        hourlyFailures: number;
+        lastFailure: { timestamp: number; eventId: string; error: string } | null;
+        lastAlertSentAt: number | null;
+        backend: string;
+        hourlyDetails: Array<{ timestamp: number; eventId: string; error: string }>;
+      } }>('/api/v1/admin/webhooks/failures'),
+    resetFailures: () =>
+      request<{ data: { reset: boolean } }>('/api/v1/admin/webhooks/failures/reset', { method: 'POST' }),
+    events: (params?: { status?: string; limit?: number; offset?: number }) => {
+      const sp = new URLSearchParams();
+      if (params?.status) sp.set('status', params.status);
+      if (params?.limit) sp.set('limit', String(params.limit));
+      if (params?.offset) sp.set('offset', String(params.offset));
+      const qs = sp.toString();
+      return request<{ data: Array<WebhookEvent>; pagination: { total: number; limit: number; offset: number } }>(
+        `/api/v1/admin/webhooks/events${qs ? `?${qs}` : ''}`,
+      );
+    },
+    event: (id: string) =>
+      request<{ data: WebhookEvent & { payload: unknown } }>(`/api/v1/admin/webhooks/events/${id}`),
+    retryEvent: (id: string) =>
+      request<{ data: {
+        eventId: string;
+        previousStatus: string;
+        newStatus: string;
+        outcome: string;
+        error: string | null;
+        retryCount: number;
+      } }>(`/api/v1/admin/webhooks/events/${id}/retry`, { method: 'POST' }),
+  },
 };
+
+export interface WebhookEvent {
+  id: string;
+  stripeEventId: string;
+  eventType: string;
+  status: string;
+  orderId: string | null;
+  paymentIntentId: string | null;
+  errorMessage: string | null;
+  processedAt: string | null;
+  retryCount: number;
+  createdAt: string;
+}

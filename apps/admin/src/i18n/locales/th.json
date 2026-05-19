@@ -36,6 +36,7 @@
     "finance": "การเงิน",
     "shipping": "จัดส่ง",
     "settings": "ตั้งค่า",
+    "webhooks": "Webhooks",
     "logout": "ออกจากระบบ"
   },
   "dashboard": {

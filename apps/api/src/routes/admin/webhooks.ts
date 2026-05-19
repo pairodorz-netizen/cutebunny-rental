@@ -4,10 +4,13 @@
  * GET  /api/v1/admin/webhooks/failures — current failure state (KV/memory)
  * POST /api/v1/admin/webhooks/failures/reset — reset failure counters
  * GET  /api/v1/admin/webhooks/events — list webhook events from DB
+ * GET  /api/v1/admin/webhooks/events/:id — single event with full payload
+ * POST /api/v1/admin/webhooks/events/:id/retry — reprocess a failed event
  */
 
 import { Hono } from 'hono';
 import { getDb } from '../../lib/db';
+import { processWebhookEvent, type StripeEvent } from '../../lib/stripe-webhook';
 import {
   getFailureState,
   resetFailureState,
@@ -99,6 +102,53 @@ adminWebhooks.get('/events/:id', async (c) => {
   }
 
   return c.json({ data: event });
+});
+
+// POST /events/:id/retry — reprocess a failed webhook event
+adminWebhooks.post('/events/:id/retry', async (c) => {
+  const db = getDb();
+  const id = c.req.param('id');
+
+  const event = await db.stripeWebhookEvent.findUnique({
+    where: { id },
+  });
+
+  if (!event) {
+    return c.json({ error: 'Event not found' }, 404);
+  }
+
+  if (event.status === 'processed') {
+    return c.json({ error: 'Event already processed successfully' }, 400);
+  }
+
+  if (event.status === 'processing') {
+    return c.json({ error: 'Event is currently being processed' }, 400);
+  }
+
+  // Reset status to 'received' so processWebhookEvent can pick it up
+  await db.stripeWebhookEvent.update({
+    where: { id },
+    data: {
+      status: 'received',
+      errorMessage: null,
+      retryCount: { increment: 1 },
+    },
+  });
+
+  // Re-process the event using the stored payload
+  const stripeEvent = event.payload as unknown as StripeEvent;
+  const result = await processWebhookEvent(db, stripeEvent);
+
+  return c.json({
+    data: {
+      eventId: event.stripeEventId,
+      previousStatus: event.status,
+      newStatus: result.outcome === 'processed' ? 'processed' : 'failed',
+      outcome: result.outcome,
+      error: result.error ?? null,
+      retryCount: event.retryCount + 1,
+    },
+  });
 });
 
 export default adminWebhooks;

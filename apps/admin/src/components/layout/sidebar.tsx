@@ -12,6 +12,7 @@ import {
   Settings,
   LogOut,
   X,
+  Webhook,
 } from 'lucide-react';
 
 const navItems = [
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/customers', icon: Users, labelKey: 'sidebar.customers' },
   { path: '/calendar', icon: Calendar, labelKey: 'sidebar.calendar' },
   { path: '/finance', icon: DollarSign, labelKey: 'sidebar.finance' },
+  { path: '/webhooks', icon: Webhook, labelKey: 'sidebar.webhooks' },
   { path: '/settings', icon: Settings, labelKey: 'sidebar.settings' },
 ];
 
