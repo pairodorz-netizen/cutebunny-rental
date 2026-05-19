@@ -1253,15 +1253,17 @@ adminProducts.get('/roi/summary', async (c) => {
       financeTransactions: product.financeTransactions,
     });
 
-    const daysListed = Math.floor((now.getTime() - product.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    const daysListed = product.createdAt
+      ? Math.floor((now.getTime() - new Date(product.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+      : null;
 
     return {
       product_id: product.id,
       product_name: product.name,
       sku: product.sku,
       days_listed: daysListed,
-      is_new: daysListed < 30,
-      listed_at: product.createdAt.toISOString(),
+      is_new: daysListed !== null && daysListed < 30,
+      listed_at: product.createdAt ? new Date(product.createdAt).toISOString() : null,
       ...result,
     };
   });
