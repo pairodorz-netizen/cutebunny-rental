@@ -1,26 +1,21 @@
--- BUG-546 (#246) Rollback: Restore the original deny-all RESTRICTIVE policy
--- for authenticated role on audit_logs.
+-- BUG-546 (#246) Rollback: Restore FORCE ROW LEVEL SECURITY on audit_logs.
 --
--- This reverts the admin read access and restores the blanket deny.
+-- This reverts the NO FORCE change. The PERMISSIVE policies for postgres/
+-- service_role are left in place (they were originally from PR #238 and
+-- don't cause harm).
 
 BEGIN;
 
--- Remove the granular policies added by the forward migration
-DROP POLICY IF EXISTS "audit_logs_admin_read" ON "public"."audit_logs";
-DROP POLICY IF EXISTS "audit_logs_deny_write_authenticated" ON "public"."audit_logs";
-DROP POLICY IF EXISTS "audit_logs_deny_update_authenticated" ON "public"."audit_logs";
-DROP POLICY IF EXISTS "audit_logs_deny_delete_authenticated" ON "public"."audit_logs";
-
--- Restore the original blanket deny-all RESTRICTIVE policy
-CREATE POLICY "bug_rls_02_deny_all_authenticated"
-  ON "public"."audit_logs"
-  AS RESTRICTIVE FOR ALL TO authenticated
-  USING (false) WITH CHECK (false);
+-- Restore FORCE ROW LEVEL SECURITY (original Supabase Dashboard state)
+ALTER TABLE "public"."audit_logs" FORCE ROW LEVEL SECURITY;
 
 COMMIT;
 
 -- Verification:
+-- SELECT relname, relforcerowsecurity
+-- FROM pg_class WHERE relname = 'audit_logs';
+-- Expected: relforcerowsecurity = true
+--
 -- SELECT policyname, roles, cmd, permissive
 -- FROM pg_policies WHERE tablename = 'audit_logs';
---
--- Expected: bug_rls_02_deny_all_authenticated restored (RESTRICTIVE, ALL, authenticated)
+-- Policies remain unchanged — only the FORCE flag is restored.

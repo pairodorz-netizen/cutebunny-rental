@@ -1,12 +1,18 @@
 /**
- * BUG-546 (#246): Audit log empty for admin due to RESTRICTIVE RLS policy.
+ * BUG-546 (#246): Audit log empty for admin — RLS blocks postgres/service_role
+ * reads when FORCE ROW LEVEL SECURITY is active.
+ *
+ * Architecture: Admin dashboard reads audit_logs via backend API (Prisma/Neon
+ * with postgres role), NOT via Supabase JS client. Admin auth uses custom
+ * password_hash, not Supabase Auth — auth.uid() is irrelevant.
  *
  * Tests verify:
- * 1. Migration SQL is syntactically valid and contains correct policy definitions
- * 2. Admin users (in admin_users table) should be able to SELECT audit_logs
- * 3. Non-admin authenticated users should be blocked from SELECT
- * 4. All authenticated users are blocked from INSERT/UPDATE/DELETE
- * 5. Rollback migration restores the original deny-all policy
+ * 1. Forward migration uses NO FORCE ROW LEVEL SECURITY (the key fix)
+ * 2. Forward migration re-ensures PERMISSIVE policies for postgres + service_role
+ * 3. Forward migration does NOT touch authenticated/anon deny-all policies
+ * 4. Forward migration does NOT reference auth.uid() (architectural mismatch)
+ * 5. Rollback restores FORCE ROW LEVEL SECURITY
+ * 6. Admin API reads audit_logs via backend (not direct Supabase client)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -22,36 +28,30 @@ const ROLLBACK_SQL = readFileSync(
   'utf8',
 );
 
-describe('BUG-546 (#246) — RLS audit_logs admin read migration', () => {
-  describe('forward migration structure', () => {
-    it('drops the blanket deny-all RESTRICTIVE policy', () => {
-      expect(FORWARD_SQL).toContain(
-        'DROP POLICY IF EXISTS "bug_rls_02_deny_all_authenticated" ON "public"."audit_logs"',
-      );
+// Check if the settings route file exists for architecture verification
+const settingsRouteExists = (() => {
+  try {
+    readFileSync(resolve(__dirname, '../routes/admin/settings.ts'), 'utf8');
+    return true;
+  } catch { return false; }
+})();
+
+describe('BUG-546 (#246) — RLS audit_logs admin read (Option A: service_role)', () => {
+  describe('forward migration — NO FORCE ROW LEVEL SECURITY', () => {
+    it('removes FORCE ROW LEVEL SECURITY on audit_logs', () => {
+      expect(FORWARD_SQL).toContain('NO FORCE ROW LEVEL SECURITY');
+      expect(FORWARD_SQL).toContain('"public"."audit_logs"');
     });
 
-    it('creates RESTRICTIVE deny for INSERT on authenticated', () => {
-      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_deny_write_authenticated"');
-      expect(FORWARD_SQL).toContain('AS RESTRICTIVE FOR INSERT TO authenticated');
-      expect(FORWARD_SQL).toContain('USING (false) WITH CHECK (false)');
+    it('re-ensures PERMISSIVE ALL for service_role', () => {
+      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_service_role_all"');
+      expect(FORWARD_SQL).toContain('AS PERMISSIVE FOR ALL TO service_role');
+      expect(FORWARD_SQL).toContain('USING (true) WITH CHECK (true)');
     });
 
-    it('creates RESTRICTIVE deny for UPDATE on authenticated', () => {
-      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_deny_update_authenticated"');
-      expect(FORWARD_SQL).toContain('AS RESTRICTIVE FOR UPDATE TO authenticated');
-    });
-
-    it('creates RESTRICTIVE deny for DELETE on authenticated', () => {
-      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_deny_delete_authenticated"');
-      expect(FORWARD_SQL).toContain('AS RESTRICTIVE FOR DELETE TO authenticated');
-    });
-
-    it('creates PERMISSIVE SELECT policy for admin users only', () => {
-      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_admin_read"');
-      expect(FORWARD_SQL).toContain('AS PERMISSIVE FOR SELECT TO authenticated');
-      expect(FORWARD_SQL).toContain(
-        'USING (EXISTS (SELECT 1 FROM public.admin_users WHERE user_id = auth.uid()))',
-      );
+    it('re-ensures PERMISSIVE ALL for postgres', () => {
+      expect(FORWARD_SQL).toContain('CREATE POLICY "audit_logs_postgres_all"');
+      expect(FORWARD_SQL).toContain('AS PERMISSIVE FOR ALL TO postgres');
     });
 
     it('is wrapped in a transaction', () => {
@@ -59,53 +59,78 @@ describe('BUG-546 (#246) — RLS audit_logs admin read migration', () => {
       expect(FORWARD_SQL).toContain('COMMIT;');
     });
 
-    it('does not grant blanket SELECT to all authenticated users', () => {
-      // Must use admin_users check, not a simple USING(true)
-      const selectPolicy = FORWARD_SQL.match(
-        /CREATE POLICY "audit_logs_admin_read"[\s\S]*?;/,
-      );
-      expect(selectPolicy).not.toBeNull();
-      expect(selectPolicy![0]).not.toContain('USING (true)');
-      expect(selectPolicy![0]).toContain('admin_users');
+    it('uses idempotent DROP IF EXISTS before CREATE', () => {
+      expect(FORWARD_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_service_role_all"');
+      expect(FORWARD_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_postgres_all"');
+    });
+  });
+
+  describe('security — deny-all for untrusted roles preserved', () => {
+    it('does NOT drop bug_rls_02_deny_all_authenticated', () => {
+      // The authenticated deny-all policy must remain — the admin dashboard
+      // reads via backend API (postgres role), not the Supabase JS client.
+      const nonCommentLines = FORWARD_SQL.split('\n')
+        .filter((line) => !line.trim().startsWith('--') && line.trim().length > 0);
+      const sqlOnly = nonCommentLines.join('\n');
+      expect(sqlOnly).not.toContain('DROP POLICY IF EXISTS "bug_rls_02_deny_all_authenticated"');
+    });
+
+    it('does NOT drop bug_rls_02_deny_all_anon', () => {
+      const nonCommentLines = FORWARD_SQL.split('\n')
+        .filter((line) => !line.trim().startsWith('--') && line.trim().length > 0);
+      const sqlOnly = nonCommentLines.join('\n');
+      expect(sqlOnly).not.toContain('deny_all_anon');
+    });
+
+    it('does NOT reference auth.uid() (admin uses custom auth, not Supabase Auth)', () => {
+      const nonCommentLines = FORWARD_SQL.split('\n')
+        .filter((line) => !line.trim().startsWith('--') && line.trim().length > 0);
+      const sqlOnly = nonCommentLines.join('\n');
+      expect(sqlOnly).not.toContain('auth.uid()');
+    });
+
+    it('does NOT create any PERMISSIVE policy for authenticated role', () => {
+      const nonCommentLines = FORWARD_SQL.split('\n')
+        .filter((line) => !line.trim().startsWith('--') && line.trim().length > 0);
+      const sqlOnly = nonCommentLines.join('\n');
+      expect(sqlOnly).not.toContain('PERMISSIVE FOR SELECT TO authenticated');
+      expect(sqlOnly).not.toContain('PERMISSIVE FOR ALL TO authenticated');
     });
   });
 
   describe('rollback migration', () => {
-    it('drops all granular policies', () => {
-      expect(ROLLBACK_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_admin_read"');
-      expect(ROLLBACK_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_deny_write_authenticated"');
-      expect(ROLLBACK_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_deny_update_authenticated"');
-      expect(ROLLBACK_SQL).toContain('DROP POLICY IF EXISTS "audit_logs_deny_delete_authenticated"');
-    });
-
-    it('restores original deny-all RESTRICTIVE policy', () => {
-      expect(ROLLBACK_SQL).toContain('CREATE POLICY "bug_rls_02_deny_all_authenticated"');
-      expect(ROLLBACK_SQL).toContain('AS RESTRICTIVE FOR ALL TO authenticated');
-      expect(ROLLBACK_SQL).toContain('USING (false) WITH CHECK (false)');
+    it('restores FORCE ROW LEVEL SECURITY', () => {
+      expect(ROLLBACK_SQL).toContain('FORCE ROW LEVEL SECURITY');
+      // Must not contain NO FORCE (that's the forward direction)
+      const nonCommentLines = ROLLBACK_SQL.split('\n')
+        .filter((line) => !line.trim().startsWith('--') && line.trim().length > 0);
+      const sqlOnly = nonCommentLines.join('\n');
+      expect(sqlOnly).not.toContain('NO FORCE');
     });
 
     it('is wrapped in a transaction', () => {
       expect(ROLLBACK_SQL).toContain('BEGIN;');
       expect(ROLLBACK_SQL).toContain('COMMIT;');
     });
+
+    it('does NOT drop the postgres/service_role PERMISSIVE policies', () => {
+      // These policies from PR #238 should remain even on rollback
+      expect(ROLLBACK_SQL).not.toContain('DROP POLICY');
+    });
   });
 
-  describe('security constraints', () => {
-    it('anon deny-all is NOT touched by the migration', () => {
-      // Forward migration must not DROP or CREATE anon policies (only mentions in comments)
-      const statements = FORWARD_SQL.split('\n').filter(
-        (line) => !line.trim().startsWith('--') && line.trim().length > 0,
+  describe('architecture — admin reads via backend API (not direct client)', () => {
+    it('settings route uses Prisma db.auditLog (not Supabase client)', () => {
+      if (!settingsRouteExists) return; // skip if route file moved
+      const settingsRoute = readFileSync(
+        resolve(__dirname, '../routes/admin/settings.ts'),
+        'utf8',
       );
-      const nonCommentSQL = statements.join('\n');
-      expect(nonCommentSQL).not.toContain('deny_all_anon');
-    });
-
-    it('admin_read policy scopes via admin_users table (not blanket access)', () => {
-      // The USING clause must reference admin_users for boundary check
-      const usingClause = FORWARD_SQL.match(/USING \(EXISTS.*?\)\)/s);
-      expect(usingClause).not.toBeNull();
-      expect(usingClause![0]).toContain('public.admin_users');
-      expect(usingClause![0]).toContain('auth.uid()');
+      // Prisma query — the actual read path
+      expect(settingsRoute).toContain('auditLog.findMany');
+      // Must NOT use Supabase client for audit_logs
+      expect(settingsRoute).not.toContain("from('audit_logs')");
+      expect(settingsRoute).not.toContain('from("audit_logs")');
     });
   });
 });
