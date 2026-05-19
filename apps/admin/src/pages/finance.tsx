@@ -10,6 +10,7 @@ export function FinancePage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>('summary');
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [includeNewProducts, setIncludeNewProducts] = useState(false);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 6);
@@ -359,6 +360,21 @@ export function FinancePage() {
             <div className="rounded-lg border p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : roiData && roiData.length > 0 ? (
             <div className="space-y-6">
+              {/* Filter: include new products */}
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeNewProducts}
+                    onChange={(e) => setIncludeNewProducts(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  {t('finance.includeNewProducts')}
+                </label>
+                <span className="text-xs text-muted-foreground" title={t('finance.newProductTooltip')}>
+                  <Info className="h-3.5 w-3.5 inline" />
+                </span>
+              </div>
               {/* Revenue Trend Mini-Chart (CSS bars) */}
               {summary && summary.periods.length > 1 && (
                 <div className="rounded-lg border">
@@ -426,11 +442,18 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {roiData.map((p, idx) => (
-                        <tr key={p.product_id} className="hover:bg-muted/30">
+                      {roiData.filter((p) => includeNewProducts || !p.is_new).map((p, idx) => (
+                        <tr key={p.product_id} className={`hover:bg-muted/30 ${p.is_new ? 'opacity-70' : ''}`}>
                           <td className="p-3 text-sm text-muted-foreground">{idx + 1}</td>
                           <td className="p-3 text-sm">
-                            <div className="font-medium">{p.product_name}</div>
+                            <div className="font-medium">
+                              {p.product_name}
+                              {p.is_new && (
+                                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full" title={t('finance.newProductBreakEvenTooltip', { days: p.days_listed })}>
+                                  {t('finance.newBadge')}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground font-mono">{p.sku}</div>
                           </td>
                           <td className="p-3 text-sm text-right">{p.purchase_cost.toLocaleString()}</td>
@@ -451,7 +474,7 @@ export function FinancePage() {
                           <td className="p-3 text-sm text-right">{p.total_rentals}</td>
                           <td className="p-3 text-sm text-right">
                             {p.break_even_rentals > 0 ? (
-                              <span className={p.total_rentals >= p.break_even_rentals ? 'text-green-600' : 'text-orange-600'}>
+                              <span className={p.total_rentals >= p.break_even_rentals ? 'text-green-600' : 'text-orange-600'} title={p.is_new ? t('finance.newProductBreakEvenTooltip', { days: p.days_listed }) : undefined}>
                                 {p.break_even_rentals} {p.total_rentals >= p.break_even_rentals ? '\u2713' : ''}
                               </span>
                             ) : '-'}

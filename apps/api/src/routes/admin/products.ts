@@ -1244,6 +1244,7 @@ adminProducts.get('/roi/summary', async (c) => {
   });
 
   // BUG-549: Use shared ROI helper for consistency
+  const now = new Date();
   const roiData = products.map((product) => {
     const result = computeProductROI({
       costPrice: product.costPrice,
@@ -1252,10 +1253,15 @@ adminProducts.get('/roi/summary', async (c) => {
       financeTransactions: product.financeTransactions,
     });
 
+    const daysListed = Math.floor((now.getTime() - product.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
     return {
       product_id: product.id,
       product_name: product.name,
       sku: product.sku,
+      days_listed: daysListed,
+      is_new: daysListed < 30,
+      listed_at: product.createdAt.toISOString(),
       ...result,
     };
   });
