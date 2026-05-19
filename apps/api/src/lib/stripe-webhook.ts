@@ -13,6 +13,8 @@
 import type { PrismaClient, OrderStatus } from '@prisma/client';
 import { isValidTransition } from './state-machine';
 import { satangToThb } from './stripe-currency';
+import { sendEmail, buildConfirmationEmail, buildFailedEmail } from './email';
+import { getEnv } from './env';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -290,7 +292,18 @@ async function handleCheckoutCompleted(
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { id: true, status: true, orderNumber: true, customerId: true },
+    select: {
+      id: true,
+      status: true,
+      orderNumber: true,
+      customerId: true,
+      totalAmount: true,
+      totalDays: true,
+      rentalStartDate: true,
+      rentalEndDate: true,
+      items: { select: { productName: true, size: true, quantity: true } },
+      customer: { select: { email: true, firstName: true, lastName: true, locale: true } },
+    },
   });
 
   if (!order) {
@@ -334,6 +347,26 @@ async function handleCheckoutCompleted(
   const paymentIntentId = (session.payment_intent as string) ?? undefined;
   if (paymentIntentId) {
     await processBufferedEvents(db, paymentIntentId);
+  }
+
+  // Send payment confirmation email (fire-and-forget, don't fail the webhook)
+  try {
+    const env = getEnv();
+    if (env.RESEND_API_KEY && env.RESEND_FROM_EMAIL && order.customer.email) {
+      const emailData = buildConfirmationEmail(order.customer.locale, {
+        orderNumber: order.orderNumber,
+        customerName: `${order.customer.firstName} ${order.customer.lastName}`,
+        items: order.items,
+        totalAmount: order.totalAmount,
+        rentalStartDate: order.rentalStartDate.toISOString(),
+        rentalEndDate: order.rentalEndDate.toISOString(),
+        totalDays: order.totalDays,
+      });
+      emailData.to = order.customer.email;
+      await sendEmail(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL, emailData);
+    }
+  } catch {
+    // Email failure should not affect webhook processing
   }
 
   return { success: true, outcome: 'processed', orderId: order.id };
@@ -455,6 +488,7 @@ async function handlePaymentIntentFailed(
     where: { id: orderId },
     include: {
       items: { select: { productId: true } },
+      customer: { select: { email: true, firstName: true, lastName: true, locale: true } },
     },
   });
 
@@ -479,6 +513,22 @@ async function handlePaymentIntentFailed(
       },
     }),
   ]);
+
+  // Send payment failed email (fire-and-forget)
+  try {
+    const env = getEnv();
+    if (env.RESEND_API_KEY && env.RESEND_FROM_EMAIL && order.customer.email) {
+      const emailData = buildFailedEmail(order.customer.locale, {
+        orderNumber: order.orderNumber,
+        customerName: `${order.customer.firstName} ${order.customer.lastName}`,
+        totalAmount: order.totalAmount,
+      });
+      emailData.to = order.customer.email;
+      await sendEmail(env.RESEND_API_KEY, env.RESEND_FROM_EMAIL, emailData);
+    }
+  } catch {
+    // Email failure should not affect webhook processing
+  }
 
   return { success: true, outcome: 'processed', orderId: order.id };
 }
