@@ -145,6 +145,7 @@ describe('BUG-508: safeAuditLogCreate', () => {
     mockDb.auditLog.create.mockRejectedValueOnce(makeP2022Error());
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
+    // BUG-222: safeAuditLogCreate now returns boolean (false on failure)
     await expect(
       safeAuditLogCreate(mockDb as ReturnType<typeof import('../lib/db').getDb>, {
         adminId: ADMIN_UUID,
@@ -152,7 +153,7 @@ describe('BUG-508: safeAuditLogCreate', () => {
         resource: 'product',
         resourceId: 'test-id',
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     consoleSpy.mockRestore();
   });
@@ -197,6 +198,7 @@ describe('BUG-508: safeAuditLogCreate', () => {
     mockDb.auditLog.create.mockRejectedValueOnce(makeGenericError());
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
+    // BUG-222: safeAuditLogCreate now returns boolean (false on failure)
     await expect(
       safeAuditLogCreate(mockDb as ReturnType<typeof import('../lib/db').getDb>, {
         adminId: ADMIN_UUID,
@@ -204,7 +206,7 @@ describe('BUG-508: safeAuditLogCreate', () => {
         resource: 'product',
         resourceId: 'test-id',
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     const logCalls = consoleSpy.mock.calls.map(c => c[0]);
     const failLog = logCalls.find(l => typeof l === 'string' && l.includes('audit_log_write_failed'));

@@ -15,15 +15,18 @@ type AuditLogFindManyArgs = Parameters<Db['auditLog']['findMany']>[0];
 
 /**
  * Write an audit log entry without blocking the caller.
- * On schema drift (P2022/P2021), logs a structured alert and returns
- * silently — the business operation proceeds unaffected.
+ * On schema drift (P2022/P2021) or RLS denial, logs a structured alert
+ * and returns false — the business operation proceeds unaffected.
+ *
+ * BUG-222: Returns boolean to indicate success/failure for observability.
  */
 export async function safeAuditLogCreate(
   db: Db,
   data: AuditLogCreateData,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await db.auditLog.create({ data });
+    return true;
   } catch (err) {
     if (isPrismaSchemaError(err)) {
       const tag = tagPrismaError(err);
@@ -41,13 +44,23 @@ export async function safeAuditLogCreate(
         }));
       }
     } else {
-      // Non-schema error — still swallow to avoid blocking business ops
+      // BUG-222: Detect RLS denial (Prisma P2010 or raw SQL 42501)
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isRlsDenial = errMsg.includes('row-level security') ||
+        errMsg.includes('permission denied') ||
+        errMsg.includes('new row violates row-level security policy');
       console.error(JSON.stringify({
-        type: 'audit_log_write_failed',
+        type: isRlsDenial ? 'audit_log_rls_denied' : 'audit_log_write_failed',
         operation: 'create',
-        error: err instanceof Error ? err.message : String(err),
+        error: errMsg,
+        action: (data as Record<string, unknown>).action ?? null,
+        resource: (data as Record<string, unknown>).resource ?? null,
+        ...(isRlsDenial && {
+          guidance: 'Run migration 20260513_219_audit_logs_rls_service_role_forward.sql to grant access',
+        }),
       }));
     }
+    return false;
   }
 }
 
