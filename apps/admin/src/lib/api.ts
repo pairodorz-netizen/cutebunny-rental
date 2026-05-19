@@ -82,10 +82,11 @@ async function request<T>(path: string, options?: RequestInit, ctx?: RequestCont
   const url = `${API_BASE}${path}`;
   const res = await fetchWithDiagnostics(url, { ...options, headers }, !!token, ctx?.diagHandle);
 
+  // BUG-224: redirect to /login?expired=1 so login page shows session expired message
   if (res.status === 401) {
     localStorage.removeItem('auth-storage');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    window.location.href = '/login?expired=1';
+    throw new Error('Session expired');
   }
 
   // BUG-404-A02: content-type-aware error reader. Errors are NEVER
@@ -114,10 +115,11 @@ async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
   const url = `${API_BASE}${path}`;
   const res = await fetchWithDiagnostics(url, { method: 'POST', headers, body: formData }, !!token);
 
+  // BUG-224: redirect to /login?expired=1 so login page shows session expired message
   if (res.status === 401) {
     localStorage.removeItem('auth-storage');
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    window.location.href = '/login?expired=1';
+    throw new Error('Session expired');
   }
 
   if (!res.ok) {
