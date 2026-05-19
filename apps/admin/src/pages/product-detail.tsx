@@ -613,7 +613,7 @@ export function ProductDetailPage() {
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <h3 className="text-sm font-semibold">{t('stock.title')}</h3>
-            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${(product.stock_on_hand ?? 0) <= (product.low_stock_threshold ?? 1) ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${(product.stock_on_hand ?? 0) < (product.low_stock_threshold ?? 1) ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
               {t('stock.onHand')}: {product.stock_on_hand ?? 0}
             </span>
           </div>
