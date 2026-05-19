@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { z } from 'zod';
 import { normalizePhone, normalizePhoneSearch } from '@cutebunny/shared/phone-normalize';
 
 describe('BUG-234: Phone normalization', () => {
@@ -99,8 +100,6 @@ describe('BUG-234: Phone normalization', () => {
 
 describe('BUG-233: Stock quantity backend validation', () => {
   it('backend Zod schema rejects negative stock_quantity', () => {
-    const { z } = require('zod');
-    // Mirrors backend schema: stock_quantity: z.number().int().min(0).optional()
     const schema = z.object({
       stock_quantity: z.number().int().min(0).optional(),
     });
@@ -113,7 +112,6 @@ describe('BUG-233: Stock quantity backend validation', () => {
   });
 
   it('backend Zod schema allows zero stock_quantity', () => {
-    const { z } = require('zod');
     const schema = z.object({
       stock_quantity: z.number().int().min(0).optional(),
     });
@@ -123,7 +121,6 @@ describe('BUG-233: Stock quantity backend validation', () => {
   });
 
   it('backend Zod schema allows positive stock_quantity', () => {
-    const { z } = require('zod');
     const schema = z.object({
       stock_quantity: z.number().int().min(0).optional(),
     });
@@ -133,8 +130,6 @@ describe('BUG-233: Stock quantity backend validation', () => {
   });
 
   it('stock add endpoint schema rejects negative quantity', () => {
-    const { z } = require('zod');
-    // Mirrors: quantity: z.number().int().min(1)
     const schema = z.object({
       quantity: z.number().int().min(1),
     });
@@ -145,8 +140,6 @@ describe('BUG-233: Stock quantity backend validation', () => {
   });
 
   it('stock adjust endpoint schema rejects negative new_qty', () => {
-    const { z } = require('zod');
-    // Mirrors: new_qty: z.number().int().min(0)
     const schema = z.object({
       new_qty: z.number().int().min(0),
       reason: z.string().min(1),
