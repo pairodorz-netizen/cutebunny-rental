@@ -1,9 +1,12 @@
 import type { OrderStatus } from '@prisma/client';
 
+// BUG-223: FSM refined — removed invalid "jump to finished" from early states
+// (unpaid, paid_locked, shipped). Only states that are late in the rental cycle
+// (returned, cleaning, repair) can transition to finished.
 const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  unpaid: ['paid_locked', 'finished', 'cancelled'],
-  paid_locked: ['shipped', 'unpaid', 'finished', 'cancelled'],
-  shipped: ['returned', 'paid_locked', 'finished', 'cancelled'],
+  unpaid: ['paid_locked', 'cancelled'],
+  paid_locked: ['shipped', 'unpaid', 'cancelled'],
+  shipped: ['returned', 'paid_locked', 'cancelled'],
   returned: ['cleaning', 'shipped', 'finished', 'cancelled'],
   cleaning: ['repair', 'finished', 'returned', 'cancelled'],
   repair: ['finished', 'cleaning', 'cancelled'],
