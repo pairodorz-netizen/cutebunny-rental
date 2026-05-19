@@ -507,6 +507,9 @@ export function OrdersPage() {
   const [afterSalesType, setAfterSalesType] = useState('');
   const [afterSalesAmount, setAfterSalesAmount] = useState('');
   const [afterSalesNote, setAfterSalesNote] = useState('');
+  // BUG-231: reason field (required, min 10 chars) + confirmation step
+  const [afterSalesReason, setAfterSalesReason] = useState('');
+  const [afterSalesConfirmStep, setAfterSalesConfirmStep] = useState(false);
 
   // Create Order modal
   const [showCreateOrder, setShowCreateOrder] = useState(false);
@@ -679,7 +682,7 @@ export function OrdersPage() {
   });
 
   const afterSalesMutation = useMutation({
-    mutationFn: ({ orderId, body }: { orderId: string; body: { event_type: string; amount: number; note?: string } }) =>
+    mutationFn: ({ orderId, body }: { orderId: string; body: { event_type: string; amount: number; reason: string; note?: string } }) =>
       adminApi.orders.afterSales(orderId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
@@ -689,6 +692,8 @@ export function OrdersPage() {
       setAfterSalesType('');
       setAfterSalesAmount('');
       setAfterSalesNote('');
+      setAfterSalesReason('');
+      setAfterSalesConfirmStep(false);
     },
   });
 
@@ -1739,7 +1744,7 @@ export function OrdersPage() {
           <div className="bg-background rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">{t('orders.afterSales')}</h3>
-              <button onClick={() => { setShowAfterSalesModal(false); setAfterSalesOrderId(null); }}><X className="h-4 w-4" /></button>
+              <button onClick={() => { setShowAfterSalesModal(false); setAfterSalesOrderId(null); setAfterSalesReason(''); setAfterSalesConfirmStep(false); }}><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-4">
               <div>
@@ -1801,26 +1806,68 @@ export function OrdersPage() {
                 <label className="text-sm font-medium">{t('orders.amount')}</label>
                 <Input type="number" value={afterSalesAmount} onChange={(e) => setAfterSalesAmount(e.target.value)} />
               </div>
+              {/* BUG-231: Required reason textarea (min 10 chars) */}
+              <div>
+                <label className="text-sm font-medium">{t('orders.reason')} <span className="text-red-500">*</span></label>
+                <textarea
+                  value={afterSalesReason}
+                  onChange={(e) => setAfterSalesReason(e.target.value)}
+                  placeholder={t('orders.reasonPlaceholder')}
+                  className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+                  minLength={10}
+                />
+                {afterSalesReason.length > 0 && afterSalesReason.length < 10 && (
+                  <p className="text-xs text-red-500 mt-1">{t('orders.reasonMinLength')}</p>
+                )}
+              </div>
               <div>
                 <label className="text-sm font-medium">{t('orders.note')}</label>
-                <Input value={afterSalesNote} onChange={(e) => setAfterSalesNote(e.target.value)} />
+                <Input value={afterSalesNote} onChange={(e) => setAfterSalesNote(e.target.value)} placeholder={t('orders.notePlaceholder')} />
               </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setShowAfterSalesModal(false); setAfterSalesOrderId(null); }}>{t('common.cancel')}</Button>
-                <Button
-                  onClick={() => afterSalesMutation.mutate({
-                    orderId: afterSalesOrderId,
-                    body: {
-                      event_type: afterSalesType,
-                      amount: Number(afterSalesAmount),
-                      note: afterSalesNote || undefined,
-                    },
-                  })}
-                  disabled={!afterSalesType || !afterSalesAmount || afterSalesMutation.isPending}
-                >
-                  {afterSalesMutation.isPending ? t('common.loading') : t('common.save')}
-                </Button>
-              </div>
+
+              {/* BUG-231: Confirmation step */}
+              {afterSalesConfirmStep ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-2">
+                  <p className="font-medium text-amber-800">{t('orders.confirmAfterSales')}</p>
+                  <div className="text-sm text-amber-700 space-y-1">
+                    <p><strong>{t('orders.eventType')}:</strong> {t(`orders.afterSalesType.${afterSalesType}`)}</p>
+                    <p><strong>{t('orders.amount')}:</strong> {Number(afterSalesAmount).toLocaleString()} THB</p>
+                    <p><strong>{t('orders.reason')}:</strong> {afterSalesReason}</p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button size="sm" variant="outline" onClick={() => setAfterSalesConfirmStep(false)}>{t('common.back')}</Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        afterSalesMutation.mutate({
+                          orderId: afterSalesOrderId,
+                          body: {
+                            event_type: afterSalesType,
+                            amount: Number(afterSalesAmount),
+                            reason: afterSalesReason,
+                            note: afterSalesNote || undefined,
+                          },
+                        });
+                        setAfterSalesConfirmStep(false);
+                      }}
+                      disabled={afterSalesMutation.isPending}
+                    >
+                      {afterSalesMutation.isPending ? t('common.loading') : t('orders.confirmSubmit')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => { setShowAfterSalesModal(false); setAfterSalesOrderId(null); setAfterSalesConfirmStep(false); }}>{t('common.cancel')}</Button>
+                  <Button
+                    onClick={() => setAfterSalesConfirmStep(true)}
+                    disabled={!afterSalesType || !afterSalesAmount || afterSalesReason.length < 10}
+                  >
+                    {t('orders.reviewAndConfirm')}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

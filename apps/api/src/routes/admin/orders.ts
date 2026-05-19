@@ -1165,7 +1165,9 @@ adminOrders.post('/:id/after-sales', async (c) => {
   const bodySchema = z.object({
     event_type: z.enum(['cancel', 'late_fee', 'damage_fee', 'force_buy', 'partial_refund']),
     amount: z.number().int().min(0),
-    note: z.string().optional(),
+    // BUG-231: reason is required (min 10 chars) for audit trail
+    reason: z.string().min(10, 'Reason must be at least 10 characters'),
+    note: z.string().optional(), // backward compat: old callers may still send note
     item_ids: z.array(z.string().uuid()).optional(),
   });
 
@@ -1183,15 +1185,28 @@ adminOrders.post('/:id/after-sales', async (c) => {
     return error(c, 404, 'NOT_FOUND', 'Order not found');
   }
 
+  // BUG-231: Use reason as primary note field (required, min 10 chars)
+  const reasonText = parsed.data.reason;
+
   // Create after-sales event
   const event = await db.afterSalesEvent.create({
     data: {
       orderId,
       eventType: parsed.data.event_type,
       amount: parsed.data.amount,
-      note: parsed.data.note ?? null,
+      note: reasonText,
       createdBy: admin.sub,
     },
+  });
+
+  // BUG-231: Write audit log with reason text (uses BUG-222 infrastructure)
+  await safeAuditLogCreate(db, {
+    orderId,
+    adminId: admin.sub,
+    action: 'AFTER_SALES',
+    resource: 'after_sales_event',
+    resourceId: event.id,
+    details: { event_type: parsed.data.event_type, amount: parsed.data.amount, reason: reasonText },
   });
 
   // Create corresponding finance transaction
@@ -1211,7 +1226,7 @@ adminOrders.post('/:id/after-sales', async (c) => {
       orderId,
       txType,
       amount: isRefund ? -parsed.data.amount : parsed.data.amount,
-      note: `After-sales: ${parsed.data.event_type} - ${parsed.data.note ?? ''}`,
+      note: `After-sales: ${parsed.data.event_type} - ${reasonText}`,
       createdBy: admin.sub,
     },
   });
