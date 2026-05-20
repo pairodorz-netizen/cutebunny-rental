@@ -228,8 +228,7 @@ Added in PR #205 (`.github/workflows/playwright-e2e.yml`):
 
 | # | Task | Description | Effort |
 |---|---|---|---|
-| 1 | **Stripe webhook integration testing** | Verify payment webhooks (checkout.session.completed, payment_intent.succeeded) are processed correctly. Current flow uses tentative holds with 30-min stale cleanup — confirm webhook triggers status transitions. | M |
-| 2 | **R2/Supabase product image upload** | 14/15 products use SVG fallback (PR #199). Upload actual product photos to Supabase Storage or Cloudflare R2 for production quality. | S |
+| 1 | **R2/Supabase product image upload** | 14/15 products use SVG fallback (PR #199). Upload actual product photos to Supabase Storage or Cloudflare R2 for production quality. | S |
 | 3 | **Calendar edge cases** | Validate month-boundary bookings (e.g., book May 30→Jun 2), timezone handling for Thai users (UTC+7), and queue collision detection across month boundaries. | M |
 | 4 | **Order status email notifications** | Confirm order status change emails (confirmed → shipped → returned) are sending correctly with Thai content. | S |
 
