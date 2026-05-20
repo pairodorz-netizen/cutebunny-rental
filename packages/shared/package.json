@@ -24,7 +24,8 @@
     "./order-status": "./src/order-status.ts",
     "./customer-pii": "./src/customer-pii.ts",
     "./delivery": "./src/delivery.ts",
-    "./date-bounds": "./src/date-bounds.ts"
+    "./date-bounds": "./src/date-bounds.ts",
+    "./phone-normalize": "./src/phone-normalize.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

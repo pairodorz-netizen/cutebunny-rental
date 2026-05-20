@@ -309,7 +309,8 @@
     "comboDeleteActiveRentals": "无法删除：该组合套装有 {{count}} 个活跃租赁",
     "comboDeleteNotFound": "未找到组合套装 — 列表已刷新",
     "comboDeleteAuthLost": "会话已过期 — 请重新登录",
-    "comboDeleteNetwork": "无法连接服务器，请重试。"
+    "comboDeleteNetwork": "无法连接服务器，请重试。",
+    "negativeNotAllowed": "库存/价格不可为负数"
   },
   "stock": {
     "title": "库存管理",

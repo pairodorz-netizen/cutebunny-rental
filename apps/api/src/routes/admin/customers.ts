@@ -4,6 +4,7 @@ import { getDb } from '../../lib/db';
 import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
 import { isCustomerDeleted, customerDisplayName, customerDisplayEmail, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
+import { normalizePhone, normalizePhoneSearch } from '@cutebunny/shared/phone-normalize';
 
 const adminCustomers = new Hono();
 
@@ -19,7 +20,10 @@ adminCustomers.get('/', async (c) => {
   // Soft-delete pattern: customers have no deleted_at column — soft-deleted
   // records are identified by email prefix 'deleted_'.
   // Dynamic filters use "IS NULL OR" pattern to stay in tagged template.
+  // BUG-234: Normalize phone search to match regardless of formatting
+  const normalizedSearchPhone = search ? normalizePhoneSearch(search) : null;
   const searchPattern = search ? `%${search}%` : null;
+  const phoneSearchPattern = normalizedSearchPhone ? `%${normalizedSearchPhone}%` : null;
   const tierFilter = tier ?? null;
   const offset = (page - 1) * perPage;
 
@@ -70,6 +74,7 @@ adminCustomers.get('/', async (c) => {
         OR c.last_name ILIKE ${searchPattern}
         OR c.email ILIKE ${searchPattern}
         OR c.phone LIKE ${searchPattern}
+        OR (${phoneSearchPattern}::text IS NOT NULL AND REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') LIKE ${phoneSearchPattern})
       ))
       AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
     ORDER BY c.created_at DESC
@@ -85,6 +90,7 @@ adminCustomers.get('/', async (c) => {
         OR c.last_name ILIKE ${searchPattern}
         OR c.email ILIKE ${searchPattern}
         OR c.phone LIKE ${searchPattern}
+        OR (${phoneSearchPattern}::text IS NOT NULL AND REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') LIKE ${phoneSearchPattern})
       ))
       AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
   `;
@@ -273,7 +279,8 @@ adminCustomers.patch('/:id', async (c) => {
   const updateData: Record<string, unknown> = {};
   if (parsed.data.first_name) updateData.firstName = parsed.data.first_name;
   if (parsed.data.last_name) updateData.lastName = parsed.data.last_name;
-  if (parsed.data.phone !== undefined) updateData.phone = parsed.data.phone;
+  // BUG-234: Normalize phone on save for consistent search
+  if (parsed.data.phone !== undefined) updateData.phone = normalizePhone(parsed.data.phone) || parsed.data.phone;
   if (parsed.data.email) updateData.email = parsed.data.email;
   if (parsed.data.address) updateData.address = parsed.data.address;
   if (parsed.data.tags) updateData.tags = parsed.data.tags;

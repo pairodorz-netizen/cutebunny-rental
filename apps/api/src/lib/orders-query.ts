@@ -17,6 +17,7 @@ import {
   ARCHIVED_STATUSES,
   buildOrdersWindowFilter,
 } from '@cutebunny/shared/orders-archive-window';
+import { normalizePhoneSearch } from '@cutebunny/shared/phone-normalize';
 
 // BUG-541: customer PII search must not match soft-deleted records.
 const NOT_DELETED_CUSTOMER: Prisma.CustomerWhereInput = {
@@ -76,9 +77,11 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
 
   if (q.search) {
     // BUG-541: PII-based search only matches non-deleted customers.
+    // BUG-234: Normalize phone search to handle formatting variations.
+    const normalizedSearch = normalizePhoneSearch(q.search);
     where.OR = [
       { orderNumber: { contains: q.search, mode: 'insensitive' } },
-      { customer: { phone: { contains: q.search }, ...NOT_DELETED_CUSTOMER } },
+      ...(normalizedSearch ? [{ customer: { phone: { contains: normalizedSearch }, ...NOT_DELETED_CUSTOMER } }] : []),
       { customer: { email: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
       { customer: { firstName: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
       { customer: { lastName: { contains: q.search, mode: 'insensitive' }, ...NOT_DELETED_CUSTOMER } },
@@ -102,7 +105,9 @@ export function buildOrdersWhere(q: OrdersListQuery): Prisma.OrderWhereInput {
   }
   if (q.search_customer_phone) {
     // BUG-541: only search non-deleted customers by phone
-    andConditions.push({ customer: { phone: { contains: q.search_customer_phone }, ...NOT_DELETED_CUSTOMER } });
+    // BUG-234: Normalize phone search to handle formatting variations
+    const normalizedPhone = normalizePhoneSearch(q.search_customer_phone);
+    andConditions.push({ customer: { phone: { contains: normalizedPhone || q.search_customer_phone }, ...NOT_DELETED_CUSTOMER } });
   }
   if (q.search_sku) {
     andConditions.push({
