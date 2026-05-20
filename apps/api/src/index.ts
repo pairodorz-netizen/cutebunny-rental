@@ -78,6 +78,7 @@ app.use('*', cors({
   origin: (origin) => {
     if (!origin) return '*';
     if (origin.endsWith('.vercel.app')) return origin;
+        if (origin.endsWith('.cutebunnyrental.com') || origin === 'https://cutebunnyrental.com') return origin;
     if (origin === 'http://localhost:3000' || origin === 'http://localhost:5173') return origin;
     return null;
   },
