@@ -126,28 +126,4 @@ test.describe('Admin smoke — P/L consistency (BUG-549)', () => {
   });
 });
 
-test.describe('Admin smoke — Stripe webhook endpoint (BUG-550)', () => {
-  // BUG-550: Verify webhook endpoint exists and rejects unsigned requests.
-  // Note: 404 is acceptable when the API hasn't been redeployed with the
-  // webhook route yet (pre-deployment CI runs against production API).
-  test('webhook endpoint rejects unsigned POST (or 404 if not deployed)', async ({
-    request,
-  }) => {
-    const res = await request.post(
-      `${API_BASE}/api/v1/webhooks/stripe`,
-      {
-        data: JSON.stringify({ id: 'evt_test', type: 'checkout.session.completed' }),
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-    // 400 = bad signature, 500 = not configured, 404 = not deployed yet
-    expect([400, 404, 500]).toContain(res.status());
-  });
 
-  test('webhook endpoint rejects GET method', async ({ request }) => {
-    const res = await request.get(
-      `${API_BASE}/api/v1/webhooks/stripe`,
-    );
-    expect(res.status()).toBeGreaterThanOrEqual(400);
-  });
-});

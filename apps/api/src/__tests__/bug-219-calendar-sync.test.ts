@@ -22,7 +22,6 @@ const mockDb = vi.hoisted(() => {
     'financeTransaction', 'afterSalesEvent', 'i18nString', 'adminUser',
     'auditLog', 'inventoryUnit', 'comboSet', 'comboSetItem', 'productStockLog',
     'financeCategory', 'systemConfig', 'notificationLog', 'category',
-    'stripeWebhookEvent',
   ];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: Record<string, any> = {

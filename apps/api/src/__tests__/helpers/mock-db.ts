@@ -9,8 +9,6 @@ const DB_MODELS = [
   'financeCategory', 'systemConfig', 'notificationLog',
   // BUG-504-A01: product taxonomy table (consumed by A02 route).
   'category',
-  // BUG-550: Stripe webhook idempotency
-  'stripeWebhookEvent',
 ] as const;
 
 /**
