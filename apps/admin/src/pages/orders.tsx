@@ -976,7 +976,7 @@ export function OrdersPage() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className={`text-sm truncate ${isDeletedCustomer(order.customer) ? 'italic text-muted-foreground' : ''}`}>{order.customer.name}</div>
+                      <div className={`text-sm truncate ${isDeletedCustomer(order.customer) ? 'italic text-muted-foreground' : ''}`} title={isDeletedCustomer(order.customer) ? t('orders.pdpaTooltip') : undefined}>{order.customer.name}</div>
                       <div className="text-[11px] text-muted-foreground">{order.customer.phone}</div>
                     </div>
                     <div className="w-20 text-center space-y-0.5">
@@ -1895,7 +1895,7 @@ export function OrdersPage() {
               </div>
               <div>
                 <label className="text-xs font-medium">{t('orders.email')}</label>
-                <Input className="h-8 text-sm" type="email" value={createCustomerEmail} onChange={(e) => setCreateCustomerEmail(e.target.value)} />
+                <Input className="h-8 text-sm" type="email" value={createCustomerEmail} onChange={(e) => setCreateCustomerEmail(e.target.value)} placeholder="somchai@email.co.th" />
               </div>
 
               {/* Rental dates */}
