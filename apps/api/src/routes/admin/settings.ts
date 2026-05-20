@@ -143,6 +143,14 @@ export const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }
   rental_terms: { label: 'Rental Terms (Thai)', group: 'customer_ux' },
   rental_terms_en: { label: 'Rental Terms (English)', group: 'customer_ux' },
   rental_terms_zh: { label: 'Rental Terms (Chinese)', group: 'customer_ux' },
+  // Messenger delivery settings
+  messenger_enabled: { label: 'Messenger Enabled', group: 'shipping' },
+  messenger_base_fee: { label: 'Messenger Base Fee (THB)', group: 'shipping' },
+  messenger_per_km_fee: { label: 'Messenger Per KM Fee (THB)', group: 'shipping' },
+  messenger_base_distance_km: { label: 'Messenger Base Distance (km)', group: 'shipping' },
+  messenger_max_distance_km: { label: 'Messenger Max Distance (km)', group: 'shipping' },
+  shop_origin_lat: { label: 'Shop Origin Latitude', group: 'shipping' },
+  shop_origin_lng: { label: 'Shop Origin Longitude', group: 'shipping' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
