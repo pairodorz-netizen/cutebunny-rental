@@ -253,11 +253,7 @@
     "orderConfirmed": "Order Placed Successfully",
     "orderNumber": "Order Number",
     "statusWaiting": "Waiting for Confirmation",
-    "stripePayTitle": "Pay with Credit/Debit Card",
-    "stripePayDescription": "Secure online payment via Stripe — Visa, Mastercard, PromptPay supported",
-    "stripePayButton": "Pay with Card",
-    "stripePayLoading": "Connecting to Stripe...",
-    "orPayByTransfer": "or pay by bank transfer",
+
     "lineNoticeTitle": "Notify Admin",
     "lineNoticeMessage": "Please screenshot this page and send to LINE @cutebunny to notify admin to check your payment slip."
   },
