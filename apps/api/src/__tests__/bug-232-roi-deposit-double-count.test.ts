@@ -4,7 +4,7 @@ import { computeProductROI, REVENUE_TX_TYPES, EXPENSE_TX_TYPES } from '../lib/pl
 /**
  * BUG-232: ROI report double-counts deposits as revenue.
  *
- * Root cause: Stripe webhook recorded session.amount_total (which includes
+ * Root cause: Payment confirmation recorded total amount (which includes
  * deposit + delivery fee) as 'rental_revenue'. This inflated revenue and
  * made ROI calculations incorrect.
  *
@@ -148,7 +148,7 @@ describe('BUG-232: ROI deposit double-count fix', () => {
       expect(result.total_expenses).toBe(150);
     });
 
-    it('BUG-232 specific repro: Stripe amount_total was 1200 but rental is 1000', () => {
+    it('BUG-232 specific repro: payment amount_total was 1200 but rental is 1000', () => {
       // Before fix: rental_revenue was recorded as 1200 (amount_total including deposit)
       // After fix: rental_revenue = 1000 (order.subtotal), deposit_received = 200
 

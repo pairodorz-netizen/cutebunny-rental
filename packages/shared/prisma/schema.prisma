@@ -647,35 +647,6 @@ model InventoryUnit {
   @@map("inventory_units")
 }
 
-// ─── BUG-550: Stripe Webhook Idempotency ────────────────────────────────────
-
-enum StripeWebhookEventStatus {
-  received
-  processing
-  processed
-  failed
-  pending_order  // Out-of-order: event arrived before checkout.session.completed
-}
-
-model StripeWebhookEvent {
-  id             String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  stripeEventId  String                    @unique @map("stripe_event_id")
-  eventType      String                    @map("event_type")
-  payload        Json                      @db.JsonB
-  status         StripeWebhookEventStatus  @default(received)
-  orderId        String?                   @map("order_id") @db.Uuid
-  paymentIntentId String?                  @map("payment_intent_id")
-  errorMessage   String?                   @map("error_message")
-  processedAt    DateTime?                 @map("processed_at")
-  retryCount     Int                       @default(0) @map("retry_count")
-  createdAt      DateTime                  @default(now()) @map("created_at")
-
-  @@index([paymentIntentId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("stripe_webhook_events")
-}
-
 model ProductStockLog {
   id        String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   productId String       @map("product_id") @db.Uuid
