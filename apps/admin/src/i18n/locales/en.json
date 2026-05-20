@@ -512,6 +512,10 @@
     "revenueTooltip": "Sum of rental subtotals, late fees, damage fees, force-buy, and forfeited deposits from verified payments. Excludes unpaid orders and refundable deposits.",
     "expensesTooltip": "Sum of shipping, COGS, cleaning, repair, marketing, and platform fees.",
     "netProfitTooltip": "Revenue minus Expenses for the selected period.",
+    "includeNewProducts": "Include newly-listed products",
+    "newProductTooltip": "Products listed less than 30 days are excluded by default — their ROI data is too early to be meaningful",
+    "newBadge": "New",
+    "newProductBreakEvenTooltip": "Listed {{days}} days ago — too early for reliable ROI comparison",
     "groupBy": {
       "category": "By Category",
       "product": "By Product",

@@ -546,6 +546,9 @@ export interface ProductROI {
   product_id: string;
   product_name: string;
   sku: string;
+  days_listed?: number;
+  is_new?: boolean;
+  listed_at?: string;
   purchase_cost: number;
   total_revenue: number;
   total_expenses: number;
