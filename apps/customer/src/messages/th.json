@@ -253,11 +253,7 @@
     "orderConfirmed": "สั่งเช่าสำเร็จ",
     "orderNumber": "หมายเลขคำสั่งเช่า",
     "statusWaiting": "รอการยืนยัน",
-    "stripePayTitle": "ชำระด้วยบัตรเครดิต/เดบิต",
-    "stripePayDescription": "ชำระเงินออนไลน์อย่างปลอดภัยผ่าน Stripe — รองรับ Visa, Mastercard, PromptPay",
-    "stripePayButton": "ชำระด้วยบัตร",
-    "stripePayLoading": "กำลังเชื่อมต่อ Stripe...",
-    "orPayByTransfer": "หรือชำระด้วยโอนเงิน",
+
     "lineNoticeTitle": "แจ้งเตือนแอดมิน",
     "lineNoticeMessage": "กรุณาแคปหน้าจอนี้ส่งเข้าไลน์ @cutebunny เพื่อแจ้งเตือนแอดมินให้ตรวจเช็คสลิปโอนเงิน"
   },

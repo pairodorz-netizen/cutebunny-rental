@@ -252,11 +252,7 @@
     "orderConfirmed": "下单成功",
     "orderNumber": "订单号",
     "statusWaiting": "等待确认",
-    "stripePayTitle": "信用卡/借记卡支付",
-    "stripePayDescription": "通过 Stripe 安全在线支付 — 支持 Visa、Mastercard、PromptPay",
-    "stripePayButton": "卡片支付",
-    "stripePayLoading": "正在连接 Stripe...",
-    "orPayByTransfer": "或通过银行转账支付",
+
     "lineNoticeTitle": "通知管理员",
     "lineNoticeMessage": "请截图此页面发送至 LINE @cutebunny 以通知管理员检查您的转账凭证。"
   },
