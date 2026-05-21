@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { ShoppingCart, DollarSign, Truck, AlertTriangle, Clock, TrendingUp, Package, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useDashboardSummary } from '@/lib/hooks/useDashboard';
+import { useNavigate } from 'react-router-dom';
+import { useDashboardSummary, useUpcomingDeliveries, useUpcomingReturns } from '@/lib/hooks/useDashboard';
 
 const STATUS_COLORS: Record<string, string> = {
   unpaid: '#ef4444',
@@ -41,11 +42,15 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'stats' | 'overview'>('stats');
 
+  const navigate = useNavigate();
   const summaryQuery = useDashboardSummary();
+  const deliveriesQuery = useUpcomingDeliveries();
+  const returnsQuery = useUpcomingReturns();
   const summary = summaryQuery.data?.data;
   const stats = summary?.stats;
   const overview = summary?.overview;
-  const lowStockProducts = summary?.lowStock ?? [];
+  const upcomingDeliveries = deliveriesQuery.data?.data ?? [];
+  const upcomingReturns = returnsQuery.data?.data ?? [];
 
   if (summaryQuery.isLoading) {
     return (
@@ -130,36 +135,62 @@ export function DashboardPage() {
               </div>
             </div>
 
-            {/* C2: Low Stock Widget */}
-            <div className="rounded-lg border">
-              <div className="p-4 border-b flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                <h2 className="font-semibold">{t('lowStockWidget.title')}</h2>
-              </div>
-              <div className="divide-y">
-                {lowStockProducts.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm">{t('lowStockWidget.noItems')}</div>
-                ) : (
-                  lowStockProducts.map((product) => (
-                    <div key={product.id} className="flex items-center justify-between p-3">
-                      <div className="flex items-center gap-2">
-                        {product.thumbnail_url && (
-                          <img src={product.thumbnail_url} alt="" className="w-8 h-8 rounded object-cover" />
-                        )}
+            {/* Upcoming Deliveries & Returns Widgets */}
+            <div className="flex flex-col gap-6">
+              <div className="rounded-lg border">
+                <div className="p-4 border-b flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-blue-500" />
+                  <h2 className="font-semibold">{t('dashboard.upcomingDeliveries')}</h2>
+                </div>
+                <div className="divide-y">
+                  {upcomingDeliveries.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground text-sm">{t('dashboard.upcomingDeliveriesNoItems')}</div>
+                  ) : (
+                    upcomingDeliveries.map((order) => (
+                      <div
+                        key={order.id}
+                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30"
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                      >
                         <div>
-                          <span className="text-sm font-medium">{product.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">{product.sku}</span>
+                          <span className="text-sm font-medium">{order.customer_name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{order.products.join(', ')}</span>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-sm font-bold ${product.stock_on_hand <= 0 ? 'text-red-600' : 'text-yellow-600'}`}>
-                          {product.stock_on_hand}
+                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                          {t('dashboard.rentalStart')}: {new Date(order.rental_start_date).toLocaleDateString()}
                         </span>
-                        <span className="text-xs text-muted-foreground"> / {product.low_stock_threshold}</span>
                       </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border">
+                <div className="p-4 border-b flex items-center gap-2">
+                  <Package className="h-4 w-4 text-orange-500" />
+                  <h2 className="font-semibold">{t('dashboard.upcomingReturns')}</h2>
+                </div>
+                <div className="divide-y">
+                  {upcomingReturns.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground text-sm">{t('dashboard.upcomingReturnsNoItems')}</div>
+                  ) : (
+                    upcomingReturns.map((order) => (
+                      <div
+                        key={order.id}
+                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30"
+                        onClick={() => navigate(`/orders/${order.id}`)}
+                      >
+                        <div>
+                          <span className="text-sm font-medium">{order.customer_name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{order.products.join(', ')}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                          {t('dashboard.rentalEnd')}: {new Date(order.rental_end_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>

@@ -73,7 +73,13 @@
     "product": "商品",
     "status": "状态",
     "amount": "金额",
-    "date": "日期"
+    "date": "日期",
+    "upcomingDeliveries": "即将发货",
+    "upcomingDeliveriesNoItems": "没有待发货订单",
+    "upcomingReturns": "即将归还",
+    "upcomingReturnsNoItems": "没有待归还订单",
+    "rentalStart": "开始",
+    "rentalEnd": "结束"
   },
   "orders": {
     "title": "订单",
