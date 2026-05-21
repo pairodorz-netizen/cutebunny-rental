@@ -8,7 +8,6 @@ const STATUS_COLORS: Record<string, string> = {
   paid_locked: '#3b82f6',
   shipped: '#f59e0b',
   returned: '#8b5cf6',
-  cleaning: '#06b6d4',
   repair: '#f97316',
   ready: '#22c55e',
 };
@@ -179,7 +178,7 @@ export function DashboardPage() {
               <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
                 <span className="text-green-600">{overview.products_available} {t('dashboard.available')}</span>
                 <span className="text-yellow-600">{overview.products_rented} {t('dashboard.rented')}</span>
-                <span className="text-blue-600">{overview.products_cleaning} {t('dashboard.cleaning')}</span>
+
               </div>
             </div>
             <div className="rounded-lg border bg-card p-4">

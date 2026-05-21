@@ -13,7 +13,6 @@ const STATUS_COLORS: Record<string, string> = {
   paid_locked: 'bg-blue-100 text-blue-800',
   shipped: 'bg-purple-100 text-purple-800',
   returned: 'bg-teal-100 text-teal-800',
-  cleaning: 'bg-cyan-100 text-cyan-800',
   repair: 'bg-orange-100 text-orange-800',
   finished: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-100 text-gray-800',
@@ -23,7 +22,6 @@ const CALENDAR_COLORS: Record<string, string> = {
   booked: 'bg-gray-300',
   shipped: 'bg-gray-300',
   returned: 'bg-gray-300',
-  cleaning: 'bg-blue-300',
   repair: 'bg-blue-300',
   shipping: 'bg-amber-300',  // FEAT-402: transit window
   washing: 'bg-cyan-300',    // FEAT-402: post-return wash

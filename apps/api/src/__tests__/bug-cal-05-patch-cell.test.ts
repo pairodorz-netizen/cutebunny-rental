@@ -245,7 +245,7 @@ describe('BUG-CAL-05 — PATCH /admin/calendar/cell', () => {
 
   it('409 CONFIRM_REQUIRED for any non-available → available', async () => {
     const token = await staffToken();
-    for (const from of ['cleaning', 'blocked_repair', 'tentative', 'shipping', 'washing', 'late_return']) {
+    for (const from of ['blocked_repair', 'tentative', 'shipping', 'washing', 'late_return']) {
       mockDb.availabilityCalendar.findFirst.mockResolvedValueOnce({
         id: SLOT_UUID,
         slotStatus: from,
@@ -265,7 +265,7 @@ describe('BUG-CAL-05 — PATCH /admin/calendar/cell', () => {
     });
     const token = await staffToken();
     const res = await patch(
-      { product_id: PRODUCT_UUID, date: '2026-04-20', unit_index: 3, new_state: 'cleaning' },
+      { product_id: PRODUCT_UUID, date: '2026-04-20', unit_index: 3, new_state: 'blocked_repair' },
       token,
     );
     expect(res.status).toBe(200);
@@ -281,7 +281,7 @@ describe('BUG-CAL-05 — PATCH /admin/calendar/cell', () => {
         date: '2026-04-20',
         unit_index: 3,
         from_state: 'available',
-        to_state: 'cleaning',
+        to_state: 'blocked_repair',
       },
     });
   });

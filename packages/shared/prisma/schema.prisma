@@ -48,7 +48,6 @@ enum ProductCategory {
 enum InventoryPhysicalStatus {
   available
   rented
-  cleaning
   repair
   ready
   decommissioned
@@ -57,7 +56,6 @@ enum InventoryPhysicalStatus {
 enum SlotStatus {
   available
   booked
-  cleaning
   blocked_repair
   tentative
   late_return
@@ -75,7 +73,6 @@ enum OrderStatus {
   paid_locked
   shipped
   returned
-  cleaning
   repair
   finished
   cancelled
@@ -88,7 +85,6 @@ enum OrderItemStatus {
   delivered
   returned
   inspecting
-  cleaned
   damaged
   lost
 }
@@ -126,7 +122,6 @@ enum FinanceTxType {
   force_buy
   shipping
   cogs
-  cleaning
   repair
   marketing
   platform_fee

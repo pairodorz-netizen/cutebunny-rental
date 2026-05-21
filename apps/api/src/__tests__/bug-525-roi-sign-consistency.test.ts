@@ -124,7 +124,7 @@ describe('BUG-525: ROI sign consistency', () => {
         deletedAt: null,
         orderItems: [
           { subtotal: 600, order: { status: 'returned' } },
-          { subtotal: 600, order: { status: 'cleaning' } },
+          { subtotal: 600, order: { status: 'repair' } },
         ],
         financeTransactions: [
           { txType: 'rental_revenue', amount: 1200 },

@@ -179,11 +179,11 @@ describe('computeProductROI', () => {
       ],
       financeTransactions: [
         { txType: 'rental_revenue', amount: 500 },
-        { txType: 'cleaning', amount: -30 },
+        { txType: 'repair', amount: -30 },
         { txType: 'shipping', amount: -20 },
       ],
     });
-    // expenses = |cleaning| + |shipping| + VC = 30 + 20 + 50 = 100
+    // expenses = |repair| + |shipping| + VC = 30 + 20 + 50 = 100
     expect(result.total_expenses).toBe(100);
     expect(result.net_profit).toBe(-600); // 500 - 100 - 1000
   });

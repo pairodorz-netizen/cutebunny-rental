@@ -22,7 +22,6 @@
 export const SLOT_STATES = [
   'available',
   'booked',
-  'cleaning',
   'blocked_repair',
   'late_return',
   'tentative',
@@ -35,7 +34,6 @@ export type SlotState = (typeof SLOT_STATES)[number];
 export const SLOT_STATE_LABELS: Record<SlotState, string> = {
   available: 'Available',
   booked: 'Booked',
-  cleaning: 'Cleaning',
   blocked_repair: 'Repair',
   late_return: 'Late Return',
   tentative: 'Tentative',

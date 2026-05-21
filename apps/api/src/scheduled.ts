@@ -3,11 +3,8 @@
  *
  * Runs hourly via cron trigger. Transitions:
  *   paid_locked → shipped  (when rental_start_date <= today_BKK AND inventory verified)
- *   returned → cleaning    (when returned_at + buffer_days <= today_BKK)
- *
  * Manual gates (NOT auto-advanced):
  *   shipped → returned     (admin confirms physical return)
- *   cleaning → finished    (admin confirms cleaning complete)
  *
  * Design:
  *   - Optimistic concurrency: UPDATE WHERE id=$1 AND status=$expected
@@ -39,7 +36,6 @@ function dateOnly(dateStr: string): Date {
 
 export interface TickMetrics {
   paid_locked_to_shipped: { processed: number; skipped: number; failed: number };
-  returned_to_cleaning: { processed: number; skipped: number; failed: number };
   alerts: Alert[];
   duration_ms: number;
 }
@@ -162,54 +158,23 @@ async function verifyInventoryAvailable(
 async function reconcileCalendarSlots(
   tx: PrismaClient,
   orderId: string,
-  newStatus: 'shipped' | 'cleaning',
+  newStatus: 'shipped',
   rentalEndDate: Date,
 ): Promise<{ updated: number; driftDetected: boolean }> {
   let updated = 0;
   let driftDetected = false;
 
-  if (newStatus === 'shipped') {
-    // When advancing to shipped: ensure rental period slots are 'booked'
-    // Fix any that drifted to 'tentative' or 'available'
-    const driftedSlots = await tx.availabilityCalendar.updateMany({
-      where: {
-        orderId,
-        slotStatus: { in: ['tentative', 'available'] },
-      },
-      data: { slotStatus: 'booked' },
-    });
-    updated = driftedSlots.count;
-    driftDetected = driftedSlots.count > 0;
-  }
-
-  if (newStatus === 'cleaning') {
-    // When advancing to cleaning: mark any remaining 'late_return' slots
-    // for this order as 'washing' (dress is now in cleaning process)
-    const todayStr = todayBangkok();
-    const today = dateOnly(todayStr);
-    const lateSlots = await tx.availabilityCalendar.updateMany({
-      where: {
-        orderId,
-        slotStatus: 'late_return',
-        calendarDate: { gt: rentalEndDate },
-      },
-      data: { slotStatus: 'washing' },
-    });
-    updated += lateSlots.count;
-
-    // Also ensure post-rental shipping slots that are still 'shipping'
-    // are updated to 'washing' if the item is now in cleaning
-    const shippingSlots = await tx.availabilityCalendar.updateMany({
-      where: {
-        orderId,
-        slotStatus: 'shipping',
-        calendarDate: { gt: rentalEndDate, lte: today },
-      },
-      data: { slotStatus: 'washing' },
-    });
-    updated += shippingSlots.count;
-    driftDetected = driftDetected || (lateSlots.count + shippingSlots.count) > 0;
-  }
+  // When advancing to shipped: ensure rental period slots are 'booked'
+  // Fix any that drifted to 'tentative' or 'available'
+  const driftedSlots = await tx.availabilityCalendar.updateMany({
+    where: {
+      orderId,
+      slotStatus: { in: ['tentative', 'available'] },
+    },
+    data: { slotStatus: 'booked' },
+  });
+  updated = driftedSlots.count;
+  driftDetected = driftedSlots.count > 0;
 
   return { updated, driftDetected };
 }
@@ -355,129 +320,6 @@ async function advancePaidLockedToShipped(
   }
 }
 
-// ─── returned → cleaning ───────────────────────────────────────────────
-
-async function advanceReturnedToCleaning(
-  db: PrismaClient,
-  todayStr: string,
-  config: AutoAdvanceConfig,
-  metrics: TickMetrics,
-): Promise<void> {
-  const todayDate = dateOnly(todayStr);
-
-  let cursor: string | undefined;
-  let hasMore = true;
-
-  while (hasMore) {
-    const orders = await db.order.findMany({
-      where: {
-        status: 'returned',
-        ...(cursor ? { id: { gt: cursor } } : {}),
-      },
-      select: SCHEDULED_ORDER_SELECT,
-      orderBy: { id: 'asc' },
-      take: BATCH_SIZE,
-    });
-
-    hasMore = orders.length === BATCH_SIZE;
-    if (orders.length > 0) {
-      cursor = orders[orders.length - 1].id;
-    }
-
-    for (const order of orders) {
-      try {
-        // Look up returned_at from status log (anchor for buffer)
-        const returnedLog = await db.orderStatusLog.findFirst({
-          where: { orderId: order.id, toStatus: 'returned' },
-          orderBy: { createdAt: 'desc' },
-          select: { createdAt: true },
-        });
-
-        if (!returnedLog) {
-          // Legacy order without status log — skip and alert
-          metrics.alerts.push({
-            type: 'legacy_returned_no_log',
-            order_id: order.id,
-            order_number: order.orderNumber,
-            detail: 'No OrderStatusLog entry with toStatus=returned; skipping auto-advance',
-          });
-          metrics.returned_to_cleaning.skipped++;
-          continue;
-        }
-
-        const returnedAt = returnedLog.createdAt;
-
-        // Determine buffer days (per-product override or default)
-        const productIds = order.items.map((i) => i.productId);
-        let bufferDays = config.default_buffer_days;
-        for (const pid of productIds) {
-          if (config.product_buffer_days[pid] !== undefined) {
-            bufferDays = Math.max(bufferDays, config.product_buffer_days[pid]);
-          }
-        }
-
-        // Buffer anchored to returned_at, not rentalEndDate
-        const returnedAtDateStr = todayBangkok(returnedAt);
-        const returnedAtDate = dateOnly(returnedAtDateStr);
-        const bufferCutoff = new Date(returnedAtDate);
-        bufferCutoff.setDate(bufferCutoff.getDate() + bufferDays);
-
-        if (todayDate.getTime() < bufferCutoff.getTime()) {
-          metrics.returned_to_cleaning.skipped++;
-          continue;
-        }
-
-        // Atomic transition + calendar reconciliation
-        await db.$transaction(async (tx) => {
-          const updated = await tx.order.updateMany({
-            where: { id: order.id, status: 'returned' },
-            data: { status: 'cleaning' },
-          });
-
-          if (updated.count === 0) {
-            metrics.returned_to_cleaning.skipped++;
-            return;
-          }
-
-          await tx.orderStatusLog.create({
-            data: {
-              orderId: order.id,
-              fromStatus: 'returned',
-              toStatus: 'cleaning',
-              note: `system-auto-advance: returned → cleaning (buffer ${bufferDays}d after returned_at ${returnedAtDateStr})`,
-              changedBy: null,
-            },
-          });
-
-          const calResult = await reconcileCalendarSlots(
-            tx as unknown as PrismaClient,
-            order.id,
-            'cleaning',
-            order.rentalEndDate,
-          );
-
-          if (calResult.driftDetected) {
-            metrics.alerts.push({
-              type: 'calendar_drift',
-              order_id: order.id,
-              order_number: order.orderNumber,
-              detail: `Fixed ${calResult.updated} drifted calendar slot(s) during returned→cleaning`,
-            });
-          }
-
-          metrics.returned_to_cleaning.processed++;
-        });
-      } catch (e) {
-        metrics.returned_to_cleaning.failed++;
-        console.error(
-          `[scheduled] returned→cleaning failed for ${order.orderNumber}:`,
-          e instanceof Error ? e.message : String(e),
-        );
-      }
-    }
-  }
-}
-
 // ─── Stale order alerts ────────────────────────────────────────────────
 
 async function detectStaleOrders(
@@ -521,15 +363,11 @@ export async function processOrderAutoAdvance(
 
   const metrics: TickMetrics = {
     paid_locked_to_shipped: { processed: 0, skipped: 0, failed: 0 },
-    returned_to_cleaning: { processed: 0, skipped: 0, failed: 0 },
     alerts: [],
     duration_ms: 0,
   };
 
-  const config = await loadAutoAdvanceConfig(db);
-
   await advancePaidLockedToShipped(db, todayStr, metrics);
-  await advanceReturnedToCleaning(db, todayStr, config, metrics);
   await detectStaleOrders(db, todayStr, metrics);
 
   metrics.duration_ms = Date.now() - startTime;
@@ -617,7 +455,6 @@ export async function backfillStaleOrders(
 ): Promise<BackfillResult> {
   const todayStr = todayBangkok(now);
   const todayDate = dateOnly(todayStr);
-  const config = await loadAutoAdvanceConfig(db);
 
   const result: BackfillResult = {
     dry_run: dryRun,
@@ -637,16 +474,7 @@ export async function backfillStaleOrders(
     orderBy: { createdAt: 'asc' },
   });
 
-  // Find all stale returned orders (buffer passed but not in cleaning)
-  const staleReturned = await db.order.findMany({
-    where: {
-      status: 'returned',
-    },
-    select: SCHEDULED_ORDER_SELECT,
-    orderBy: { createdAt: 'asc' },
-  });
-
-  result.orders_scanned = stalePaidLocked.length + staleReturned.length;
+  result.orders_scanned = stalePaidLocked.length;
 
   // Process paid_locked → shipped
   for (const order of stalePaidLocked) {
@@ -708,98 +536,6 @@ export async function backfillStaleOrders(
           from_status: 'paid_locked',
           to_status: 'shipped',
           reason: `Backfilled: rental started ${order.rentalStartDate.toISOString().split('T')[0]}`,
-        });
-      } catch (e) {
-        result.errors.push(
-          `${order.orderNumber}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
-  }
-
-  // Process returned → cleaning
-  for (const order of staleReturned) {
-    // Look up returned_at from status log
-    const returnedLog = await db.orderStatusLog.findFirst({
-      where: { orderId: order.id, toStatus: 'returned' },
-      orderBy: { createdAt: 'desc' },
-      select: { createdAt: true },
-    });
-
-    if (!returnedLog) {
-      result.skipped.push({
-        order_id: order.id,
-        order_number: order.orderNumber,
-        reason: 'Legacy order: no OrderStatusLog entry with toStatus=returned',
-      });
-      continue;
-    }
-
-    const returnedAt = returnedLog.createdAt;
-    const returnedAtDateStr = todayBangkok(returnedAt);
-    const returnedAtDate = dateOnly(returnedAtDateStr);
-
-    const productIds = order.items.map((i) => i.productId);
-    let bufferDays = config.default_buffer_days;
-    for (const pid of productIds) {
-      if (config.product_buffer_days[pid] !== undefined) {
-        bufferDays = Math.max(bufferDays, config.product_buffer_days[pid]);
-      }
-    }
-
-    const bufferCutoff = new Date(returnedAtDate);
-    bufferCutoff.setDate(bufferCutoff.getDate() + bufferDays);
-
-    if (todayDate.getTime() < bufferCutoff.getTime()) {
-      result.skipped.push({
-        order_id: order.id,
-        order_number: order.orderNumber,
-        reason: `Buffer not passed: returned_at=${returnedAtDateStr}, buffer=${bufferDays}d, cutoff=${bufferCutoff.toISOString().split('T')[0]}`,
-      });
-      continue;
-    }
-
-    if (dryRun) {
-      result.transitions.push({
-        order_id: order.id,
-        order_number: order.orderNumber,
-        from_status: 'returned',
-        to_status: 'cleaning',
-        reason: `Buffer passed: returned_at=${returnedAtDateStr}, buffer=${bufferDays}d`,
-      });
-    } else {
-      try {
-        await db.$transaction(async (tx) => {
-          const updated = await tx.order.updateMany({
-            where: { id: order.id, status: 'returned' },
-            data: { status: 'cleaning' },
-          });
-          if (updated.count === 0) return;
-
-          await tx.orderStatusLog.create({
-            data: {
-              orderId: order.id,
-              fromStatus: 'returned',
-              toStatus: 'cleaning',
-              note: `system-backfill: returned → cleaning (BUG-505, buffer ${bufferDays}d after returned_at ${returnedAtDateStr})`,
-              changedBy: null,
-            },
-          });
-
-          await reconcileCalendarSlots(
-            tx as unknown as PrismaClient,
-            order.id,
-            'cleaning',
-            order.rentalEndDate,
-          );
-        });
-
-        result.transitions.push({
-          order_id: order.id,
-          order_number: order.orderNumber,
-          from_status: 'returned',
-          to_status: 'cleaning',
-          reason: `Backfilled: buffer ${bufferDays}d passed`,
         });
       } catch (e) {
         result.errors.push(

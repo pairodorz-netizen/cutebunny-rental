@@ -68,7 +68,7 @@ describe('BUG-CAL-01 — expandProductToUnitRows', () => {
         ],
         slots: [
           { date: '2026-04-15', status: 'booked', order_id: 'o-1', unit_index: 1 },
-          { date: '2026-04-16', status: 'cleaning', order_id: null, unit_index: 2 },
+          { date: '2026-04-16', status: 'blocked_repair', order_id: null, unit_index: 2 },
           { date: '2026-04-17', status: 'booked', order_id: 'o-2', unit_index: 1 },
         ],
       }),
@@ -78,7 +78,7 @@ describe('BUG-CAL-01 — expandProductToUnitRows', () => {
       { date: '2026-04-17', status: 'booked', order_id: 'o-2' },
     ]);
     expect(rows[1].slots).toEqual([
-      { date: '2026-04-16', status: 'cleaning', order_id: null },
+      { date: '2026-04-16', status: 'blocked_repair', order_id: null },
     ]);
   });
 

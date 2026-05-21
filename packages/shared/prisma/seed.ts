@@ -250,9 +250,9 @@ async function main() {
   console.log(`Created ${zones.length} shipping zones`);
 
   // ─── Orders (10) with various statuses ───────────────────────────────
-  const orderStatuses: Array<'unpaid' | 'paid_locked' | 'shipped' | 'returned' | 'cleaning' | 'repair' | 'finished'> = [
+  const orderStatuses: Array<'unpaid' | 'paid_locked' | 'shipped' | 'returned' | 'repair' | 'finished'> = [
     'unpaid', 'paid_locked', 'shipped', 'shipped', 'returned',
-    'returned', 'cleaning', 'finished', 'finished', 'repair',
+    'returned', 'repair', 'finished', 'finished', 'repair',
   ];
 
   const orders = [];
@@ -347,7 +347,7 @@ async function main() {
       });
     }
 
-    if (['shipped', 'returned', 'cleaning', 'repair', 'finished'].includes(status)) {
+    if (['shipped', 'returned', 'repair', 'finished'].includes(status)) {
       await prisma.orderStatusLog.create({
         data: {
           orderId: order.id,
@@ -358,7 +358,7 @@ async function main() {
       });
     }
 
-    if (['returned', 'cleaning', 'repair', 'finished'].includes(status)) {
+    if (['returned', 'repair', 'finished'].includes(status)) {
       await prisma.orderStatusLog.create({
         data: {
           orderId: order.id,

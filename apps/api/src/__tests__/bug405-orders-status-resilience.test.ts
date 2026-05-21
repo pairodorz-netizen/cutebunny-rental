@@ -4,7 +4,7 @@
  * Root cause (investigation):
  *   PATCH /api/v1/admin/orders/:id/status on prod was returning a
  *   transport-level rejection ("Failed to fetch" in the admin modal)
- *   for the `cleaning → finished` transition only. Other transitions
+ *   for the `returned → finished` transition only. Other transitions
  *   committed cleanly because their side-effect code paths are much
  *   smaller (0–1 finance insert) while `finished` fans out to an
  *   `orderItem.aggregate` + up to 2 `financeTransaction.create` calls.
@@ -125,8 +125,8 @@ async function patchStatus(
   });
 }
 
-function primeCleaningOrder(): void {
-  mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'cleaning' });
+function primeReturnedOrder(): void {
+  mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'returned' });
   mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'finished' });
   mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-1' });
   mockDb.customer.findUnique.mockResolvedValue(MOCK_CUSTOMER);
@@ -160,8 +160,8 @@ describe('BUG-405-A01 — order status handler resilience', () => {
     vi.clearAllMocks();
     token = await getAdminToken();
 
-    // Default stubs: a cleaning order ready to transition to finished.
-    primeCleaningOrder();
+    // Default stubs: a returned order ready to transition to finished.
+    primeReturnedOrder();
     mockDb.$transaction.mockImplementation(async (ops: unknown) => {
       if (typeof ops === 'function') return (ops as (tx: unknown) => unknown)(mockDb);
       if (Array.isArray(ops)) return Promise.all(ops as Promise<unknown>[]);
@@ -242,14 +242,14 @@ describe('BUG-405-A01 — order status handler resilience', () => {
   });
 
   // ─── Gate #5 — financeTransaction failure is isolated ───────────────
-  it('financeTransaction.create throwing does NOT block cleaning→finished success', async () => {
+  it('financeTransaction.create throwing does NOT block returned→finished success', async () => {
     mockDb.orderItem.aggregate.mockResolvedValue({ _sum: { lateFee: 100, damageFee: 50 } });
     mockDb.financeTransaction.create.mockRejectedValue(new Error('boom: secret internal details'));
 
     const res = await patchStatus(token, { to_status: 'finished' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: { previous_status: string; current_status: string } };
-    expect(body.data.previous_status).toBe('cleaning');
+    expect(body.data.previous_status).toBe('returned');
     expect(body.data.current_status).toBe('finished');
   });
 
@@ -293,8 +293,8 @@ describe('BUG-405-A01 — order status handler resilience', () => {
     expect(forfeitCalls.length).toBe(0);
   });
 
-  // ─── Gate #9 — cleaning→finished happy path shape unchanged ─────────
-  it('cleaning→finished happy path response shape is unchanged', async () => {
+  // ─── Gate #9 — returned→finished happy path shape unchanged ─────────
+  it('returned→finished happy path response shape is unchanged', async () => {
     mockDb.orderItem.aggregate.mockResolvedValue({ _sum: { lateFee: 0, damageFee: 0 } });
 
     const res = await patchStatus(token, { to_status: 'finished' });
@@ -311,7 +311,7 @@ describe('BUG-405-A01 — order status handler resilience', () => {
     };
     expect(body.data.id).toBe(ORDER_ID);
     expect(body.data.order_number).toBe(MOCK_ORDER.orderNumber);
-    expect(body.data.previous_status).toBe('cleaning');
+    expect(body.data.previous_status).toBe('returned');
     expect(body.data.current_status).toBe('finished');
     expect(Array.isArray(body.data.allowed_transitions)).toBe(true);
   });
@@ -400,7 +400,7 @@ describe('BUG-405-A01 — order status handler resilience', () => {
   });
 
   // ─── Gate #13 — other transitions unchanged ────────────────────────
-  it('other transitions (paid_locked→shipped, returned→cleaning) still succeed with unchanged shape', async () => {
+  it('other transitions (paid_locked→shipped, returned→repair) still succeed with unchanged shape', async () => {
     // paid_locked → shipped
     mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'paid_locked' });
     mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'shipped' });
@@ -410,18 +410,18 @@ describe('BUG-405-A01 — order status handler resilience', () => {
     expect(b1.data.previous_status).toBe('paid_locked');
     expect(b1.data.current_status).toBe('shipped');
 
-    // returned → cleaning
+    // returned → repair
     mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'returned' });
-    mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'cleaning' });
-    const r2 = await patchStatus(token, { to_status: 'cleaning' });
+    mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'repair' });
+    const r2 = await patchStatus(token, { to_status: 'repair' });
     expect(r2.status).toBe(200);
     const b2 = (await r2.json()) as { data: { previous_status: string; current_status: string } };
     expect(b2.data.previous_status).toBe('returned');
-    expect(b2.data.current_status).toBe('cleaning');
+    expect(b2.data.current_status).toBe('repair');
   });
 
   // ─── Gate #14 — finished side effects run all-or-some, never throw ──
-  it('cleaning→finished with EVERY side effect throwing still commits 200 JSON', async () => {
+  it('returned→finished with EVERY side effect throwing still commits 200 JSON', async () => {
     mockDb.orderItem.aggregate.mockRejectedValue(new Error('boom-aggregate'));
     mockDb.financeTransaction.create.mockRejectedValue(new Error('boom-finance'));
     mockDb.notificationLog.create.mockRejectedValue(new Error('boom-notif'));

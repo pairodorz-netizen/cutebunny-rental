@@ -12,7 +12,7 @@ import en from '../../../admin/src/i18n/locales/en.json';
 import th from '../../../admin/src/i18n/locales/th.json';
 import zh from '../../../admin/src/i18n/locales/zh.json';
 
-const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'] as const;
+const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'repair', 'finished', 'cancelled'] as const;
 
 describe('BUG-225 — Dashboard status i18n', () => {
   describe('TH locale has all status labels', () => {

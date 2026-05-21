@@ -6,7 +6,7 @@
  * and should not be available.
  *
  * Fix: Removed 'finished' from allowed transitions for unpaid, paid_locked,
- * and shipped. Only returned, cleaning, and repair can transition to finished.
+ * and shipped. Only returned and repair can transition to finished.
  */
 import { describe, it, expect } from 'vitest';
 import { isValidTransition, getAllowedTransitions, getForwardTransitions, getBackwardTransitions } from '../lib/state-machine';
@@ -67,16 +67,12 @@ describe('BUG-223: FSM rejects invalid transitions', () => {
       expect(isValidTransition('returned', 'finished')).toBe(true);
     });
 
-    it('returned → cleaning should be valid (forward)', () => {
-      expect(isValidTransition('returned', 'cleaning')).toBe(true);
+    it('returned → repair should be valid', () => {
+      expect(isValidTransition('returned', 'repair')).toBe(true);
     });
   });
 
-  describe('cleaning/repair — CAN transition to finished', () => {
-    it('cleaning → finished should be valid', () => {
-      expect(isValidTransition('cleaning', 'finished')).toBe(true);
-    });
-
+  describe('repair — CAN transition to finished', () => {
     it('repair → finished should be valid', () => {
       expect(isValidTransition('repair', 'finished')).toBe(true);
     });
@@ -100,9 +96,8 @@ describe('BUG-223: FSM rejects invalid transitions', () => {
       expect(getAllowedTransitions('cancelled')).toEqual([]);
     });
 
-    it('finished can reopen to cleaning/repair or cancel', () => {
+    it('finished can reopen to repair or cancel', () => {
       const allowed = getAllowedTransitions('finished');
-      expect(allowed).toContain('cleaning');
       expect(allowed).toContain('repair');
       expect(allowed).toContain('cancelled');
     });

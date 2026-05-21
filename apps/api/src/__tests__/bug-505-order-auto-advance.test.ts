@@ -3,7 +3,7 @@
  *
  * Covers:
  *   - Timezone casting (Asia/Bangkok)
- *   - Transition matrix (paid_locked→shipped, returned→cleaning)
+ *   - Transition matrix (paid_locked→shipped)
  *   - Optimistic concurrency lock
  *   - Idempotency (re-run is no-op)
  *   - Inventory pre-check
@@ -448,108 +448,8 @@ describe('BUG-505: processOrderAutoAdvance', () => {
     });
   });
 
-  describe('returned → cleaning', () => {
-    it('advances after buffer period (default 1 day) anchored to returned_at', async () => {
-      const order = testDb.addOrder({
-        status: 'returned',
-        rentalEndDate: new Date('2026-05-04T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-      // Admin marked returned on May 4 (Bangkok time)
-      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-04T10:00:00.000Z'));
-
-      // May 6 Bangkok: 2 days after returned_at = past buffer of 1 day
-      const now = new Date('2026-05-06T10:00:00.000Z');
-      const metrics = await processOrderAutoAdvance(testDb.db, now);
-
-      expect(metrics.returned_to_cleaning.processed).toBe(1);
-      expect(testDb.orders[0].status).toBe('cleaning');
-    });
-
-    it('does NOT advance before buffer period (anchored to returned_at)', async () => {
-      const order = testDb.addOrder({
-        status: 'returned',
-        rentalEndDate: new Date('2026-05-03T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-      // Returned on May 5 (Bangkok time)
-      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-05T10:00:00.000Z'));
-
-      // May 5 Bangkok: same day as returned_at = before buffer of 1 day
-      const now = new Date('2026-05-05T10:00:00.000Z');
-      const metrics = await processOrderAutoAdvance(testDb.db, now);
-
-      expect(metrics.returned_to_cleaning.skipped).toBe(1);
-      expect(testDb.orders[0].status).toBe('returned');
-    });
-
-    it('respects per-product buffer override from config (anchored to returned_at)', async () => {
-      const order = testDb.addOrder({
-        status: 'returned',
-        rentalEndDate: new Date('2026-05-02T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-      // Returned on May 4 (Bangkok time)
-      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-04T10:00:00.000Z'));
-
-      // Set up config with 3-day buffer for prod-1
-      testDb.db.systemConfig.findUnique = vi.fn(async () => ({
-        key: 'auto_advance_config',
-        value: {
-          default_buffer_days: 1,
-          product_buffer_days: { 'prod-1': 3 },
-        },
-      }));
-
-      // May 6 Bangkok: 2 days after returned_at (May 4). Buffer is 3 days → should NOT advance
-      const now = new Date('2026-05-06T10:00:00.000Z');
-      const metrics = await processOrderAutoAdvance(testDb.db, now);
-
-      expect(metrics.returned_to_cleaning.skipped).toBe(1);
-      expect(testDb.orders[0].status).toBe('returned');
-    });
-
-    it('late return: buffer anchored to returned_at, not rentalEndDate', async () => {
-      // rentalEndDate=May 1, but actually returned 5 days late on May 6
-      // buffer=1d → cleaning eligible at May 7, NOT May 2
-      const order = testDb.addOrder({
-        status: 'returned',
-        rentalEndDate: new Date('2026-05-01T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-      // Late return: marked returned on May 6 (Bangkok time)
-      testDb.addStatusLog(order.id, 'shipped', 'returned', new Date('2026-05-06T10:00:00.000Z'));
-
-      // May 6 Bangkok: same day as returned_at, buffer=1d → NOT eligible yet
-      const now1 = new Date('2026-05-06T10:00:00.000Z');
-      const metrics1 = await processOrderAutoAdvance(testDb.db, now1);
-      expect(metrics1.returned_to_cleaning.skipped).toBe(1);
-      expect(testDb.orders[0].status).toBe('returned');
-
-      // May 7 Bangkok: 1 day after returned_at → eligible
-      const now2 = new Date('2026-05-07T10:00:00.000Z');
-      const metrics2 = await processOrderAutoAdvance(testDb.db, now2);
-      expect(metrics2.returned_to_cleaning.processed).toBe(1);
-      expect(testDb.orders[0].status).toBe('cleaning');
-    });
-
-    it('legacy order without status log: skipped + legacy_returned_no_log alert', async () => {
-      testDb.addOrder({
-        status: 'returned',
-        rentalEndDate: new Date('2026-04-01T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-      // No status log added — legacy order
-
-      const now = new Date('2026-05-06T10:00:00.000Z');
-      const metrics = await processOrderAutoAdvance(testDb.db, now);
-
-      expect(metrics.returned_to_cleaning.skipped).toBe(1);
-      expect(testDb.orders[0].status).toBe('returned');
-      expect(metrics.alerts.some((a) => a.type === 'legacy_returned_no_log')).toBe(true);
-    });
-
-    it('preserves manual gates: does NOT auto-advance shipped→returned', async () => {
+  describe('manual gates preserved', () => {
+    it('does NOT auto-advance shipped→returned', async () => {
       testDb.addOrder({
         status: 'shipped',
         rentalStartDate: new Date('2026-04-25T00:00:00.000Z'),
@@ -564,19 +464,6 @@ describe('BUG-505: processOrderAutoAdvance', () => {
       expect(testDb.orders[0].status).toBe('shipped');
       // But should trigger stale_shipped alert (>7 days past rental_end)
       expect(metrics.alerts.some((a) => a.type === 'stale_shipped')).toBe(true);
-    });
-
-    it('preserves manual gates: does NOT auto-advance cleaning→finished', async () => {
-      testDb.addOrder({
-        status: 'cleaning',
-        rentalEndDate: new Date('2026-04-01T00:00:00.000Z'),
-        items: [{ productId: 'prod-1' }],
-      });
-
-      const now = new Date('2026-05-06T10:00:00.000Z');
-      await processOrderAutoAdvance(testDb.db, now);
-
-      expect(testDb.orders[0].status).toBe('cleaning');
     });
   });
 
@@ -624,7 +511,6 @@ describe('BUG-505: processOrderAutoAdvance', () => {
       const metrics = await processOrderAutoAdvance(testDb.db, now);
 
       expect(metrics).toHaveProperty('paid_locked_to_shipped');
-      expect(metrics).toHaveProperty('returned_to_cleaning');
       expect(metrics).toHaveProperty('alerts');
       expect(metrics).toHaveProperty('duration_ms');
       expect(metrics.paid_locked_to_shipped).toHaveProperty('processed');

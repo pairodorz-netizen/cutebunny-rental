@@ -82,7 +82,6 @@ describe('BUG-ORDERS-ARCHIVE-01 · pure archive-window classifier', () => {
       'paid_locked',
       'shipped',
       'returned',
-      'cleaning',
       'repair',
     ] as const) {
       expect(isArchived(mkOrder(active, ancient), CUTOFF)).toBe(false);

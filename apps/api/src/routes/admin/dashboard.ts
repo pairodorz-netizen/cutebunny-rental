@@ -30,7 +30,6 @@ async function fetchSummaryData() {
     ordersByStatusRaw,
     totalRevenueAgg,
     productsAvailable,
-    productsCleaning,
     recentOrders,
     lowStockProducts,
     // BUG-526: actual rental counts
@@ -62,7 +61,6 @@ async function fetchSummaryData() {
       _sum: { amount: true },
     }),
     db.product.count({ where: { available: true } }),
-    db.order.count({ where: { status: 'cleaning' } }),
     db.order.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
@@ -123,7 +121,6 @@ async function fetchSummaryData() {
       total_active_rentals: ordersShipped,
       products_available: productsAvailable,
       products_rented: ordersShipped,
-      products_cleaning: productsCleaning,
       recent_orders: recentOrders.map((o) => ({
         id: o.id,
         order_number: o.orderNumber,
@@ -257,7 +254,6 @@ dashboard.get('/overview', async (c) => {
     activeRentals,
     productsAvailable,
     productsRented,
-    productsCleaning,
     recentOrders,
   ] = await Promise.all([
     db.product.count(),
@@ -273,7 +269,6 @@ dashboard.get('/overview', async (c) => {
     db.order.count({ where: { status: 'shipped' } }),
     db.product.count({ where: { available: true } }),
     db.order.count({ where: { status: 'shipped' } }),
-    db.order.count({ where: { status: 'cleaning' } }),
     db.order.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
@@ -297,7 +292,6 @@ dashboard.get('/overview', async (c) => {
     total_active_rentals: activeRentals,
     products_available: productsAvailable,
     products_rented: productsRented,
-    products_cleaning: productsCleaning,
     recent_orders: recentOrders.map((o) => ({
       id: o.id,
       order_number: o.orderNumber,

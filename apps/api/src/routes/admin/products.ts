@@ -268,7 +268,7 @@ adminProducts.get('/', async (c) => {
         where: {
           productId: { in: productIds },
           order: {
-            status: { in: ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'] },
+            status: { in: ['paid_locked', 'shipped', 'returned', 'repair', 'finished'] },
           },
         },
         select: { productId: true, subtotal: true, order: { select: { status: true } } },
@@ -1304,7 +1304,7 @@ adminProducts.get('/:id/metrics', async (c) => {
   }
 
   const completedItems = product.orderItems.filter((oi) =>
-    ['returned', 'cleaning', 'repair', 'finished', 'shipped'].includes(oi.order.status)
+    ['returned', 'repair', 'finished', 'shipped'].includes(oi.order.status)
   );
 
   const rentalCount = completedItems.length;

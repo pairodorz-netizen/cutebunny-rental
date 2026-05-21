@@ -59,8 +59,7 @@ invocation_logs = true
 #   "0 * * * *" = every hour on the hour
 #   Transitions (Asia/Bangkok timezone, date-only):
 #     paid_locked → shipped   (rental_start_date <= today AND inventory verified)
-#     returned → cleaning     (rental_end_date + buffer_days <= today)
-#   Manual gates preserved: shipped→returned, cleaning→finished.
+#   Manual gates preserved: shipped→returned.
 #
 # BUG-507 — Daily PII/GDPR IP retention at 03:00 Asia/Bangkok (20:00 UTC).
 #   "0 20 * * *" = daily at 20:00 UTC
