@@ -115,6 +115,35 @@ adminCategories.onError((err, c) => {
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
+// BUG-CAT-001 — purge Cloudflare edge cache for public category endpoints
+// after admin mutations so storefront reflects changes immediately instead
+// of waiting for the 30s TTL to expire.
+//
+// `caches.default.delete()` purges the same-DC edge cache for the exact
+// request URL.  Other DCs still serve stale responses until their local
+// TTL expires (≤ 30s).  The `typeof caches` guard ensures tests and local
+// dev environments (where the Workers Cache API is unavailable) skip the
+// call without throwing.
+//
+// Purged URLs:
+//   • GET /api/v1/categories   — public category list consumed by storefront
+const PURGE_PATHS = ['/api/v1/categories'] as const;
+
+async function purgePublicCategoryCache(requestUrl: string): Promise<void> {
+  if (typeof caches === 'undefined') return;
+  try {
+    const origin = new URL(requestUrl).origin;
+    // Cloudflare Workers expose `caches.default` (a non-standard extension);
+    // the built-in CacheStorage type doesn't include it, so we use a cast.
+    const cache = (caches as unknown as { default: Cache }).default;
+    await Promise.all(
+      PURGE_PATHS.map((path) => cache.delete(new Request(`${origin}${path}`))),
+    );
+  } catch {
+    // Best-effort — noop if cache API is unavailable or purge fails
+  }
+}
+
 interface CategoryRow {
   id: string;
   slug: string;
@@ -241,6 +270,8 @@ adminCategories.post('/', requireRole('superadmin'), async (c) => {
     details: { slug: row.slug, name_th: row.nameTh, name_en: row.nameEn, sort_order: row.sortOrder },
   });
 
+  await purgePublicCategoryCache(c.req.url);
+
   return created(c, toDto(row));
 });
 
@@ -309,6 +340,8 @@ adminCategories.patch('/:id', requireRole('superadmin'), async (c) => {
     outcome: 'success',
     errorCode: null,
   });
+
+  await purgePublicCategoryCache(c.req.url);
 
   return success(c, toDto(row));
 });
@@ -463,6 +496,8 @@ adminCategories.delete('/:id', requireRole('superadmin'), async (c) => {
     errorCode: null,
     details: { slug: existing.slug },
   });
+
+  await purgePublicCategoryCache(c.req.url);
 
   return c.body(null, 204);
 });

@@ -40,30 +40,27 @@ const CACHE_CONTROL = 'public, max-age=30, s-maxage=30';
 categories.get('/', async (c) => {
   try {
     const db = getDb();
+    // BUG-CAT-001: return all frontend-visible categories regardless of
+    // product count.  The previous BUG-531 post-query filter dropped every
+    // category with visibleFrontend=true AND 0 active products, which made
+    // the public endpoint return an empty array for newly-created categories
+    // that had no products linked yet.  Owner intent: a category created in
+    // admin must appear on the storefront immediately — the customer app
+    // already filters client-side on `visible_frontend`.
     const rows = await db.category.findMany({
+      where: { visibleFrontend: true },
       orderBy: { sortOrder: 'asc' },
-      include: {
-        // BUG-531: count active (non-deleted) products per category
-        _count: { select: { products: { where: { deletedAt: null, available: true } } } },
-      },
     });
 
-    // BUG-531: filter out frontend-visible categories with 0 active products
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data = (rows as any[])
-      .filter((row) => {
-        if (!row._count) return true;
-        return !row.visibleFrontend || row._count.products > 0;
-      })
-      .map((row) => ({
-        id: row.id,
-        slug: row.slug,
-        name_th: row.nameTh,
-        name_en: row.nameEn,
-        sort_order: row.sortOrder,
-        visible_frontend: row.visibleFrontend,
-        visible_backend: row.visibleBackend,
-      }));
+    const data = rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name_th: row.nameTh,
+      name_en: row.nameEn,
+      sort_order: row.sortOrder,
+      visible_frontend: row.visibleFrontend,
+      visible_backend: row.visibleBackend,
+    }));
 
     c.header('Cache-Control', CACHE_CONTROL);
     return success(c, data);

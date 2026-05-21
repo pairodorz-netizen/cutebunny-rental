@@ -249,4 +249,39 @@ describe('BUG-504-A02: GET /api/v1/categories', () => {
     const body = await res.json();
     expect(body).toEqual({ data: [] });
   });
+
+  // ─── Gate 14 (BUG-CAT-001) ─ category with 0 products returned ────
+  // The old BUG-531 filter dropped categories with visibleFrontend=true
+  // and 0 active products.  After the fix, the DB query filters
+  // `where: { visibleFrontend: true }` and no post-query filter runs,
+  // so any frontend-visible category is returned regardless of product
+  // count.
+  it('gate 14: category with 0 products and visibleFrontend=true IS returned', async () => {
+    const zeroProductCategory = {
+      id: '22222222-2222-2222-2222-222222222001',
+      slug: 'new-empty-cat',
+      nameTh: 'หมวดใหม่ว่าง',
+      nameEn: 'New Empty Category',
+      sortOrder: 100,
+      visibleFrontend: true,
+      visibleBackend: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    mockDb.category.findMany.mockResolvedValueOnce([zeroProductCategory]);
+    const res = await app.request('/api/v1/categories');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].slug).toBe('new-empty-cat');
+    expect(body.data[0].visible_frontend).toBe(true);
+  });
+
+  // ─── Gate 15 (BUG-CAT-001) ─ Prisma WHERE filters visibleFrontend ──
+  it('gate 15: Prisma findMany called with where: { visibleFrontend: true }', async () => {
+    await app.request('/api/v1/categories');
+    expect(mockDb.category.findMany).toHaveBeenCalledTimes(1);
+    const callArg = mockDb.category.findMany.mock.calls[0][0];
+    expect(callArg).toMatchObject({ where: { visibleFrontend: true } });
+  });
 });
