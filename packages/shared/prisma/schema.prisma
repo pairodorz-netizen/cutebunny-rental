@@ -43,6 +43,9 @@ enum ProductCategory {
   minimal
   vietnam
   camera
+  bikini
+  ig_looks      @map("ig-looks")
+  travel_looks  @map("travel-looks")
 }
 
 enum InventoryPhysicalStatus {
