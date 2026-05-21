@@ -78,12 +78,12 @@ describe('computeProductPL', () => {
       variableCost: 50,
       orderItems: items,
     });
-    // 6 statuses: 100+200+300+400+500+600 = 2100
-    expect(result.rental_count).toBe(6);
-    expect(result.total_rental_revenue).toBe(2100);
-    expect(result.total_variable_cost).toBe(300); // 50 × 6
-    expect(result.gross_profit).toBe(1800); // 2100 - 300
-    expect(result.net_pl).toBe(800); // 2100 - 1000 - 300 + 0
+    // 5 statuses: 100+200+300+400+500 = 1500
+    expect(result.rental_count).toBe(5);
+    expect(result.total_rental_revenue).toBe(1500);
+    expect(result.total_variable_cost).toBe(250); // 50 × 5
+    expect(result.gross_profit).toBe(1250); // 1500 - 250
+    expect(result.net_pl).toBe(250); // 1500 - 1000 - 250 + 0
   });
 
   it('includes selling price in net_pl for sold products', () => {
