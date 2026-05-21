@@ -25,14 +25,13 @@ function isDeletedCustomer(customer: { name?: string; email?: string; phone?: st
   return customer.name === '[Deleted customer]' || customer.email === '***@***';
 }
 
-const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled'];
+const ORDER_STATUSES = ['unpaid', 'paid_locked', 'shipped', 'returned', 'repair', 'finished', 'cancelled'];
 
 const FORWARD_TRANSITIONS: Record<string, string[]> = {
   unpaid: ['paid_locked'],
   paid_locked: ['shipped'],
   shipped: ['returned'],
-  returned: ['cleaning'],
-  cleaning: ['repair', 'finished'],
+  returned: ['finished'],
   repair: ['finished'],
   finished: [],
   cancelled: [],
@@ -45,9 +44,8 @@ const BACKWARD_TRANSITIONS: Record<string, string[]> = {
   paid_locked: ['unpaid', 'cancelled'],
   shipped: ['paid_locked', 'cancelled'],
   returned: ['shipped', 'finished', 'cancelled'],
-  cleaning: ['returned', 'cancelled'],
-  repair: ['cleaning', 'cancelled'],
-  finished: ['cleaning', 'repair', 'cancelled'],
+  repair: ['returned', 'cancelled'],
+  finished: ['repair', 'cancelled'],
   cancelled: [],
 };
 
@@ -61,7 +59,6 @@ const STATUS_COLORS: Record<string, string> = {
   paid_locked: 'bg-blue-100 text-blue-800',
   shipped: 'bg-purple-100 text-purple-800',
   returned: 'bg-orange-100 text-orange-800',
-  cleaning: 'bg-cyan-100 text-cyan-800',
   repair: 'bg-red-100 text-red-800',
   finished: 'bg-green-100 text-green-800',
   cancelled: 'bg-gray-200 text-gray-800',
@@ -72,7 +69,6 @@ const STATUS_TAB_COLORS: Record<string, string> = {
   paid_locked: 'bg-blue-500',
   shipped: 'bg-purple-500',
   returned: 'bg-orange-500',
-  cleaning: 'bg-cyan-500',
   repair: 'bg-red-500',
   finished: 'bg-green-500',
   cancelled: 'bg-gray-600',

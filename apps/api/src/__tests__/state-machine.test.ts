@@ -15,19 +15,15 @@ describe('Order State Machine', () => {
       expect(isValidTransition('shipped', 'returned')).toBe(true);
     });
 
-    it('allows returned → cleaning', () => {
-      expect(isValidTransition('returned', 'cleaning')).toBe(true);
+    it('allows returned → finished', () => {
+      expect(isValidTransition('returned', 'finished')).toBe(true);
     });
 
-    it('allows cleaning → repair', () => {
-      expect(isValidTransition('cleaning', 'repair')).toBe(true);
+    it('allows returned → repair', () => {
+      expect(isValidTransition('returned', 'repair')).toBe(true);
     });
 
-    it('allows cleaning → ready', () => {
-      expect(isValidTransition('cleaning', 'finished')).toBe(true);
-    });
-
-    it('allows repair → ready', () => {
+    it('allows repair → finished', () => {
       expect(isValidTransition('repair', 'finished')).toBe(true);
     });
 
@@ -35,13 +31,13 @@ describe('Order State Machine', () => {
       expect(isValidTransition('unpaid', 'shipped')).toBe(false);
     });
 
-    // BUG-223: shipped → finished is no longer valid (must go through returned/cleaning cycle)
+    // BUG-223: shipped → finished is no longer valid (must go through returned first)
     it('rejects shipped → finished (no skip forward)', () => {
       expect(isValidTransition('shipped', 'finished')).toBe(false);
     });
 
-    it('allows finished → cleaning (reopen for cleaning)', () => {
-      expect(isValidTransition('finished', 'cleaning')).toBe(true);
+    it('allows finished → repair (reopen for repair)', () => {
+      expect(isValidTransition('finished', 'repair')).toBe(true);
     });
 
     it('rejects finished → unpaid (not allowed)', () => {
@@ -70,19 +66,15 @@ describe('Order State Machine', () => {
     });
 
     it('returns transitions for returned', () => {
-      expect(getAllowedTransitions('returned')).toEqual(['cleaning', 'shipped', 'finished', 'cancelled']);
-    });
-
-    it('returns transitions for cleaning', () => {
-      expect(getAllowedTransitions('cleaning')).toEqual(['repair', 'finished', 'returned', 'cancelled']);
+      expect(getAllowedTransitions('returned')).toEqual(['repair', 'shipped', 'finished', 'cancelled']);
     });
 
     it('returns transitions for repair', () => {
-      expect(getAllowedTransitions('repair')).toEqual(['finished', 'cleaning', 'cancelled']);
+      expect(getAllowedTransitions('repair')).toEqual(['finished', 'returned', 'cancelled']);
     });
 
     it('returns transitions for finished (non-terminal, can reopen)', () => {
-      expect(getAllowedTransitions('finished')).toEqual(['cleaning', 'repair', 'cancelled']);
+      expect(getAllowedTransitions('finished')).toEqual(['repair', 'cancelled']);
     });
 
     it('returns [] for cancelled (terminal state)', () => {
@@ -99,7 +91,7 @@ describe('Order State Machine', () => {
     it('returns invalid transition message for finished → unpaid', () => {
       const msg = getTransitionError('finished', 'unpaid');
       expect(msg).toContain('Invalid transition');
-      expect(msg).toContain('cleaning');
+      expect(msg).toContain('repair');
     });
 
     it('returns allowed transitions for invalid transition', () => {

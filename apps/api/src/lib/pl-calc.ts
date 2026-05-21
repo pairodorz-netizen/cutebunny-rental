@@ -23,7 +23,6 @@ export const PAID_ORDER_STATUSES = [
   'paid_locked',
   'shipped',
   'returned',
-  'cleaning',
   'repair',
   'finished',
 ] as const;
@@ -37,7 +36,6 @@ export const REVENUE_TX_TYPES = [
 ] as const;
 
 export const EXPENSE_TX_TYPES = [
-  'cleaning',
   'repair',
   'cogs',
   'shipping',

@@ -396,7 +396,7 @@ const editOrderSchema = z.object({
     late_fee: z.number().int().min(0).optional(),
     damage_fee: z.number().int().min(0).optional(),
   })).optional(),
-  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled']).optional(),
+  status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'repair', 'finished', 'cancelled']).optional(),
 });
 
 adminOrders.patch('/:id/edit', async (c) => {
@@ -632,7 +632,7 @@ adminOrders.patch('/:id/status', async (c) => {
   const admin = getAdmin(c);
 
   const bodySchema = z.object({
-    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished', 'cancelled']),
+    to_status: z.enum(['unpaid', 'paid_locked', 'shipped', 'returned', 'repair', 'finished', 'cancelled']),
     tracking_number: z.string().optional(),
     note: z.string().optional(),
     late_fee: z.number().int().min(0).optional(),
@@ -1349,7 +1349,7 @@ adminOrders.get('/:id/profit', async (c) => {
   const totalDamageFee = order.items.reduce((sum, i) => sum + i.damageFee, 0);
   const grossRevenue = rentalPrice + totalLateFee + totalDamageFee;
 
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const expenseTypes = ['shipping', 'cogs', 'repair', 'marketing', 'platform_fee'];
   const expenses: Array<{ category: string; amount: number }> = [];
   let totalExpenses = 0;
 

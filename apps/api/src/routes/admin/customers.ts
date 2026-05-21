@@ -65,7 +65,7 @@ adminCustomers.get('/', async (c) => {
         FROM order_items
         GROUP BY order_id
       ) ic ON ic.order_id = o.id
-      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'repair', 'finished')
       GROUP BY o.customer_id
     ) stats ON stats.customer_id = c.id
     WHERE c.email NOT LIKE 'deleted_%'

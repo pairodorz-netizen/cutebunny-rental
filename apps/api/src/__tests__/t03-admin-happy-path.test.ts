@@ -1,7 +1,7 @@
 /**
  * T03: Admin Happy Path E2E
  * Login → view dashboard → verify slip → change order status
- * (unpaid→paid_locked→shipped→returned→cleaning→ready) → after-sales events
+ * (unpaid→paid_locked→shipped→returned→finished) → after-sales events
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -250,8 +250,7 @@ describe('T03: Admin Happy Path E2E', () => {
       { from: 'unpaid', to: 'paid_locked' },
       { from: 'paid_locked', to: 'shipped', extra: { tracking_number: 'TRK-12345' } },
       { from: 'shipped', to: 'returned' },
-      { from: 'returned', to: 'cleaning' },
-      { from: 'cleaning', to: 'finished' },
+      { from: 'returned', to: 'finished' },
     ];
 
     for (const { from, to, extra } of transitions) {
@@ -286,11 +285,11 @@ describe('T03: Admin Happy Path E2E', () => {
       });
     }
 
-    it('transitions cleaning → repair → ready', async () => {
+    it('transitions returned → repair → finished', async () => {
       const token = await getAdminToken();
 
-      // cleaning → repair
-      mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'cleaning' });
+      // returned → repair
+      mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'returned' });
       mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'repair' });
       mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-1' });
 
@@ -301,7 +300,7 @@ describe('T03: Admin Happy Path E2E', () => {
       });
       expect(res.status).toBe(200);
 
-      // repair → ready
+      // repair → finished
       mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'repair' });
       mockDb.order.update.mockResolvedValue({ ...MOCK_ORDER, status: 'finished' });
 

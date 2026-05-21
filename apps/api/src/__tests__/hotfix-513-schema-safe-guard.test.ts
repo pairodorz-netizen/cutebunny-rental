@@ -87,9 +87,9 @@ describe('HOTFIX-513: Schema-safe guard — scheduled worker uses select instead
   it('processOrderAutoAdvance uses select (not include) for all order.findMany calls', async () => {
     await processOrderAutoAdvance(db, new Date('2026-05-12T07:00:00.000Z'));
 
-    // Should have at least 2 findMany calls (paid_locked batch + returned batch)
+    // Should have at least 1 findMany call (paid_locked batch)
     // plus detectStaleOrders (shipped batch)
-    expect(findManyCalls.length).toBeGreaterThanOrEqual(2);
+    expect(findManyCalls.length).toBeGreaterThanOrEqual(1);
 
     for (const call of findManyCalls) {
       // Every call must use `select`, not `include`
@@ -106,8 +106,8 @@ describe('HOTFIX-513: Schema-safe guard — scheduled worker uses select instead
   it('backfillStaleOrders uses select (not include) for all order.findMany calls', async () => {
     await backfillStaleOrders(db, true, new Date('2026-05-12T07:00:00.000Z'));
 
-    // Should have at least 2 findMany calls (paid_locked + returned)
-    expect(findManyCalls.length).toBeGreaterThanOrEqual(2);
+    // Should have at least 1 findMany call (paid_locked)
+    expect(findManyCalls.length).toBeGreaterThanOrEqual(1);
 
     for (const call of findManyCalls) {
       expect(call).toHaveProperty('select');

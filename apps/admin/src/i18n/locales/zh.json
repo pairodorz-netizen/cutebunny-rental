@@ -57,7 +57,6 @@
     "rentals": "次",
     "available": "件",
     "rented": "出租中",
-    "cleaning": "清洁中",
     "noData": "暂无数据",
     "allGood": "所有商品库存充足",
     "error": "加载数据失败",
@@ -144,7 +143,6 @@
       "paid_locked": "已付款",
       "shipped": "已发货",
       "returned": "已退回",
-      "cleaning": "清洁中",
       "repair": "维修中",
       "finished": "完成",
       "cancelled": "已取消"
@@ -425,7 +423,6 @@
     "status": {
       "available": "可用",
       "booked": "已预订",
-      "cleaning": "清洁中",
       "blocked_repair": "维修中",
       "late_return": "逾期归还",
       "tentative": "暂定",
@@ -510,7 +507,7 @@
     "roiRankingsDesc": "所有商品按投资回报率排序。绿色=盈利，红色=亏损。",
     "revenueTrend": "收入与支出趋势",
     "revenueTooltip": "已确认付款的租金小计、逾期费、损坏费、买断费和没收押金之和。不含未付订单和可退押金。",
-    "expensesTooltip": "运费、成本、清洗、维修、营销和平台费用之和。",
+    "expensesTooltip": "运费、成本、维修、营销和平台费用之和。",
     "netProfitTooltip": "所选期间的收入减去支出。",
     "includeNewProducts": "包含新上架商品",
     "newProductTooltip": "上架不满30天的商品默认隐藏 — ROI数据尚不具参考性",

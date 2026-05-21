@@ -494,7 +494,6 @@ export interface DashboardOverview {
   total_active_rentals: number;
   products_available: number;
   products_rented: number;
-  products_cleaning: number;
   recent_orders: Array<{
     id: string;
     order_number: string;

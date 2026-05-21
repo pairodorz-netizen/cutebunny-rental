@@ -80,19 +80,19 @@ describe('Availability Logic', () => {
 
   describe('conflict detection logic', () => {
     it('identifies conflicts from booked slots', () => {
-      const bookedStatuses = ['booked', 'cleaning', 'blocked_repair', 'late_return'];
+      const bookedStatuses = ['booked', 'blocked_repair', 'late_return'];
       const slotStatus = 'booked';
       expect(bookedStatuses.includes(slotStatus)).toBe(true);
     });
 
     it('identifies available slots as non-conflicting', () => {
-      const bookedStatuses = ['booked', 'cleaning', 'blocked_repair', 'late_return'];
+      const bookedStatuses = ['booked', 'blocked_repair', 'late_return'];
       const slotStatus = 'available';
       expect(bookedStatuses.includes(slotStatus)).toBe(false);
     });
 
     it('identifies tentative slots as non-conflicting', () => {
-      const bookedStatuses = ['booked', 'cleaning', 'blocked_repair', 'late_return'];
+      const bookedStatuses = ['booked', 'blocked_repair', 'late_return'];
       const slotStatus = 'tentative';
       expect(bookedStatuses.includes(slotStatus)).toBe(false);
     });

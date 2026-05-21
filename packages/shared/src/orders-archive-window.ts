@@ -24,7 +24,6 @@ export const ACTIVE_ORDER_STATUSES = [
   'paid_locked',
   'shipped',
   'returned',
-  'cleaning',
   'repair',
 ] as const;
 export type ActiveOrderStatus = (typeof ACTIVE_ORDER_STATUSES)[number];

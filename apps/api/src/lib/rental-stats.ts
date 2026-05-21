@@ -14,7 +14,7 @@ type Db = any;
 // BUG-535: 'ready' was never a valid OrderStatus enum value — it caused
 // Prisma to throw a validation error silently caught by try/catch,
 // returning empty Maps for all callers.
-const PAID_STATUSES = ['paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished'];
+const PAID_STATUSES = ['paid_locked', 'shipped', 'returned', 'repair', 'finished'];
 
 export interface ProductRentalStat {
   productId: string;
@@ -38,7 +38,7 @@ export async function getProductRentalCounts(db: Db): Promise<Map<string, number
       SELECT oi.product_id AS "productId", COUNT(*)::int AS "count"
       FROM order_items oi
       JOIN orders o ON oi.order_id = o.id
-      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'repair', 'finished')
       GROUP BY oi.product_id
     `;
 
@@ -70,7 +70,7 @@ export async function getCustomerRentalStats(db: Db): Promise<Map<string, Custom
         FROM order_items
         GROUP BY order_id
       ) ic ON ic.order_id = o.id
-      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+      WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'repair', 'finished')
       GROUP BY o.customer_id
     `;
 

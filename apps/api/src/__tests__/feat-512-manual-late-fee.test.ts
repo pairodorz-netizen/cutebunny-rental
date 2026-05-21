@@ -118,9 +118,9 @@ describe('FEAT-512: Manual Late Fee / Damage Fee on status change', () => {
   });
 
   it('persists late_fee + damage_fee when transitioning to finished', async () => {
-    const orderCleaning = { ...MOCK_ORDER, status: 'cleaning', lateFee: 0, damageFee: 0 };
-    mockDb.order.findUnique.mockResolvedValue(orderCleaning);
-    mockDb.order.update.mockResolvedValue({ ...orderCleaning, status: 'finished', lateFee: 1000, damageFee: 500, totalAmount: 8100 });
+    const orderReturned = { ...MOCK_ORDER, status: 'returned', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderReturned);
+    mockDb.order.update.mockResolvedValue({ ...orderReturned, status: 'finished', lateFee: 1000, damageFee: 500, totalAmount: 8100 });
     mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-2' });
 
     const res = await patchStatus(token, { to_status: 'finished', late_fee: 1000, damage_fee: 500, fee_note: 'Returned 3 days late with stain' });
@@ -184,9 +184,9 @@ describe('FEAT-512: Manual Late Fee / Damage Fee on status change', () => {
   });
 
   it('creates finance transactions for non-zero fees', async () => {
-    const orderCleaning = { ...MOCK_ORDER, status: 'cleaning', lateFee: 0, damageFee: 0 };
-    mockDb.order.findUnique.mockResolvedValue(orderCleaning);
-    mockDb.order.update.mockResolvedValue({ ...orderCleaning, status: 'finished', lateFee: 600, damageFee: 400 });
+    const orderReturned = { ...MOCK_ORDER, status: 'returned', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderReturned);
+    mockDb.order.update.mockResolvedValue({ ...orderReturned, status: 'finished', lateFee: 600, damageFee: 400 });
     mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-6' });
 
     await patchStatus(token, { to_status: 'finished', late_fee: 600, damage_fee: 400 });
@@ -203,9 +203,9 @@ describe('FEAT-512: Manual Late Fee / Damage Fee on status change', () => {
   });
 
   it('does NOT create fee finance transactions when fees are 0', async () => {
-    const orderCleaning = { ...MOCK_ORDER, status: 'cleaning', lateFee: 0, damageFee: 0 };
-    mockDb.order.findUnique.mockResolvedValue(orderCleaning);
-    mockDb.order.update.mockResolvedValue({ ...orderCleaning, status: 'finished', lateFee: 0, damageFee: 0 });
+    const orderReturned = { ...MOCK_ORDER, status: 'returned', lateFee: 0, damageFee: 0 };
+    mockDb.order.findUnique.mockResolvedValue(orderReturned);
+    mockDb.order.update.mockResolvedValue({ ...orderReturned, status: 'finished', lateFee: 0, damageFee: 0 });
     mockDb.orderStatusLog.create.mockResolvedValue({ id: 'log-7' });
 
     await patchStatus(token, { to_status: 'finished' });

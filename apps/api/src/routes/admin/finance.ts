@@ -19,7 +19,6 @@ function formatTxTypeLabel(txType: string): string {
     force_buy: 'Force Buy',
     shipping: 'Shipping',
     cogs: 'Cost of Goods',
-    cleaning: 'Cleaning',
     repair: 'Repair',
     marketing: 'Marketing',
     platform_fee: 'Platform Fee',
@@ -138,7 +137,7 @@ adminFinance.get('/transactions', async (c) => {
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
   // BUG-537: deposit types are liability movements, not expenses
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const expenseTypes = ['shipping', 'cogs', 'repair', 'marketing', 'platform_fee'];
   const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const where: Record<string, unknown> = {};
@@ -223,7 +222,7 @@ adminFinance.post('/transactions', async (c) => {
     category_id: z.string().uuid().optional(),
     tx_type: z.enum([
       'rental_revenue', 'deposit_received', 'deposit_returned', 'deposit_forfeited',
-      'late_fee', 'damage_fee', 'force_buy', 'shipping', 'cogs', 'cleaning', 'repair',
+      'late_fee', 'damage_fee', 'force_buy', 'shipping', 'cogs', 'repair',
       'marketing', 'platform_fee',
     ]),
     amount: z.number().int(),
@@ -316,7 +315,7 @@ adminFinance.get('/report', async (c) => {
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
   // BUG-537: deposit types are liability movements, not expenses
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const expenseTypes = ['shipping', 'cogs', 'repair', 'marketing', 'platform_fee'];
   const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const revenueBreakdown: Record<string, number> = {};
@@ -460,7 +459,7 @@ adminFinance.get('/summary', async (c) => {
 
   const revenueTypes = ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy', 'deposit_forfeited'];
   // BUG-537: deposit types are liability movements, not expenses
-  const expenseTypes = ['shipping', 'cogs', 'cleaning', 'repair', 'marketing', 'platform_fee'];
+  const expenseTypes = ['shipping', 'cogs', 'repair', 'marketing', 'platform_fee'];
   const depositTypes = ['deposit_received', 'deposit_returned'];
 
   const [transactions, orders, categories, vcRows] = await Promise.all([
@@ -481,7 +480,7 @@ adminFinance.get('/summary', async (c) => {
           FROM order_items oi
           JOIN orders o ON oi.order_id = o.id
           JOIN products p ON oi.product_id = p.id
-          WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'cleaning', 'repair', 'finished')
+          WHERE o.status IN ('paid_locked', 'shipped', 'returned', 'repair', 'finished')
             AND o.created_at >= ${startDate}
             AND o.created_at <= ${endDate}
         ` as Array<{ createdAt: Date; variableCost: number }>;

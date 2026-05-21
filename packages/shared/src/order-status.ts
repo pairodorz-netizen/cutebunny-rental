@@ -1,9 +1,8 @@
 /**
  * Shared order status helpers for customer, admin, and API.
  *
- * Canonical enum: unpaid, paid_locked, shipped, returned, cleaning, repair, finished, cancelled
+ * Canonical enum: unpaid, paid_locked, shipped, returned, repair, finished, cancelled
  * Customer-facing: paid_locked shows as "Payment Confirmed" (not raw enum).
- * cleaning shows as "Inspecting" (not "cleaning" — customer-facing).
  */
 
 export const ORDER_STATUSES = [
@@ -11,7 +10,6 @@ export const ORDER_STATUSES = [
   'paid_locked',
   'shipped',
   'returned',
-  'cleaning',
   'repair',
   'finished',
   'cancelled',
@@ -26,7 +24,6 @@ const LABELS_TH: Record<OrderStatus, string> = {
   paid_locked: 'ยืนยันชำระแล้ว',
   shipped: 'จัดส่งแล้ว',
   returned: 'ส่งคืนแล้ว',
-  cleaning: 'กำลังตรวจสอบ',
   repair: 'ระหว่างซ่อม',
   finished: 'เสร็จสมบูรณ์',
   cancelled: 'ยกเลิก',
@@ -37,7 +34,6 @@ const LABELS_EN: Record<OrderStatus, string> = {
   paid_locked: 'Payment Confirmed',
   shipped: 'Shipped',
   returned: 'Returned',
-  cleaning: 'Inspecting',
   repair: 'Under Repair',
   finished: 'Completed',
   cancelled: 'Cancelled',
@@ -67,7 +63,6 @@ const STATUS_COLORS: Record<OrderStatus, StatusColorSet> = {
   paid_locked: { bg: 'bg-blue-100', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-800' },
   shipped: { bg: 'bg-purple-100', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-800' },
   returned: { bg: 'bg-indigo-100', text: 'text-indigo-800', badge: 'bg-indigo-100 text-indigo-800' },
-  cleaning: { bg: 'bg-cyan-100', text: 'text-cyan-800', badge: 'bg-cyan-100 text-cyan-800' },
   repair: { bg: 'bg-orange-100', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-800' },
   finished: { bg: 'bg-green-100', text: 'text-green-800', badge: 'bg-green-100 text-green-800' },
   cancelled: { bg: 'bg-gray-100', text: 'text-gray-600', badge: 'bg-gray-100 text-gray-600' },
@@ -86,7 +81,6 @@ const STATUS_ICONS: Record<OrderStatus, string> = {
   paid_locked: 'lock',
   shipped: 'truck',
   returned: 'package-check',
-  cleaning: 'search',
   repair: 'wrench',
   finished: 'check-circle',
   cancelled: 'x-circle',
@@ -98,7 +92,7 @@ export function getStatusIcon(status: string): string {
 
 // ── Timeline Steps ──────────────────────────────────────────────────
 // Main flow: paid_locked → shipped → returned → finished
-// Sub-states: cleaning and repair sit between returned and finished.
+// Sub-state: repair sits between returned and finished.
 // cancelled is a terminal state shown separately (not in the timeline).
 
 export interface TimelineStep {
@@ -114,7 +108,6 @@ const STEP_ORDER: Record<string, number> = {
   paid_locked: 0,
   shipped: 1,
   returned: 2,
-  cleaning: 2.5,  // between returned and finished
   repair: 2.5,
   finished: 3,
   cancelled: -2,
@@ -132,8 +125,8 @@ export function getTimelineSteps(currentStatus: string): TimelineStep[] {
     labelKey: stepStatus,
     completed: currentStep > idx,
     active: (currentStatus === stepStatus) ||
-      // cleaning/repair are active at the returned→finished gap
-      (idx === 2 && (currentStatus === 'cleaning' || currentStatus === 'repair')) ||
+      // repair is active at the returned→finished gap
+      (idx === 2 && currentStatus === 'repair') ||
       (idx === 3 && currentStatus === 'finished'),
   }));
 }

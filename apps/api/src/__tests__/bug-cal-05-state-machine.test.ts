@@ -10,7 +10,7 @@
  *   • from === 'booked'   → 'available'  → REQUIRES_CONFIRM
  *   • to   === 'available' && from !== 'available' → REQUIRES_CONFIRM
  *     (releasing a non-free slot is always destructive, regardless of
- *     whether it was "booked" or something like "cleaning" / "repair")
+ *     whether it was "booked" or something like "repair")
  *   • everything else     → OK (admin discretion)
  *
  * Invalid states throw — the enum lives in shared and we don't silently
@@ -27,16 +27,15 @@ import {
 } from '@cutebunny/shared/calendar-state-machine';
 
 describe('BUG-CAL-05 — slot state machine', () => {
-  it('SLOT_STATES matches the prisma enum (8 entries, exact order)', () => {
+  it('SLOT_STATES matches the prisma enum (7 entries, exact order)', () => {
     // Keep the UI dropdown order stable — this is the order owner listed
-    // in the brief (Available → Booked → Cleaning → Repair → Late Return
+    // in the brief (Available → Booked → Repair → Late Return
     // → Tentative → Shipping → Washing). Prisma enum name for "Repair"
     // is `blocked_repair` so the enum key here stays DB-accurate while
     // the LABEL says "Repair".
     expect(SLOT_STATES).toEqual([
       'available',
       'booked',
-      'cleaning',
       'blocked_repair',
       'late_return',
       'tentative',
@@ -94,7 +93,7 @@ describe('BUG-CAL-05 — slot state machine', () => {
   });
 
   it('any non-available → available requires confirm', () => {
-    // Releasing a slot that's currently blocked (cleaning, repair, etc.)
+    // Releasing a slot that's currently blocked (repair, etc.)
     // is a destructive edit — confirm before wiping the intent.
     const nonAvailable = SLOT_STATES.filter((s): s is SlotState => s !== 'available');
     for (const from of nonAvailable) {
@@ -106,17 +105,15 @@ describe('BUG-CAL-05 — slot state machine', () => {
     }
   });
 
-  it('cross-blocked-state transitions (e.g. cleaning → repair) are OK (no confirm)', () => {
+  it('cross-blocked-state transitions (e.g. shipping → washing) are OK (no confirm)', () => {
     // Admin discretion: retagging a blocked slot from one reason to
     // another is not destructive — the slot is still blocked.
     const pairs: Array<[SlotState, SlotState]> = [
-      ['cleaning', 'blocked_repair'],
-      ['blocked_repair', 'cleaning'],
       ['shipping', 'washing'],
       ['washing', 'shipping'],
       ['tentative', 'booked'],
       ['booked', 'tentative'],
-      ['late_return', 'cleaning'],
+      ['late_return', 'blocked_repair'],
       ['shipping', 'booked'],
     ];
     for (const [from, to] of pairs) {
@@ -125,7 +122,7 @@ describe('BUG-CAL-05 — slot state machine', () => {
     }
   });
 
-  it('canTransition is total over the full 8×8 matrix (no falls through)', () => {
+  it('canTransition is total over the full 7×7 matrix (no falls through)', () => {
     // Guard against a future contributor removing a branch and leaving
     // some transitions undefined. Every cell must return a result.
     for (const from of SLOT_STATES) {
@@ -138,8 +135,8 @@ describe('BUG-CAL-05 — slot state machine', () => {
   });
 
   it('canTransition is deterministic — same inputs, same output', () => {
-    const r1 = canTransition('cleaning', 'booked');
-    const r2 = canTransition('cleaning', 'booked');
+    const r1 = canTransition('shipping', 'booked');
+    const r2 = canTransition('shipping', 'booked');
     expect(r1).toEqual(r2);
   });
 
@@ -159,10 +156,6 @@ describe('BUG-CAL-05 — slot state machine', () => {
       [
         [
           "booked",
-          "available",
-        ],
-        [
-          "cleaning",
           "available",
         ],
         [

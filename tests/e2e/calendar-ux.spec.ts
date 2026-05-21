@@ -211,7 +211,6 @@ test.describe('BUG-CAL wave — 7-atom regression', () => {
     expect(slugs).toEqual([
       'available',
       'booked',
-      'cleaning',
       'blocked_repair',
       'late_return',
       'tentative',

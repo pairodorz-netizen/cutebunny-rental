@@ -313,7 +313,7 @@ describe('T01: API Contract Tests', () => {
       expect(body.error.details.allowed_transitions).toContain('paid_locked');
     });
 
-    // BUG-223: shipped → finished is no longer valid (must go through returned/cleaning)
+    // BUG-223: shipped → finished is no longer valid (must go through returned first)
     it('rejects shipped → finished (BUG-223 FSM guard)', async () => {
       mockDb.order.findUnique.mockResolvedValue({ ...MOCK_ORDER, status: 'shipped' });
 

@@ -8,7 +8,7 @@ import {
   isCancelled,
   type OrderStatus,
 } from '@cutebunny/shared/order-status';
-import { Lock, Truck, PackageCheck, CheckCircle, XCircle, Clock, Search, Wrench } from 'lucide-react';
+import { Lock, Truck, PackageCheck, CheckCircle, XCircle, Clock, Wrench } from 'lucide-react';
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   paid_locked: Lock,
@@ -22,7 +22,6 @@ const STATUS_ICON_MAP: Record<string, React.ComponentType<{ className?: string }
   paid_locked: Lock,
   shipped: Truck,
   returned: PackageCheck,
-  cleaning: Search,
   repair: Wrench,
   finished: CheckCircle,
   cancelled: XCircle,
@@ -75,9 +74,9 @@ export function OrderStatusTimeline({ status, locale }: OrderStatusTimelineProps
         const isActive = step.active;
         const stepLabel = t(`status.${step.labelKey}`);
 
-        // Sub-state indicator for cleaning/repair
-        const isSubState = idx === 2 && (status === 'cleaning' || status === 'repair');
-        const SubIcon = status === 'repair' ? Wrench : Search;
+        // Sub-state indicator for repair
+        const isSubState = idx === 2 && status === 'repair';
+        const SubIcon = Wrench;
 
         return (
           <div key={step.key} className="flex items-center flex-1 last:flex-none">
