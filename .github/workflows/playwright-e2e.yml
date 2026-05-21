@@ -18,7 +18,7 @@ jobs:
       matrix:
         browser: [chromium, webkit]
     env:
-      E2E_CUSTOMER_URL: https://customer-eta-ruby.vercel.app
+      E2E_CUSTOMER_URL: https://www.cutebunnyrental.com
       E2E_ADMIN_URL: https://admin-eight-rouge.vercel.app
       E2E_API_URL: https://cutebunny-api.cutebunny-rental.workers.dev
     steps:

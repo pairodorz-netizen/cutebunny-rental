@@ -4,7 +4,7 @@ INSERT INTO "system_configs" (id, key, value, label, "group")
 VALUES (
   uuid_generate_v4(),
   'storefront_url',
-  '"https://customer-eta-ruby.vercel.app"',
+  '"https://www.cutebunnyrental.com"',
   'Storefront URL',
   'general'
 )

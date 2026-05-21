@@ -202,7 +202,7 @@ describe('BUG-504-A02: GET /api/v1/categories', () => {
     const res = await app.request('/api/v1/categories', {
       method: 'OPTIONS',
       headers: {
-        Origin: 'https://customer-eta-ruby.vercel.app',
+        Origin: 'https://www.cutebunnyrental.com',
         'Access-Control-Request-Method': 'GET',
       },
     });

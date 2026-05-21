@@ -63,7 +63,7 @@ settings.get('/rental-terms', async (c) => {
 // GET /api/v1/settings/storefront — returns the storefront URL from
 // system_configs. Falls back to the hardcoded Vercel deployment URL when
 // the config row hasn't been seeded yet.
-const FALLBACK_STOREFRONT_URL = 'https://customer-eta-ruby.vercel.app';
+const FALLBACK_STOREFRONT_URL = 'https://www.cutebunnyrental.com';
 
 settings.get('/storefront', async (c) => {
   const db = getDb();

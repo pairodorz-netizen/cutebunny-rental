@@ -1652,7 +1652,7 @@ function MessengerConfigSection() {
 
 // ─── STOREFRONT LINK TAB ────────────────────────────────────────────────────
 
-const FALLBACK_STOREFRONT_URL = 'https://customer-eta-ruby.vercel.app';
+const FALLBACK_STOREFRONT_URL = 'https://www.cutebunnyrental.com';
 
 function StorefrontLinkTab() {
   const { t } = useTranslation();

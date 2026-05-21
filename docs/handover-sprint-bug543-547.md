@@ -131,7 +131,7 @@ apps/api/src/routes/admin/finance.ts                             # Per-period VC
 
 | App | URL | Platform |
 |---|---|---|
-| Customer (production) | https://customer-eta-ruby.vercel.app | Vercel (Next.js) |
+| Customer (production) | https://www.cutebunnyrental.com | Vercel (Next.js) |
 | Admin (production) | https://admin-eight-rouge.vercel.app | Vercel (Vite SPA) |
 | API | Cloudflare Workers | Cloudflare |
 | Database | Supabase (PostgreSQL) | Supabase |

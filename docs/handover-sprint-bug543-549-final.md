@@ -199,7 +199,7 @@ Added in PR #205 (`.github/workflows/playwright-e2e.yml`):
 
 | App | URL | Platform | Status |
 |---|---|---|---|
-| Customer | https://customer-eta-ruby.vercel.app | Vercel (Next.js) | Healthy |
+| Customer | https://www.cutebunnyrental.com | Vercel (Next.js) | Healthy |
 | Admin | https://admin-eight-rouge.vercel.app | Vercel (Vite SPA) | Healthy |
 | API | https://cutebunny-api.cutebunny-rental.workers.dev | Cloudflare Workers | 16/0 (success/error) |
 | Database | Supabase (PostgreSQL) | Supabase | Healthy |
