@@ -480,10 +480,28 @@ export interface FinanceReport {
   }>;
 }
 
+export interface UpcomingDeliveryOrder {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  products: string[];
+  rental_start_date: string;
+}
+
+export interface UpcomingReturnOrder {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  products: string[];
+  rental_end_date: string;
+}
+
 export interface DashboardSummary {
   stats: DashboardStats;
   overview: DashboardOverview;
   lowStock: Array<{ id: string; sku: string; name: string; thumbnail_url: string | null; stock_on_hand: number; low_stock_threshold: number }>;
+  upcomingDeliveries: number;
+  upcomingReturns: number;
 }
 
 export interface DashboardOverview {
@@ -688,6 +706,8 @@ export const adminApi = {
     lowStock: (limit = 10) => request<{ data: Array<{ id: string; sku: string; name: string; thumbnail_url: string | null; stock_on_hand: number; low_stock_threshold: number }> }>(`/api/v1/admin/dashboard/low-stock?limit=${limit}`),
     lowStockDigest: () => request<{ data: { generated_at: string; total_low_stock: number; products: Array<{ sku: string; name: string; stock_on_hand: number; threshold: number }>; email_sent: boolean; message: string } }>('/api/v1/admin/dashboard/low-stock-digest', { method: 'POST' }),
     summary: () => request<{ data: DashboardSummary }>('/api/v1/admin/dashboard/summary'),
+    upcomingDeliveries: () => request<{ data: UpcomingDeliveryOrder[] }>('/api/v1/admin/dashboard/upcoming-deliveries'),
+    upcomingReturns: () => request<{ data: UpcomingReturnOrder[] }>('/api/v1/admin/dashboard/upcoming-returns'),
   },
   orders: {
     list: (params: Record<string, string>) => {

@@ -73,7 +73,13 @@
     "product": "Product",
     "status": "Status",
     "amount": "Amount",
-    "date": "Date"
+    "date": "Date",
+    "upcomingDeliveries": "Upcoming Deliveries",
+    "upcomingDeliveriesNoItems": "No upcoming deliveries",
+    "upcomingReturns": "Upcoming Returns",
+    "upcomingReturnsNoItems": "No upcoming returns",
+    "rentalStart": "Start",
+    "rentalEnd": "End"
   },
   "orders": {
     "title": "Orders",

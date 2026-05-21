@@ -73,7 +73,13 @@
     "product": "สินค้า",
     "status": "สถานะ",
     "amount": "จำนวนเงิน",
-    "date": "วันที่"
+    "date": "วันที่",
+    "upcomingDeliveries": "แจ้งเตือนต้องจัดส่ง",
+    "upcomingDeliveriesNoItems": "ไม่มีรายการจัดส่ง",
+    "upcomingReturns": "แจ้งเตือนต้องส่งคืน",
+    "upcomingReturnsNoItems": "ไม่มีรายการส่งคืน",
+    "rentalStart": "เริ่ม",
+    "rentalEnd": "สิ้นสุด"
   },
   "orders": {
     "title": "คำสั่งซื้อ",

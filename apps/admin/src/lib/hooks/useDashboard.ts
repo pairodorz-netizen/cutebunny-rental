@@ -43,3 +43,23 @@ export function useDashboardSummary() {
     refetchOnWindowFocus: true,
   });
 }
+
+export function useUpcomingDeliveries() {
+  return useQuery({
+    queryKey: ['dashboard-upcoming-deliveries'],
+    queryFn: () => adminApi.dashboard.upcomingDeliveries(),
+    refetchInterval: REFRESH_INTERVAL,
+    staleTime: STALE_TIME,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useUpcomingReturns() {
+  return useQuery({
+    queryKey: ['dashboard-upcoming-returns'],
+    queryFn: () => adminApi.dashboard.upcomingReturns(),
+    refetchInterval: REFRESH_INTERVAL,
+    staleTime: STALE_TIME,
+    refetchOnWindowFocus: true,
+  });
+}

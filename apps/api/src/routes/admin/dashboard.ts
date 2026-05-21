@@ -34,6 +34,8 @@ async function fetchSummaryData() {
     lowStockProducts,
     // BUG-526: actual rental counts
     summaryRentalCounts,
+    upcomingDeliveriesCount,
+    upcomingReturnsCount,
   ] = await Promise.all([
     db.order.count({ where: { createdAt: { gte: today, lt: tomorrow } } }),
     db.order.count({ where: { status: 'unpaid' } }),
@@ -83,6 +85,18 @@ async function fetchSummaryData() {
         ` as Array<{ id: string; sku: string; name: string; thumbnailUrl: string | null; stockOnHand: number; lowStockThreshold: number }>;
       }),
     getProductRentalCounts(db),
+    db.order.count({
+      where: {
+        status: 'paid_locked',
+        rentalStartDate: { lte: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000) },
+      },
+    }),
+    db.order.count({
+      where: {
+        status: 'shipped',
+        rentalEndDate: { lte: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000) },
+      },
+    }),
   ]);
 
   // BUG-526: sort by actual rental count
@@ -137,6 +151,8 @@ async function fetchSummaryData() {
       stock_on_hand: p.stockOnHand,
       low_stock_threshold: p.lowStockThreshold,
     })),
+    upcomingDeliveries: upcomingDeliveriesCount,
+    upcomingReturns: upcomingReturnsCount,
   };
 }
 
@@ -302,6 +318,64 @@ dashboard.get('/overview', async (c) => {
       created_at: o.createdAt.toISOString(),
     })),
   });
+});
+
+// GET /api/v1/admin/dashboard/upcoming-deliveries — Orders needing delivery in the next 3 days
+dashboard.get('/upcoming-deliveries', async (c) => {
+  const db = getDb();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const threeDaysLater = new Date(today);
+  threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+  const orders = await db.order.findMany({
+    where: {
+      status: 'paid_locked',
+      rentalStartDate: { lte: threeDaysLater },
+    },
+    orderBy: { rentalStartDate: 'asc' },
+    include: {
+      customer: { select: { firstName: true, lastName: true, email: true } },
+      items: { select: { productName: true }, take: 3 },
+    },
+  });
+
+  return success(c, orders.map((o) => ({
+    id: o.id,
+    order_number: o.orderNumber,
+    customer_name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
+    products: o.items.map((i) => i.productName),
+    rental_start_date: o.rentalStartDate.toISOString(),
+  })));
+});
+
+// GET /api/v1/admin/dashboard/upcoming-returns — Orders needing return in the next 3 days
+dashboard.get('/upcoming-returns', async (c) => {
+  const db = getDb();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const threeDaysLater = new Date(today);
+  threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+
+  const orders = await db.order.findMany({
+    where: {
+      status: 'shipped',
+      rentalEndDate: { lte: threeDaysLater },
+    },
+    orderBy: { rentalEndDate: 'asc' },
+    include: {
+      customer: { select: { firstName: true, lastName: true, email: true } },
+      items: { select: { productName: true }, take: 3 },
+    },
+  });
+
+  return success(c, orders.map((o) => ({
+    id: o.id,
+    order_number: o.orderNumber,
+    customer_name: customerDisplayName(o.customer.firstName, o.customer.lastName, o.customer.email),
+    products: o.items.map((i) => i.productName),
+    rental_end_date: o.rentalEndDate.toISOString(),
+  })));
 });
 
 // C2: GET /api/v1/admin/dashboard/low-stock — Low stock widget
