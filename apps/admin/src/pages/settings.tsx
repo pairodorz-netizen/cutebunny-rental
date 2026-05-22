@@ -1037,6 +1037,44 @@ function CategoriesTab() {
             />
           </div>
         </div>
+        {/* BUG-CAT-001: visibility toggle switches so new categories are
+            born with explicit frontend/backend visibility (default: both on). */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={() => setNewDraft({ ...newDraft, visible_frontend: !newDraft.visible_frontend })}
+              aria-label={t('settings.categoryCol_visibleFrontend')}
+              aria-pressed={newDraft.visible_frontend}
+            >
+              {newDraft.visible_frontend ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </Button>
+            <span className="text-xs text-muted-foreground">{t('settings.categoryCol_visibleFrontend')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={() => setNewDraft({ ...newDraft, visible_backend: !newDraft.visible_backend })}
+              aria-label={t('settings.categoryCol_visibleBackend')}
+              aria-pressed={newDraft.visible_backend}
+            >
+              {newDraft.visible_backend ? (
+                <Eye className="h-3.5 w-3.5" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </Button>
+            <span className="text-xs text-muted-foreground">{t('settings.categoryCol_visibleBackend')}</span>
+          </div>
+        </div>
         <div className="flex justify-end">
           <Button size="sm" onClick={handleCreate} disabled={createMutation.isPending}>
             <Plus className="h-4 w-4 mr-1" /> {t('settings.addCategory')}

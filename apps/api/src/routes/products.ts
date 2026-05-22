@@ -26,7 +26,11 @@ products.get('/', async (c) => {
   const priceMax = c.req.query('price_max');
   const sort = c.req.query('sort');
 
-  const where: Prisma.ProductWhereInput = { available: true };
+  // BUG-CAT-001: add `deletedAt: null` to exclude soft-deleted products
+  // from the public listing.  The admin products route already applies
+  // this filter (line 223); its absence here let tombstones leak to the
+  // storefront when they still had `available: true`.
+  const where: Prisma.ProductWhereInput = { available: true, deletedAt: null };
 
   if (color) {
     where.color = { has: color };
