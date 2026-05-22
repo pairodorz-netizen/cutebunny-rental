@@ -142,11 +142,19 @@ export async function resolveCategoryId(
 // against the TS-side identifier (`ig_brand`) before sending SQL,
 // then serializes back to the mapped DB value (`ig-brand`).
 //
-// All slugs without a hyphen pass through unchanged. This helper is
-// retired by A06 commit 4 FINAL when the legacy enum + the
-// `products.category` column drop together.
+// SLUG_TO_ENUM_OVERRIDES handles slugs whose enum identifier is NOT a
+// simple hyphen-to-underscore transform (e.g. `vietnamese-dress` maps
+// to `vietnam`, not `vietnamese_dress`). All other slugs fall through
+// to the generic replace.
+//
+// This helper is retired by A06 commit 4 FINAL when the legacy enum +
+// the `products.category` column drop together.
+const SLUG_TO_ENUM_OVERRIDES: Record<string, string> = {
+  'vietnamese-dress': 'vietnam',
+};
+
 export function slugToCategoryEnum(slug: string): string {
-  return slug.replace(/-/g, '_');
+  return SLUG_TO_ENUM_OVERRIDES[slug] ?? slug.replace(/-/g, '_');
 }
 
 // BUG-404-A01 — structured error envelope for admin product routes.
