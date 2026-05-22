@@ -74,32 +74,65 @@ async function main() {
 
   console.log(`Created ${brands.length} brands`);
 
-  // ─── Products (~20) ──────────────────────────────────────────────────
+  // ─── Categories (upsert — idempotent) ─────────────────────────────────
+  // Matches the 6 live production categories. Upsert ensures they exist
+  // on fresh staging DBs without touching existing rows on populated DBs.
+  const categoryData = [
+    { slug: 'ig-looks', nameTh: 'ชุดแบรนด์ IG', nameEn: 'IG Looks', sortOrder: 2 },
+    { slug: 'dress', nameTh: 'ชุดเดรส', nameEn: 'Dress', sortOrder: 6 },
+    { slug: 'bikini', nameTh: 'ชุดว่ายน้ำ', nameEn: 'Bikini', sortOrder: 8 },
+    { slug: 'travel-looks', nameTh: 'ชุดเที่ยวเมืองนอก', nameEn: 'Travel Looks', sortOrder: 9 },
+    { slug: 'vietnamese-dress', nameTh: 'ชุดเวียดนาม', nameEn: 'Vietnamese Dress', sortOrder: 10 },
+    { slug: 'camera', nameTh: 'กล้องถ่ายรูป', nameEn: 'Camera', sortOrder: 12 },
+  ];
+
+  const categoryMap = new Map<string, string>();
+  for (const cat of categoryData) {
+    const row = await prisma.category.upsert({
+      where: { slug: cat.slug },
+      create: { slug: cat.slug, nameTh: cat.nameTh, nameEn: cat.nameEn, sortOrder: cat.sortOrder, visibleFrontend: true, visibleBackend: true },
+      update: {},
+    });
+    categoryMap.set(cat.slug, row.id);
+  }
+
+  console.log(`Upserted ${categoryMap.size} categories`);
+
+  // ─── Products (18 — 3 per live category) ──────────────────────────────
+  // All products use the categoryId FK. The legacy `category` enum is set
+  // to the closest matching value for the DB trigger safety net.
   const productData = [
-    { sku: 'CB-WD-001', name: 'Ivory Lace Bridal Gown', nameI18n: { en: 'Ivory Lace Bridal Gown', th: 'ชุดเจ้าสาวลูกไม้สีงาช้าง', zh: '象牙色蕾丝婚纱' }, category: 'wedding' as const, size: ['S', 'M', 'L'], color: ['ivory'], brand: 0, price1: 3500, price3: 9000, price5: 13000, retail: 45000, deposit: 10000 },
-    { sku: 'CB-WD-002', name: 'Champagne Tulle Princess Dress', nameI18n: { en: 'Champagne Tulle Princess Dress', th: 'ชุดเจ้าหญิงผ้าตูลสีแชมเปญ', zh: '香槟色薄纱公主裙' }, category: 'wedding' as const, size: ['XS', 'S', 'M'], color: ['champagne'], brand: 0, price1: 4000, price3: 10500, price5: 15000, retail: 55000, deposit: 12000 },
-    { sku: 'CB-WD-003', name: 'Classic White Satin A-Line', nameI18n: { en: 'Classic White Satin A-Line', th: 'ชุดเอไลน์ผ้าซาตินขาวคลาสสิก', zh: '经典白色缎面A字裙' }, category: 'wedding' as const, size: ['S', 'M', 'L', 'XL'], color: ['white'], brand: 1, price1: 3000, price3: 8000, price5: 11000, retail: 38000, deposit: 8000 },
-    { sku: 'CB-EV-001', name: 'Emerald Sequin Evening Gown', nameI18n: { en: 'Emerald Sequin Evening Gown', th: 'ชุดราตรีปักเลื่อมสีมรกต', zh: '翡翠色亮片晚礼服' }, category: 'evening' as const, size: ['S', 'M'], color: ['emerald'], brand: 1, price1: 2500, price3: 6500, price5: 9000, retail: 32000, deposit: 7000 },
-    { sku: 'CB-EV-002', name: 'Midnight Blue Velvet Gown', nameI18n: { en: 'Midnight Blue Velvet Gown', th: 'ชุดราตรีผ้ากำมะหยี่สีน้ำเงินเข้ม', zh: '午夜蓝丝绒礼服' }, category: 'evening' as const, size: ['XS', 'S', 'M', 'L'], color: ['navy'], brand: 2, price1: 2800, price3: 7200, price5: 10000, retail: 35000, deposit: 8000 },
-    { sku: 'CB-EV-003', name: 'Burgundy Off-Shoulder Maxi', nameI18n: { en: 'Burgundy Off-Shoulder Maxi', th: 'ชุดยาวเปิดไหล่สีเบอร์กันดี', zh: '酒红色露肩长裙' }, category: 'evening' as const, size: ['S', 'M', 'L'], color: ['burgundy'], brand: 2, price1: 2200, price3: 5800, price5: 8000, retail: 28000, deposit: 6000 },
-    { sku: 'CB-EV-004', name: 'Gold Lamé Goddess Dress', nameI18n: { en: 'Gold Lamé Goddess Dress', th: 'ชุดเทพธิดาผ้าลาเม่สีทอง', zh: '金色金属丝女神裙' }, category: 'evening' as const, size: ['S', 'M'], color: ['gold'], brand: 3, price1: 3200, price3: 8500, price5: 12000, retail: 42000, deposit: 9000 },
-    { sku: 'CB-CK-001', name: 'Blush Pink Cocktail Dress', nameI18n: { en: 'Blush Pink Cocktail Dress', th: 'ชุดค็อกเทลสีชมพูอ่อน', zh: '腮红粉鸡尾酒裙' }, category: 'cocktail' as const, size: ['XS', 'S', 'M', 'L'], color: ['pink'], brand: 3, price1: 1500, price3: 3800, price5: 5500, retail: 18000, deposit: 4000 },
-    { sku: 'CB-CK-002', name: 'Black Lace Mini Dress', nameI18n: { en: 'Black Lace Mini Dress', th: 'ชุดสั้นลูกไม้สีดำ', zh: '黑色蕾丝迷你裙' }, category: 'cocktail' as const, size: ['XS', 'S', 'M'], color: ['black'], brand: 1, price1: 1200, price3: 3000, price5: 4200, retail: 15000, deposit: 3500 },
-    { sku: 'CB-CK-003', name: 'Red Ruffle Wrap Dress', nameI18n: { en: 'Red Ruffle Wrap Dress', th: 'ชุดห่อตัวระบายสีแดง', zh: '红色荷叶边裹身裙' }, category: 'cocktail' as const, size: ['S', 'M', 'L'], color: ['red'], brand: 2, price1: 1300, price3: 3200, price5: 4500, retail: 16000, deposit: 3500 },
-    { sku: 'CB-CS-001', name: 'Floral Maxi Sundress', nameI18n: { en: 'Floral Maxi Sundress', th: 'ชุดยาวลายดอกไม้', zh: '花卉长款太阳裙' }, category: 'casual' as const, size: ['S', 'M', 'L', 'XL'], color: ['floral'], brand: 3, price1: 800, price3: 2000, price5: 2800, retail: 8500, deposit: 2000 },
-    { sku: 'CB-CS-002', name: 'Denim Shirt Dress', nameI18n: { en: 'Denim Shirt Dress', th: 'ชุดเดรสเชิ้ตเดนิม', zh: '牛仔衬衫裙' }, category: 'casual' as const, size: ['S', 'M', 'L'], color: ['blue'], brand: 3, price1: 700, price3: 1800, price5: 2500, retail: 7500, deposit: 1800 },
-    { sku: 'CB-CS-003', name: 'Linen Midi Wrap Dress', nameI18n: { en: 'Linen Midi Wrap Dress', th: 'ชุดห่อตัวผ้าลินินยาวเลยเข่า', zh: '亚麻中长裹身裙' }, category: 'casual' as const, size: ['XS', 'S', 'M', 'L'], color: ['beige'], brand: 3, price1: 900, price3: 2300, price5: 3200, retail: 9500, deposit: 2200 },
-    { sku: 'CB-CO-001', name: 'Thai Pha Sin Traditional Set', nameI18n: { en: 'Thai Pha Sin Traditional Set', th: 'ชุดผ้าซิ่นไทยประยุกต์', zh: '泰式帕辛传统套装' }, category: 'traditional' as const, size: ['S', 'M', 'L'], color: ['purple', 'gold'], brand: 3, price1: 1800, price3: 4500, price5: 6500, retail: 22000, deposit: 5000 },
-    { sku: 'CB-CO-002', name: 'Chut Thai Chakkri Dress', nameI18n: { en: 'Chut Thai Chakkri Dress', th: 'ชุดไทยจักรี', zh: '泰式查克里礼服' }, category: 'traditional' as const, size: ['S', 'M'], color: ['gold', 'green'], brand: 0, price1: 5000, price3: 13000, price5: 18000, retail: 65000, deposit: 15000 },
-    { sku: 'CB-CT-001', name: 'Halloween Witch Costume', nameI18n: { en: 'Halloween Witch Costume', th: 'ชุดแม่มดฮาโลวีน', zh: '万圣节女巫服装' }, category: 'costume' as const, size: ['S', 'M', 'L'], color: ['black', 'purple'], brand: 3, price1: 600, price3: 1500, price5: 2000, retail: 5000, deposit: 1500 },
-    { sku: 'CB-CT-002', name: 'Fairy Tale Princess Costume', nameI18n: { en: 'Fairy Tale Princess Costume', th: 'ชุดเจ้าหญิงเทพนิยาย', zh: '童话公主服装' }, category: 'costume' as const, size: ['XS', 'S', 'M'], color: ['blue', 'white'], brand: 3, price1: 800, price3: 2000, price5: 2800, retail: 7000, deposit: 2000 },
-    { sku: 'CB-AC-001', name: 'Crystal Tiara Crown', nameI18n: { en: 'Crystal Tiara Crown', th: 'มงกุฎเทียร่าคริสตัล', zh: '水晶皇冠头饰' }, category: 'accessories' as const, size: ['ONE'], color: ['silver'], brand: 3, price1: 500, price3: 1200, price5: 1700, retail: 6000, deposit: 3000 },
-    { sku: 'CB-AC-002', name: 'Pearl Necklace & Earring Set', nameI18n: { en: 'Pearl Necklace & Earring Set', th: 'ชุดสร้อยคอและต่างหูมุก', zh: '珍珠项链耳环套装' }, category: 'accessories' as const, size: ['ONE'], color: ['white', 'gold'], brand: 3, price1: 400, price3: 1000, price5: 1400, retail: 4500, deposit: 2000 },
-    { sku: 'CB-AC-003', name: 'Silk Evening Clutch', nameI18n: { en: 'Silk Evening Clutch', th: 'กระเป๋าคลัทช์ผ้าไหม', zh: '丝绸晚宴手包' }, category: 'accessories' as const, size: ['ONE'], color: ['black', 'gold', 'silver'], brand: 3, price1: 300, price3: 750, price5: 1000, retail: 3500, deposit: 1500 },
+    // ig-looks (3)
+    { sku: 'CB-IG-001', name: 'IG Brand Crop Top Set', nameI18n: { en: 'IG Brand Crop Top Set', th: 'เซ็ตครอปท็อปแบรนด์ IG', zh: 'IG品牌露脐套装' }, catSlug: 'ig-looks', legacyCat: 'ig_looks' as const, size: ['S', 'M'], color: ['white', 'pink'], brand: 3, price1: 1200, price3: 3000, price5: 4200, retail: 12000, deposit: 3000 },
+    { sku: 'CB-IG-002', name: 'IG Aesthetic Blazer Dress', nameI18n: { en: 'IG Aesthetic Blazer Dress', th: 'เดรสเบลเซอร์สไตล์ IG', zh: 'IG美学西装裙' }, catSlug: 'ig-looks', legacyCat: 'ig_looks' as const, size: ['S', 'M', 'L'], color: ['black'], brand: 1, price1: 1500, price3: 3800, price5: 5500, retail: 15000, deposit: 4000 },
+    { sku: 'CB-IG-003', name: 'IG Minimal Midi Skirt Set', nameI18n: { en: 'IG Minimal Midi Skirt Set', th: 'เซ็ตกระโปรงมิดิมินิมอล IG', zh: 'IG极简中裙套装' }, catSlug: 'ig-looks', legacyCat: 'ig_looks' as const, size: ['XS', 'S', 'M'], color: ['beige'], brand: 2, price1: 1100, price3: 2800, price5: 3900, retail: 11000, deposit: 2800 },
+    // dress (3)
+    { sku: 'CB-DR-001', name: 'Floral Ruffle Midi Dress', nameI18n: { en: 'Floral Ruffle Midi Dress', th: 'เดรสมิดิระบายลายดอก', zh: '花卉荷叶边中裙' }, catSlug: 'dress', legacyCat: 'dress' as const, size: ['S', 'M', 'L'], color: ['floral'], brand: 0, price1: 1400, price3: 3500, price5: 5000, retail: 14000, deposit: 3500 },
+    { sku: 'CB-DR-002', name: 'Black Satin Evening Dress', nameI18n: { en: 'Black Satin Evening Dress', th: 'เดรสราตรีผ้าซาตินดำ', zh: '黑色缎面晚礼服' }, catSlug: 'dress', legacyCat: 'dress' as const, size: ['XS', 'S', 'M', 'L'], color: ['black'], brand: 1, price1: 2200, price3: 5500, price5: 8000, retail: 25000, deposit: 6000 },
+    { sku: 'CB-DR-003', name: 'Pastel Tulle Party Dress', nameI18n: { en: 'Pastel Tulle Party Dress', th: 'เดรสปาร์ตี้ผ้าตูลพาสเทล', zh: '粉彩薄纱派对裙' }, catSlug: 'dress', legacyCat: 'dress' as const, size: ['S', 'M'], color: ['pink', 'lavender'], brand: 2, price1: 1800, price3: 4500, price5: 6500, retail: 18000, deposit: 4500 },
+    // bikini (3)
+    { sku: 'CB-BK-001', name: 'Tropical Print Bikini Set', nameI18n: { en: 'Tropical Print Bikini Set', th: 'บิกินี่ลายทรอปิคอล', zh: '热带印花比基尼套装' }, catSlug: 'bikini', legacyCat: 'bikini' as const, size: ['S', 'M', 'L'], color: ['green', 'orange'], brand: 3, price1: 600, price3: 1500, price5: 2000, retail: 5500, deposit: 1500 },
+    { sku: 'CB-BK-002', name: 'Ribbed One-Piece Swimsuit', nameI18n: { en: 'Ribbed One-Piece Swimsuit', th: 'ชุดว่ายน้ำวันพีซผ้าริบ', zh: '罗纹连体泳衣' }, catSlug: 'bikini', legacyCat: 'bikini' as const, size: ['XS', 'S', 'M'], color: ['black'], brand: 3, price1: 500, price3: 1200, price5: 1700, retail: 4500, deposit: 1200 },
+    { sku: 'CB-BK-003', name: 'Boho Crochet Bikini', nameI18n: { en: 'Boho Crochet Bikini', th: 'บิกินี่โครเชต์โบฮีเมียน', zh: '波西米亚钩针比基尼' }, catSlug: 'bikini', legacyCat: 'bikini' as const, size: ['S', 'M'], color: ['white', 'beige'], brand: 3, price1: 700, price3: 1800, price5: 2500, retail: 6500, deposit: 1800 },
+    // travel-looks (3)
+    { sku: 'CB-TL-001', name: 'Safari Linen Jumpsuit', nameI18n: { en: 'Safari Linen Jumpsuit', th: 'จั๊มสูทลินินซาฟารี', zh: '亚麻猎装连体裤' }, catSlug: 'travel-looks', legacyCat: 'travel_looks' as const, size: ['S', 'M', 'L'], color: ['khaki'], brand: 3, price1: 1000, price3: 2500, price5: 3500, retail: 9500, deposit: 2500 },
+    { sku: 'CB-TL-002', name: 'Beach Maxi Cover-Up', nameI18n: { en: 'Beach Maxi Cover-Up', th: 'เดรสยาวคลุมชายหาด', zh: '海滩长款罩衫' }, catSlug: 'travel-looks', legacyCat: 'travel_looks' as const, size: ['S', 'M', 'L', 'XL'], color: ['white'], brand: 2, price1: 800, price3: 2000, price5: 2800, retail: 7500, deposit: 2000 },
+    { sku: 'CB-TL-003', name: 'City Explorer Shirt Dress', nameI18n: { en: 'City Explorer Shirt Dress', th: 'เดรสเชิ้ตเที่ยวเมือง', zh: '城市探索衬衫裙' }, catSlug: 'travel-looks', legacyCat: 'travel_looks' as const, size: ['XS', 'S', 'M'], color: ['blue'], brand: 1, price1: 900, price3: 2300, price5: 3200, retail: 8500, deposit: 2200 },
+    // vietnamese-dress (3)
+    { sku: 'CB-VN-001', name: 'Classic Áo Dài Set', nameI18n: { en: 'Classic Áo Dài Set', th: 'ชุดอ๊าวหย่ายคลาสสิก', zh: '经典奥黛套装' }, catSlug: 'vietnamese-dress', legacyCat: 'vietnam' as const, size: ['S', 'M', 'L'], color: ['red', 'gold'], brand: 3, price1: 1500, price3: 3800, price5: 5500, retail: 15000, deposit: 4000 },
+    { sku: 'CB-VN-002', name: 'Modern Short Áo Dài', nameI18n: { en: 'Modern Short Áo Dài', th: 'อ๊าวหย่ายสั้นสมัยใหม่', zh: '现代短款奥黛' }, catSlug: 'vietnamese-dress', legacyCat: 'vietnam' as const, size: ['XS', 'S', 'M'], color: ['pink'], brand: 3, price1: 1200, price3: 3000, price5: 4200, retail: 12000, deposit: 3000 },
+    { sku: 'CB-VN-003', name: 'Silk Áo Dài Premium', nameI18n: { en: 'Silk Áo Dài Premium', th: 'อ๊าวหย่ายผ้าไหมพรีเมียม', zh: '丝绸奥黛高级版' }, catSlug: 'vietnamese-dress', legacyCat: 'vietnam' as const, size: ['S', 'M'], color: ['white', 'blue'], brand: 0, price1: 2500, price3: 6500, price5: 9000, retail: 28000, deposit: 7000 },
+    // camera (3)
+    { sku: 'CB-CM-001', name: 'Instax Mini Camera Kit', nameI18n: { en: 'Instax Mini Camera Kit', th: 'ชุดกล้อง Instax Mini', zh: 'Instax Mini相机套装' }, catSlug: 'camera', legacyCat: 'camera' as const, size: ['ONE'], color: ['pink'], brand: 3, price1: 400, price3: 1000, price5: 1400, retail: 3500, deposit: 1500 },
+    { sku: 'CB-CM-002', name: 'Polaroid OneStep+ Rental', nameI18n: { en: 'Polaroid OneStep+ Rental', th: 'เช่ากล้อง Polaroid OneStep+', zh: 'Polaroid OneStep+租赁' }, catSlug: 'camera', legacyCat: 'camera' as const, size: ['ONE'], color: ['white'], brand: 3, price1: 500, price3: 1200, price5: 1700, retail: 5000, deposit: 2000 },
+    { sku: 'CB-CM-003', name: 'Film Camera Vintage Set', nameI18n: { en: 'Film Camera Vintage Set', th: 'ชุดกล้องฟิล์มวินเทจ', zh: '胶片相机复古套装' }, catSlug: 'camera', legacyCat: 'camera' as const, size: ['ONE'], color: ['black', 'silver'], brand: 3, price1: 600, price3: 1500, price5: 2000, retail: 6000, deposit: 2500 },
   ];
 
   const products = [];
   for (const p of productData) {
+    const catId = categoryMap.get(p.catSlug);
+    if (!catId) throw new Error(`Category slug "${p.catSlug}" not found in categoryMap`);
+
     const product = await prisma.product.create({
       data: {
         sku: p.sku,
@@ -112,7 +145,8 @@ async function main() {
           th: `${p.nameI18n.th} สวยงามพร้อมให้เช่า`,
           zh: `精美的${p.nameI18n.zh}，可供租赁。`,
         },
-        category: p.category,
+        category: p.legacyCat,
+        categoryId: catId,
         size: p.size,
         color: p.color,
         rentalPrice1Day: p.price1,
@@ -122,8 +156,9 @@ async function main() {
         variableCost: Math.round(p.retail * 0.3),
         deposit: p.deposit,
         stockQuantity: randomInt(1, 3),
+        stockOnHand: randomInt(1, 5),
         rentalCount: randomInt(0, 25),
-        tags: [p.category, ...p.color],
+        tags: [p.catSlug, ...p.color],
       },
     });
 
