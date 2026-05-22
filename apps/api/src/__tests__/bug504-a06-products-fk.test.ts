@@ -101,6 +101,9 @@ const CANONICAL_SLUGS = [
   'minimal',
   'vietnam',
   'camera',
+  'bikini',
+  'ig-looks',
+  'travel-looks',
 ] as const;
 
 /**
