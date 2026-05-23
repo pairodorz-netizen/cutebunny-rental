@@ -19,7 +19,8 @@ interface AuthState {
   clearError: () => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Production: empty string → same-origin via Vercel proxy. Local dev: VITE_API_URL.
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export const useAuthStore = create<AuthState>()(
   persist(

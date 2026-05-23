@@ -1,1 +1,7 @@
-{"rewrites": [{"source": "/(.*)", "destination": "/index.html"}]}
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://cutebunny-api.cutebunny-rental.workers.dev/api/:path*" },
+    { "source": "/health", "destination": "https://cutebunny-api.cutebunny-rental.workers.dev/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
