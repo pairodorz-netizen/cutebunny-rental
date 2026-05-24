@@ -21,11 +21,11 @@ export function ProductCard({ product, badge }: ProductCardProps) {
       href={`/products/${product.id}`}
       className="group block rounded-2xl bg-white overflow-hidden hover:shadow-lift transition-all duration-300"
     >
-      <div className="aspect-[3/4] bg-muted relative overflow-hidden">
+      <div className="aspect-square bg-muted relative overflow-hidden">
         <ProductImage
           src={product.thumbnail}
           alt={product.name}
-          className="group-hover:scale-105 transition-transform duration-500"
+          className="object-top group-hover:scale-105 transition-transform duration-500"
         />
         {/* Badge */}
         {badge === 'bestseller' && (
