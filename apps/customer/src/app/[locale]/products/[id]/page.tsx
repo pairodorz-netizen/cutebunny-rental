@@ -9,6 +9,7 @@ import { AvailabilityCalendar } from '@/components/availability-calendar';
 import { DeliveryMethodSelector, ReturnMethodDisplay } from '@/components/delivery-method-selector';
 import type { DeliveryMethodType } from '@/components/delivery-method-selector';
 import { api, type ProductListItem } from '@/lib/api';
+import { formatDateShort } from '@/lib/utils';
 import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
 import { ProductImage } from '@/components/product-image';
@@ -488,8 +489,8 @@ export default function ProductDetailPage() {
                   </p>
                   <span className="text-xs text-cb-secondary">
                     {actualDays} {actualDays === 1 ? t('day') : t('days')}
-                    {selectedStartDate ? ` • ${selectedStartDate}` : ''}
-                    {selectedEndDate ? ` → ${selectedEndDate}` : ''}
+                    {selectedStartDate ? ` • ${formatDateShort(selectedStartDate, locale)}` : ''}
+                    {selectedEndDate ? ` → ${formatDateShort(selectedEndDate, locale)}` : ''}
                   </span>
                 </div>
                 <button

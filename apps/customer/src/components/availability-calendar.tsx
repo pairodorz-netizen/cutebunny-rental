@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
+import { formatDateShort } from '@/lib/utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { isMonthNavigable } from '@cutebunny/shared/date-bounds';
 
@@ -235,7 +236,7 @@ export function AvailabilityCalendar({ productId, onSelectRange, selectedSize, s
       {rangeStart && (
         <div className="mt-3 text-xs text-muted-foreground text-center">
           {rangeEnd ? (
-            <span>{rangeStart} → {rangeEnd}</span>
+            <span>{formatDateShort(rangeStart, locale)} → {formatDateShort(rangeEnd, locale)}</span>
           ) : (
             <span>{t('selectEndDate')}</span>
           )}
