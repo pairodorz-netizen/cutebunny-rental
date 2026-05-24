@@ -5,7 +5,9 @@ import {
 } from '@cutebunny/shared/diagnostics';
 import type { TelemetryHandle } from './diag/telemetry-store';
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// Production: empty string → same-origin requests proxied via Vercel rewrites
+// (see apps/admin/vercel.json). Local dev: VITE_API_URL=http://localhost:3001.
+export const API_BASE = import.meta.env.VITE_API_URL || '';
 
 function getToken(): string | null {
   try {
