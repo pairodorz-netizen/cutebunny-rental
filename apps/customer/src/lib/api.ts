@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Production: empty string → same-origin requests proxied via Next.js rewrites
+// (see next.config.mjs). Local dev: NEXT_PUBLIC_API_URL=http://localhost:3001.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
