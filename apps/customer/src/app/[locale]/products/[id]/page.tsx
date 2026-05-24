@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
@@ -13,6 +13,7 @@ import { useCartStore } from '@/stores/cart-store';
 import { ProductCard } from '@/components/product-card';
 import { ProductImage } from '@/components/product-image';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
 import { isDeliveryAtRisk, isQueueCollisionRisk, isPreviousReturnRisk, QUEUE_BUFFER_DAYS_PROVINCE, PREVIOUS_RETURN_BUFFER_DAYS } from '@cutebunny/shared/delivery';
 
@@ -50,6 +51,23 @@ export default function ProductDetailPage() {
   const [selectedEndDate, setSelectedEndDate] = useState<string | null>(null);
   const [customDays, setCustomDays] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
+
+  // Mobile carousel (Embla)
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: false });
+  const [activeDot, setActiveDot] = useState(0);
+
+  const onEmblaSelect = useCallback(() => {
+    if (!emblaApi) return;
+    const idx = emblaApi.selectedScrollSnap();
+    setActiveDot(idx);
+    setSelectedImage(idx);
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on('select', onEmblaSelect);
+    return () => { emblaApi.off('select', onEmblaSelect); };
+  }, [emblaApi, onEmblaSelect]);
   const [added, setAdded] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -225,7 +243,7 @@ export default function ProductDetailPage() {
             <div className="h-4 w-32 bg-muted rounded" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-3">
-                <div className="aspect-[3/4] bg-muted rounded-2xl" style={{ height: 680 }} />
+                <div className="aspect-square bg-muted rounded-2xl" />
               </div>
               <div className="space-y-4">
                 <div className="h-8 w-64 bg-muted rounded" />
@@ -262,33 +280,73 @@ export default function ProductDetailPage() {
         </Link>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-          {/* Image Gallery — Left: thumbnail rail + main photo */}
-          <div className="flex gap-4">
-            {/* Thumbnail rail */}
-            {product.images.length > 1 && (
-              <div className="hidden md:flex flex-col gap-2 w-20 shrink-0">
-                {product.images.map((img, idx) => (
-                  <button
-                    key={img.id}
-                    onClick={() => setSelectedImage(idx)}
-                    className={`w-20 h-24 rounded-xl overflow-hidden border-2 transition-all ${
-                      idx === selectedImage
-                        ? 'border-cb-active ring-2 ring-cb-active/20'
-                        : 'border-transparent hover:border-border'
-                    }`}
-                  >
-                    <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover" />
-                  </button>
-                ))}
+          {/* Image Gallery */}
+          <div>
+            {/* ── Mobile carousel (< md) ── */}
+            <div className="md:hidden">
+              <div className="overflow-hidden rounded-2xl bg-white shadow-soft" ref={emblaRef}>
+                <div className="flex">
+                  {product.images.map((img) => (
+                    <div key={img.id} className="flex-[0_0_100%] min-w-0">
+                      <div className="aspect-square">
+                        <ProductImage
+                          src={img.url}
+                          alt={img.alt_text ?? product.name}
+                          className="object-top"
+                          iconSize="w-16 h-16"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            )}
-            {/* Main photo */}
-            <div className="flex-1 rounded-2xl bg-white overflow-hidden shadow-soft" style={{ height: 680 }}>
-              <ProductImage
-                src={product.images[selectedImage]?.url}
-                alt={product.images[selectedImage]?.alt_text ?? product.name}
-                iconSize="w-16 h-16"
-              />
+              {product.images.length > 1 && (
+                <div className="flex justify-center gap-1.5 mt-3">
+                  {product.images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      aria-label={`Go to image ${idx + 1}`}
+                      onClick={() => emblaApi?.scrollTo(idx)}
+                      className={`rounded-full transition-all ${
+                        idx === activeDot
+                          ? 'w-6 h-2 bg-cb-active'
+                          : 'w-2 h-2 bg-cb-active/30'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── Desktop layout (>= md): thumbnail rail + main photo ── */}
+            <div className="hidden md:flex gap-4">
+              {/* Thumbnail rail */}
+              {product.images.length > 1 && (
+                <div className="flex flex-col gap-2 w-20 shrink-0">
+                  {product.images.map((img, idx) => (
+                    <button
+                      key={img.id}
+                      onClick={() => setSelectedImage(idx)}
+                      className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
+                        idx === selectedImage
+                          ? 'border-cb-active ring-2 ring-cb-active/20'
+                          : 'border-transparent hover:border-border'
+                      }`}
+                    >
+                      <img src={img.url} alt={img.alt_text ?? ''} className="w-full h-full object-cover object-top" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Main photo */}
+              <div className="flex-1 aspect-square rounded-2xl bg-white overflow-hidden shadow-soft">
+                <ProductImage
+                  src={product.images[selectedImage]?.url}
+                  alt={product.images[selectedImage]?.alt_text ?? product.name}
+                  className="object-top"
+                  iconSize="w-16 h-16"
+                />
+              </div>
             </div>
           </div>
 
