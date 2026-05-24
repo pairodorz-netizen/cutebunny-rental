@@ -134,7 +134,7 @@
       "similarDresses": "Similar Dresses",
       "viewAll": "View All",
       "includedItems": "Included Items",
-      "extraDayNote": "Extra day: {rate} THB/day after 5 days",
+      "extraDayNote": "Rental pricing details: 2-day rental is charged at the 3-day rate, 4-day rental is charged at the 5-day rate. Rentals over 5 days are charged {rate} THB/day extra",
       "perDay": "/day"
     },
     "sort": {
@@ -259,14 +259,14 @@
   "delivery": {
     "selectMethod": "Delivery Method",
     "standard": "Standard",
-    "standardDesc": "Courier delivery, 2-4 days",
+    "standardDesc": "Courier delivery, 2-4 days (including arrival day). Please allow extra time to avoid conflicts with previous and next bookings. If unsure, screenshot and ask admin via Line OA first",
     "messenger": "Messenger",
-    "messengerDesc": "Motorcycle same-day delivery",
-    "payDirectlyToProvider": "Pay delivery fee directly to provider (Grab/Lalamove)",
+    "messengerDesc": "Same-day delivery via Grab/Lalamove from Pattanakarn 38",
+    "payDirectlyToProvider": "Customer pays messenger fee for both pickup and return",
     "messengerDisabled": "Currently unavailable",
     "returnMethod": "Return Method",
-    "returnMessengerRequired": "1-day rental: return via messenger (pay return fee separately)",
-    "returnStandard": "Standard courier return",
+    "returnMessengerRequired": "1-day rental: must return via messenger only (customer pays messenger fee for both pickup and return)",
+    "returnStandard": "2+ day rental: customer can choose to return via standard courier or messenger (customer pays shipping for both pickup and return)",
     "riskTitle": "Delivery may not arrive in time",
     "riskMessage": "Delivery within Bangkok requires at least 2 days lead time (including arrival day). For provinces outside Bangkok, please allow 3–5 days (including arrival day). If you are in Bangkok and need it urgently, we recommend choosing messenger (same-day delivery) or selecting a later date.",
     "riskAccept": "OK, accept the risk",
