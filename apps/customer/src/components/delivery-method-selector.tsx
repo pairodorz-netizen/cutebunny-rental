@@ -29,10 +29,10 @@ export function DeliveryMethodSelector({
           type="button"
           disabled={disabled}
           onClick={() => onChange('standard')}
-          className={`rounded-lg border-2 p-3 text-left transition-colors ${
+          className={`rounded-2xl border-2 p-3 text-left transition-all ${
             value === 'standard'
-              ? 'border-primary bg-primary/5'
-              : 'border-muted hover:border-muted-foreground/30'
+              ? 'border-cb-active bg-cb-active/5'
+              : 'border-border bg-white hover:border-cb-active/40'
           } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <div className="flex items-center gap-2 mb-1">
@@ -47,10 +47,10 @@ export function DeliveryMethodSelector({
           type="button"
           disabled={disabled || !messengerEnabled}
           onClick={() => messengerEnabled && onChange('messenger')}
-          className={`rounded-lg border-2 p-3 text-left transition-colors ${
+          className={`rounded-2xl border-2 p-3 text-left transition-all ${
             value === 'messenger'
-              ? 'border-primary bg-primary/5'
-              : 'border-muted hover:border-muted-foreground/30'
+              ? 'border-cb-active bg-cb-active/5'
+              : 'border-border bg-white hover:border-cb-active/40'
           } ${!messengerEnabled || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <div className="flex items-center gap-2 mb-1">
