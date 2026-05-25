@@ -16,6 +16,7 @@ import { ProductImage } from '@/components/product-image';
 import { Star, ChevronLeft, ChevronRight, ShoppingBag } from 'lucide-react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { DeliveryRiskModal } from '@/components/delivery-risk-modal';
+import { RentalDateInstructions } from '@/components/rental-date-instructions';
 import { isDeliveryAtRisk, isQueueCollisionRisk, isPreviousReturnRisk, QUEUE_BUFFER_DAYS_PROVINCE, PREVIOUS_RETURN_BUFFER_DAYS } from '@cutebunny/shared/delivery';
 
 const RENTAL_TIERS = [
@@ -470,6 +471,9 @@ export default function ProductDetailPage() {
               selectedColor={selectedColor}
               resetKey={calendarResetKey}
             />
+
+            {/* Rental-date instruction info box */}
+            <RentalDateInstructions />
 
             {/* Summary Bar */}
             <div className="rounded-2xl bg-summary-gradient p-5 shadow-soft space-y-3">
