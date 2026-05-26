@@ -2,8 +2,10 @@
 
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type CustomerProfile, type CustomerOrder } from '@/lib/api';
+import { useRouter } from '@/i18n/routing';
 import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
 import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
 import { ProductImage } from '@/components/product-image';
@@ -54,6 +56,9 @@ export default function ProfilePage() {
   const [regLastName, setRegLastName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [authError, setAuthError] = useState('');
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
+  const profileRouter = useRouter();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({ first_name: '', last_name: '', phone: '' });
@@ -97,6 +102,9 @@ export default function ProfilePage() {
       setAuthError('');
       setLoginEmail('');
       setLoginPassword('');
+      if (returnUrl) {
+        profileRouter.push(returnUrl);
+      }
     },
     onError: () => {
       setAuthError(t('loginError'));
@@ -111,6 +119,9 @@ export default function ProfilePage() {
       setStoredToken(accessToken);
       setToken(accessToken);
       setAuthError('');
+      if (returnUrl) {
+        profileRouter.push(returnUrl);
+      }
     },
     onError: () => {
       setAuthError(t('registerError'));
@@ -186,7 +197,9 @@ export default function ProfilePage() {
                   {authMode === 'login' ? t('loginTitle') : t('registerTitle')}
                 </h2>
                 <p className="text-sm text-cb-secondary mt-1">
-                  {authMode === 'login' ? t('loginHint') : t('registerHint')}
+                  {returnUrl
+                    ? t('loginHintReturn')
+                    : authMode === 'login' ? t('loginHint') : t('registerHint')}
                 </p>
               </div>
 
