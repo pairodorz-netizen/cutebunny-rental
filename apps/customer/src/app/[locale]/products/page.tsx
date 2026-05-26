@@ -317,7 +317,7 @@ export default function ProductsPage() {
             </h1>
             {meta && (
               <p className="text-sm text-cb-secondary mt-1">
-                {meta.total} {t('resultCount')}
+                {wishlistMode ? products.length : meta.total} {t('resultCount')}
               </p>
             )}
           </div>
