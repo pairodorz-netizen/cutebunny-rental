@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/routing';
 import { Search, Heart, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
+import { useWishlistStore } from '@/stores/wishlist-store';
 import { useState } from 'react';
 // LocaleSwitcher temporarily disabled — Thai-only mode (BUG-544)
 // import { LocaleSwitcher } from '@/components/locale-switcher';
@@ -12,6 +13,7 @@ export function Header() {
   const t = useTranslations('nav');
   const pathname = usePathname();
   const itemCount = useCartStore((s) => s.items.length);
+  const wishlistCount = useWishlistStore((s) => s.ids.length);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
@@ -65,10 +67,15 @@ export function Header() {
           </button>
           <Link
             href="/products?wishlist=true"
-            className="p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
+            className="relative p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
             aria-label="Wishlist"
           >
-            <Heart className="h-5 w-5" />
+            <Heart className={`h-5 w-5 ${wishlistCount > 0 ? 'fill-red-400 text-red-400' : ''}`} />
+            {wishlistCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold">
+                {wishlistCount}
+              </span>
+            )}
           </Link>
           <Link
             href="/cart"

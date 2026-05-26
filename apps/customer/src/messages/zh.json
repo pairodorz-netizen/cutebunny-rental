@@ -142,7 +142,9 @@
       "priceLow": "价格：低到高",
       "priceHigh": "价格：高到低",
       "newest": "最新"
-    }
+    },
+    "wishlistTitle": "我的收藏",
+    "wishlistEmpty": "收藏列表为空 — 点击心形图标收藏喜欢的商品。"
   },
   "profile": {
     "title": "个人信息",
@@ -182,8 +184,29 @@
     "available": "可用",
     "booked": "已预订",
     "selectEndDate": "点击另一个日期设为结束日期",
-    "days": ["日", "一", "二", "三", "四", "五", "六"],
-    "months": ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+    "days": [
+      "日",
+      "一",
+      "二",
+      "三",
+      "四",
+      "五",
+      "六"
+    ],
+    "months": [
+      "一月",
+      "二月",
+      "三月",
+      "四月",
+      "五月",
+      "六月",
+      "七月",
+      "八月",
+      "九月",
+      "十月",
+      "十一月",
+      "十二月"
+    ]
   },
   "cart": {
     "title": "购物车",
@@ -224,7 +247,7 @@
     "attachDocumentsHint": "请上传您的身份证和/或社交媒体截图以验证身份。",
     "docIdCard": "身份证",
     "docSocialMedia": "Facebook / Instagram 截图",
-        "termsIntro": "CuteBunny Rental 租赁条款与条件：",
+    "termsIntro": "CuteBunny Rental 租赁条款与条件：",
     "termDeposit": "1. 顾客必须在取衣前支付规定的押金。",
     "termDamage": "2. 如礼服损坏或丢失，顾客须按规定赔偿。",
     "termReturn": "3. 必须在规定日期内归还礼服，逾期将收取每日罚款。",
@@ -251,7 +274,6 @@
     "orderConfirmed": "下单成功",
     "orderNumber": "订单号",
     "statusWaiting": "等待确认",
-
     "lineNoticeTitle": "通知管理员",
     "lineNoticeMessage": "请截图此页面发送至 LINE @cutebunny 以通知管理员检查您的转账凭证。"
   },

@@ -142,7 +142,9 @@
       "priceLow": "Price: Low to High",
       "priceHigh": "Price: High to Low",
       "newest": "Newest"
-    }
+    },
+    "wishlistTitle": "My Wishlist",
+    "wishlistEmpty": "No items in your wishlist yet — tap the heart on products you love."
   },
   "profile": {
     "title": "My Profile",
@@ -182,8 +184,29 @@
     "available": "Available",
     "booked": "Booked",
     "selectEndDate": "Click another date to set end date",
-    "days": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
-    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    "days": [
+      "Sun",
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat"
+    ],
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ]
   },
   "cart": {
     "title": "Shopping Cart",
@@ -192,7 +215,7 @@
     "days": "days",
     "from": "from",
     "size": "Size",
-        "color": "Color",
+    "color": "Color",
     "subtotal": "Subtotal",
     "deposit": "Deposit",
     "total": "Total",
@@ -225,7 +248,7 @@
     "attachDocumentsHint": "Please upload your ID card and/or social media profile screenshot for identity verification.",
     "docIdCard": "ID Card (บัตรประชาชน)",
     "docSocialMedia": "Facebook / Instagram Screenshot",
-        "termsIntro": "CuteBunny Rental Terms & Conditions:",
+    "termsIntro": "CuteBunny Rental Terms & Conditions:",
     "termDeposit": "1. A deposit must be paid before receiving the dress.",
     "termDamage": "2. If the dress is damaged or lost, the customer is responsible for the cost as specified.",
     "termReturn": "3. The dress must be returned by the due date. Late returns will incur a daily penalty fee.",
@@ -252,7 +275,6 @@
     "orderConfirmed": "Order Placed Successfully",
     "orderNumber": "Order Number",
     "statusWaiting": "Waiting for Confirmation",
-
     "lineNoticeTitle": "Notify Admin",
     "lineNoticeMessage": "Please screenshot this page and send to LINE @cutebunny to notify admin to check your payment slip."
   },
