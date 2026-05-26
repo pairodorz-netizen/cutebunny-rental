@@ -163,6 +163,7 @@
     "loginTitle": "登录",
     "registerTitle": "注册",
     "loginHint": "登录查看个人资料和租赁历史",
+    "loginHintReturn": "请登录后将商品加入购物车",
     "registerHint": "注册开始租赁",
     "password": "密码",
     "firstName": "名",

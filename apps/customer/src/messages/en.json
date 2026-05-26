@@ -163,6 +163,7 @@
     "loginTitle": "Login",
     "registerTitle": "Register",
     "loginHint": "Login to view your profile and rental history",
+    "loginHintReturn": "Please log in to add items to your cart",
     "registerHint": "Create an account to start renting",
     "password": "Password",
     "firstName": "First Name",

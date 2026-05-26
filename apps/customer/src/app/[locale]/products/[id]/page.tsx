@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { Link } from '@/i18n/routing';
+import { Link, useRouter, usePathname } from '@/i18n/routing';
 import { AvailabilityCalendar } from '@/components/availability-calendar';
 import { DeliveryMethodSelector, ReturnMethodDisplay } from '@/components/delivery-method-selector';
 import type { DeliveryMethodType } from '@/components/delivery-method-selector';
@@ -47,6 +47,8 @@ export default function ProductDetailPage() {
   const params = useParams();
   const productId = params.id as string;
   const addItem = useCartStore((s) => s.addItem);
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [selectedRentalDays, setSelectedRentalDays] = useState(1);
   const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
@@ -221,6 +223,13 @@ export default function ProductDetailPage() {
 
   function handleAddToCart() {
     if (!selectedStartDate || !product) return;
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cb_customer_token') : null;
+    if (!token) {
+      router.push(`/profile?returnUrl=${encodeURIComponent(pathname)}`);
+      return;
+    }
+
     addItem({
       product_id: product.id,
       product_name: product.name,
