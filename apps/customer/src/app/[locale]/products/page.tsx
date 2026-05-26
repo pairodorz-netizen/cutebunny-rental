@@ -3,9 +3,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { api, type Category } from '@/lib/api';
 import { ProductCard } from '@/components/product-card';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { useWishlistStore } from '@/stores/wishlist-store';
+import { Search, SlidersHorizontal, X, Heart } from 'lucide-react';
 import { getMaxBookingDate } from '@cutebunny/shared/date-bounds';
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
@@ -52,6 +54,9 @@ const SORT_OPTIONS = [
 export default function ProductsPage() {
   const t = useTranslations('products');
   const locale = useLocale();
+  const searchParams = useSearchParams();
+  const wishlistMode = searchParams.get('wishlist') === 'true';
+  const wishlistIds = useWishlistStore((s) => s.ids);
   const [page, setPage] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -112,7 +117,10 @@ export default function ProductsPage() {
     queryFn: () => api.products.list(params),
   });
 
-  const products = data?.data ?? [];
+  const allProducts = data?.data ?? [];
+  const products = wishlistMode
+    ? allProducts.filter((p) => wishlistIds.includes(p.id))
+    : allProducts;
   const meta = data?.meta;
 
   function categoryLabel(row: Category): string {
@@ -305,11 +313,11 @@ export default function ProductsPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl md:text-3xl font-display font-semibold text-cb-heading">
-              {t('title')}
+              {wishlistMode ? t('wishlistTitle') : t('title')}
             </h1>
             {meta && (
               <p className="text-sm text-cb-secondary mt-1">
-                {meta.total} {t('resultCount')}
+                {wishlistMode ? products.length : meta.total} {t('resultCount')}
               </p>
             )}
           </div>
@@ -423,8 +431,9 @@ export default function ProductsPage() {
             )}
 
             {!isLoading && !isError && products.length === 0 && (
-              <div className="flex items-center justify-center py-20 text-cb-secondary rounded-2xl bg-white">
-                {t('empty')}
+              <div className="flex flex-col items-center justify-center py-20 text-cb-secondary rounded-2xl bg-white gap-2">
+                <Heart className="h-10 w-10 text-cb-secondary/40" />
+                {wishlistMode ? t('wishlistEmpty') : t('empty')}
               </div>
             )}
 
