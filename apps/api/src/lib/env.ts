@@ -13,13 +13,6 @@ export interface Env {
   ENVIRONMENT?: string;
   NODE_ENV?: string;
   PORT?: string;
-  // PR1: LINE Login
-  LINE_LOGIN_CHANNEL_ID?: string;
-  LINE_LOGIN_CHANNEL_SECRET?: string;
-  LINE_LOGIN_CALLBACK_URL?: string;
-  APP_BASE_URL?: string;
-  PRIVACY_NOTICE_VERSION?: string;
-  FEATURE_LINE_LOGIN?: string;
 }
 
 // Global env store — set once per request via middleware

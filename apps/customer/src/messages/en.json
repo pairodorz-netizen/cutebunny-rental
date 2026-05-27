@@ -176,32 +176,7 @@
     "registerError": "Registration failed. Please try again",
     "logout": "Logout",
     "credit": "Credit Balance",
-    "qty": "Qty",
-    "lineLinked": "LINE account linked",
-    "linkLine": "Link your LINE account",
-    "lineAlreadyLinkedError": "This LINE account is already linked to another account"
-  },
-  "auth": {
-    "signInTitle": "Sign in to continue",
-    "email": "Email",
-    "password": "Password",
-    "signIn": "Sign in",
-    "signingIn": "Signing in...",
-    "createAccount": "Create account",
-    "firstName": "First Name",
-    "lastName": "Last Name",
-    "phone": "Phone",
-    "optional": "optional",
-    "createAccountBtn": "Create account",
-    "creatingAccount": "Creating account...",
-    "alreadyHaveAccount": "Already have an account? Sign in",
-    "loginError": "Invalid email or password",
-    "registerError": "Registration failed. Please try again",
-    "or": "or",
-    "continueWithLine": "Continue with LINE",
-    "privacyNotice": "We use this only to manage your rental.",
-    "privacyLink": "Privacy notice",
-    "loginRequired": "Please sign in to continue"
+    "qty": "Qty"
   },
   "calendar": {
     "loading": "Loading calendar...",
