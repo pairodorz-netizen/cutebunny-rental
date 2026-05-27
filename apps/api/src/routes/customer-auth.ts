@@ -6,7 +6,6 @@ import { getDb } from '../lib/db';
 import { success, created, error } from '../lib/response';
 import { getEnv } from '../lib/env';
 import { rateLimit } from '../middleware/rate-limit';
-import { syncEmailIdentity } from '../lib/identity/sync-email-identity';
 
 const customerAuth = new Hono();
 
@@ -61,17 +60,6 @@ customerAuth.post('/register', rateLimit(10, 15), async (c) => {
 
   const token = await createCustomerToken(customer.id, customer.email);
 
-  // PR1: sync email identity row (idempotent) + PDPA consent on sign-up
-  try {
-    await syncEmailIdentity(db, {
-      customerId: customer.id,
-      email: customer.email,
-      isSignUp: true,
-    });
-  } catch (err) {
-    console.error('syncEmailIdentity (register) error:', err);
-  }
-
   return created(c, {
     access_token: token,
     token_type: 'Bearer',
@@ -111,17 +99,6 @@ customerAuth.post('/login', rateLimit(5, 15), async (c) => {
   }
 
   const token = await createCustomerToken(customer.id, customer.email);
-
-  // PR1: sync email identity row (idempotent, lazy backfill for existing users)
-  try {
-    await syncEmailIdentity(db, {
-      customerId: customer.id,
-      email: customer.email,
-      isSignUp: false,
-    });
-  } catch (err) {
-    console.error('syncEmailIdentity (login) error:', err);
-  }
 
   return success(c, {
     access_token: token,

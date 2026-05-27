@@ -295,68 +295,10 @@ model Customer {
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 
-  // PR1: LINE Login + CRM identity columns (additive)
-  authUserId       String?  @unique @map("auth_user_id") @db.Uuid
-  displayName      String?  @map("display_name")
-  primaryPhoneE164 String?  @map("primary_phone_e164")
-  primaryEmail     String?  @map("primary_email")
-  lineUserId       String?  @unique @map("line_user_id")
-  lineDisplayName  String?  @map("line_display_name")
-  linePictureUrl   String?  @map("line_picture_url")
-  lineFriendStatus String   @default("unknown") @map("line_friend_status")
-  lineLastEventAt  DateTime? @map("line_last_event_at")
-  source           String   @default("storefront")
-  status           String   @default("active")
-  mergedInto       String?  @map("merged_into") @db.Uuid
-
-  orders     Order[]
-  documents  CustomerDocument[]
-  identities CustomerIdentity[]
-  consents   CustomerConsent[]
+  orders    Order[]
+  documents CustomerDocument[]
 
   @@map("customers")
-}
-
-model CustomerIdentity {
-  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customerId         String    @map("customer_id") @db.Uuid
-  provider           String
-  providerSubject    String    @map("provider_subject")
-  verificationMethod String    @map("verification_method")
-  verifiedAt         DateTime? @map("verified_at")
-  lastUsedAt         DateTime? @map("last_used_at")
-  metadata           Json      @default("{}") @db.JsonB
-  createdAt          DateTime  @default(now()) @map("created_at")
-
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerSubject])
-  @@index([customerId])
-  @@map("customer_identities")
-}
-
-model CustomerConsent {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customerId    String   @map("customer_id") @db.Uuid
-  purpose       String
-  channel       String
-  status        String
-  noticeVersion String?  @map("notice_version")
-  collectedAt   DateTime @default(now()) @map("collected_at")
-
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  @@index([customerId])
-  @@map("customer_consents")
-}
-
-model OrderNumberCounter {
-  prefix  String
-  year    Int
-  lastSeq Int    @default(0) @map("last_seq")
-
-  @@id([prefix, year])
-  @@map("order_number_counters")
 }
 
 model CustomerDocument {
