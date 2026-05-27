@@ -351,9 +351,11 @@ model CustomerConsent {
 }
 
 model OrderNumberCounter {
-  year    Int @id
-  lastSeq Int @default(0) @map("last_seq")
+  prefix  String
+  year    Int
+  lastSeq Int    @default(0) @map("last_seq")
 
+  @@id([prefix, year])
   @@map("order_number_counters")
 }
 

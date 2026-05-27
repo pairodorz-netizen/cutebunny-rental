@@ -74,26 +74,28 @@ CREATE INDEX IF NOT EXISTS idx_customer_identities_customer
 
 -- 3. ORDER NUMBER SEQUENCE PER YEAR ----------------------------
 CREATE TABLE IF NOT EXISTS public.order_number_counters (
-  year       int PRIMARY KEY,
-  last_seq   int NOT NULL DEFAULT 0
+  prefix     text NOT NULL,
+  year       int  NOT NULL,
+  last_seq   int  NOT NULL DEFAULT 0,
+  PRIMARY KEY (prefix, year)
 );
 
-CREATE OR REPLACE FUNCTION public.next_order_number()
+CREATE OR REPLACE FUNCTION public.next_order_number(prefix_val text DEFAULT 'DR')
 RETURNS text LANGUAGE plpgsql AS $$
 DECLARE
   y    int := extract(year FROM now())::int;
   nseq int;
 BEGIN
-  INSERT INTO public.order_number_counters(year, last_seq)
-  VALUES (y, 0)
-  ON CONFLICT (year) DO NOTHING;
+  INSERT INTO public.order_number_counters(prefix, year, last_seq)
+  VALUES (prefix_val, y, 0)
+  ON CONFLICT (prefix, year) DO NOTHING;
 
   UPDATE public.order_number_counters
     SET last_seq = last_seq + 1
-    WHERE year = y
+    WHERE prefix = prefix_val AND year = y
     RETURNING last_seq INTO nseq;
 
-  RETURN 'DR-' || y::text || '-' || lpad(nseq::text, 4, '0');
+  RETURN prefix_val || '-' || y::text || '-' || lpad(nseq::text, 4, '0');
 END $$;
 
 -- 4. CONSENTS (PDPA) ------------------------------------------

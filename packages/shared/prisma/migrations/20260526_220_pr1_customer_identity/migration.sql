@@ -33,26 +33,28 @@ CREATE INDEX IF NOT EXISTS "idx_customer_identities_customer" ON "customer_ident
 
 -- 3. ORDER NUMBER SEQUENCE PER YEAR
 CREATE TABLE IF NOT EXISTS "order_number_counters" (
-  "year"       INT PRIMARY KEY,
-  "last_seq"   INT NOT NULL DEFAULT 0
+  "prefix"     TEXT NOT NULL,
+  "year"       INT  NOT NULL,
+  "last_seq"   INT  NOT NULL DEFAULT 0,
+  PRIMARY KEY ("prefix", "year")
 );
 
-CREATE OR REPLACE FUNCTION public.next_order_number()
+CREATE OR REPLACE FUNCTION public.next_order_number(prefix_val TEXT DEFAULT 'DR')
 RETURNS TEXT LANGUAGE plpgsql AS $$
 DECLARE
   y    INT := extract(year FROM now())::int;
   nseq INT;
 BEGIN
-  INSERT INTO "order_number_counters"("year", "last_seq")
-  VALUES (y, 0)
-  ON CONFLICT ("year") DO NOTHING;
+  INSERT INTO "order_number_counters"("prefix", "year", "last_seq")
+  VALUES (prefix_val, y, 0)
+  ON CONFLICT ("prefix", "year") DO NOTHING;
 
   UPDATE "order_number_counters"
     SET "last_seq" = "last_seq" + 1
-    WHERE "year" = y
+    WHERE "prefix" = prefix_val AND "year" = y
     RETURNING "last_seq" INTO nseq;
 
-  RETURN 'DR-' || y::text || '-' || lpad(nseq::text, 4, '0');
+  RETURN prefix_val || '-' || y::text || '-' || lpad(nseq::text, 4, '0');
 END $$;
 
 -- 4. CONSENTS (PDPA)

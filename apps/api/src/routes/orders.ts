@@ -36,7 +36,7 @@ function generateOrderNumberLegacy(): string {
 
 async function generateOrderNumber(db: ReturnType<typeof getDb>): Promise<string> {
   try {
-    const result = await db.$queryRaw<{ next_order_number: string }[]>`SELECT public.next_order_number() AS next_order_number`;
+    const result = await db.$queryRaw<{ next_order_number: string }[]>`SELECT public.next_order_number('DR') AS next_order_number`;
     if (result[0]?.next_order_number) {
       return result[0].next_order_number;
     }
