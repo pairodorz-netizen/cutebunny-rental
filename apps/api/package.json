@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.103.3",
     "bcryptjs": "^2.4.3",
     "hono": "^4.2.0",
+    "jose": "^6.2.3",
     "zod": "^3.22.0"
   },
   "devDependencies": {

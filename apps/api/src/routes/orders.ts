@@ -25,12 +25,25 @@ function getSupabaseClient() {
 
 const orders = new Hono();
 
-function generateOrderNumber(): string {
+/** @deprecated kept as fallback; prefer next_order_number() DB function */
+function generateOrderNumberLegacy(): string {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const seq = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
   return `ORD-${yy}${mm}${seq}`;
+}
+
+async function generateOrderNumber(db: ReturnType<typeof getDb>): Promise<string> {
+  try {
+    const result = await db.$queryRaw<{ next_order_number: string }[]>`SELECT public.next_order_number() AS next_order_number`;
+    if (result[0]?.next_order_number) {
+      return result[0].next_order_number;
+    }
+  } catch {
+    // Fallback if DB function not yet deployed
+  }
+  return generateOrderNumberLegacy();
 }
 
 // C08b: POST /api/v1/orders — Place order from cart
@@ -230,7 +243,7 @@ orders.post('/', async (c) => {
   const totalDays = Math.max(...cartData.items.map((i) => i.rental_days));
 
   const orderToken = crypto.randomUUID();
-  const orderNumber = generateOrderNumber();
+  const orderNumber = await generateOrderNumber(db);
 
   const order = await db.order.create({
     data: {
