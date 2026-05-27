@@ -11,7 +11,7 @@ DROP TRIGGER IF EXISTS trg_customers_updated ON public.customers;
 -- Drop new tables
 DROP TABLE IF EXISTS public.customer_consents;
 DROP TABLE IF EXISTS public.customer_identities;
-DROP FUNCTION IF EXISTS public.next_order_number();
+DROP FUNCTION IF EXISTS public.next_order_number(text);
 DROP TABLE IF EXISTS public.order_number_counters;
 
 -- Drop function (keep if other code may use it)
