@@ -176,7 +176,32 @@
     "registerError": "ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่",
     "logout": "ออกจากระบบ",
     "credit": "เครดิตคงเหลือ",
-    "qty": "จำนวน"
+    "qty": "จำนวน",
+    "lineLinked": "เชื่อมต่อ LINE แล้ว",
+    "linkLine": "เชื่อมต่อบัญชี LINE",
+    "lineAlreadyLinkedError": "บัญชี LINE นี้เชื่อมต่อกับบัญชีอื่นแล้ว"
+  },
+  "auth": {
+    "signInTitle": "เข้าสู่ระบบเพื่อดำเนินการต่อ",
+    "email": "อีเมล",
+    "password": "รหัสผ่าน",
+    "signIn": "เข้าสู่ระบบ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "createAccount": "สมัครสมาชิก",
+    "firstName": "ชื่อ",
+    "lastName": "นามสกุล",
+    "phone": "เบอร์โทร",
+    "optional": "ไม่จำเป็น",
+    "createAccountBtn": "สมัครสมาชิก",
+    "creatingAccount": "กำลังสมัคร...",
+    "alreadyHaveAccount": "มีบัญชีแล้ว? เข้าสู่ระบบ",
+    "loginError": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+    "registerError": "ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่",
+    "or": "หรือ",
+    "continueWithLine": "ดำเนินการผ่าน LINE",
+    "privacyNotice": "เราใช้ข้อมูลนี้เพื่อจัดการการเช่าเท่านั้น",
+    "privacyLink": "นโยบายความเป็นส่วนตัว",
+    "loginRequired": "กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ"
   },
   "calendar": {
     "loading": "กำลังโหลดปฏิทิน...",
