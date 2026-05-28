@@ -114,7 +114,7 @@ Under PDPA Sections 30-37, you have the following rights:
 ### How to Exercise Your Rights
 
 Submit a request to:
-- **Email**: dpo@cutebunnyrental.com <!-- TODO: update to actual DPO email -->
+- **Email**: Cutebunny.rental@gmail.com
 - **Response time**: Within 30 days of receiving your request
 
 ---
@@ -166,7 +166,7 @@ We may update this policy from time to time. Significant changes will be communi
 <!-- TODO: update with actual DPO name and contact -->
 
 - **Name**: Data Protection Officer
-- **Email**: dpo@cutebunnyrental.com
+- **Email**: Cutebunny.rental@gmail.com
 - **Address**: <!-- TODO: specify office address -->
 
 ---
