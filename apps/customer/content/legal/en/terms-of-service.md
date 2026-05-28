@@ -144,4 +144,3 @@ We may update these Terms from time to time. Changes take effect upon publicatio
 - **Company**: CuteBunny Rental
 - **Website**: www.cutebunnyrental.com
 - **Email**: dpo@cutebunnyrental.com
-- **Phone**: <!-- TODO: specify phone number -->

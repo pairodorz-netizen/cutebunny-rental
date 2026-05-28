@@ -144,4 +144,3 @@
 - **บริษัท**: CuteBunny Rental
 - **เว็บไซต์**: www.cutebunnyrental.com
 - **อีเมล**: dpo@cutebunnyrental.com
-- **โทรศัพท์**: <!-- TODO: ระบุเบอร์โทรศัพท์ -->

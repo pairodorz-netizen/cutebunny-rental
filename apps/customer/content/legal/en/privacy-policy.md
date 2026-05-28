@@ -22,7 +22,7 @@ By using our services, you acknowledge that you have read and understood this po
 
 <!-- TODO: legal review — verify completeness of data categories -->
 
-- **Account information**: Full name, email, password (encrypted), phone number
+- **Account information**: Full name, email, password (encrypted)
 - **Order information**: Shipping address, payment details (via payment processor), rental history
 - **Identity verification**: Uploaded documents (ID card/passport — first rental only)
 
@@ -178,4 +178,3 @@ We may update this policy from time to time. Significant changes will be communi
 - **Company**: CuteBunny Rental
 - **Website**: www.cutebunnyrental.com
 - **Email**: dpo@cutebunnyrental.com
-- **Phone**: <!-- TODO: specify phone number -->
