@@ -370,5 +370,9 @@
     "successTitle": "凭证已提交",
     "successDesc": "您的付款凭证已提交审核，我们将在1-2小时内验证。",
     "viewOrderStatus": "查看订单状态"
+  },
+  "footer": {
+    "privacyPolicy": "隐私政策",
+    "termsOfService": "服务条款"
   }
 }

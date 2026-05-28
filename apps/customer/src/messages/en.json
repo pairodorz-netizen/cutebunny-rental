@@ -371,5 +371,9 @@
     "successTitle": "Payment Slip Submitted",
     "successDesc": "Your payment slip has been submitted for review. We will verify it within 1-2 hours.",
     "viewOrderStatus": "View Order Status"
+  },
+  "footer": {
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
   }
 }
