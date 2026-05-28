@@ -176,7 +176,32 @@
     "registerError": "注册失败，请重试",
     "logout": "退出登录",
     "credit": "余额",
-    "qty": "数量"
+    "qty": "数量",
+    "lineLinked": "已连接LINE帐号",
+    "linkLine": "连接LINE帐号",
+    "lineAlreadyLinkedError": "此LINE帐号已连接其他帐号"
+  },
+  "auth": {
+    "signInTitle": "登录以继续",
+    "email": "邮箱",
+    "password": "密码",
+    "signIn": "登录",
+    "signingIn": "登录中...",
+    "createAccount": "注册",
+    "firstName": "名",
+    "lastName": "姓",
+    "phone": "电话",
+    "optional": "选填",
+    "createAccountBtn": "注册",
+    "creatingAccount": "注册中...",
+    "alreadyHaveAccount": "已有账号？登录",
+    "loginError": "邮箱或密码错误",
+    "registerError": "注册失败，请重试",
+    "or": "或",
+    "continueWithLine": "通过LINE继续",
+    "privacyNotice": "我们仅将此信息用于管理您的租赁。",
+    "privacyLink": "隐私声明",
+    "loginRequired": "请登录以继续"
   },
   "calendar": {
     "loading": "正在加载日历...",

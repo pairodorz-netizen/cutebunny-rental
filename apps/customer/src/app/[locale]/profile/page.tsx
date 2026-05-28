@@ -9,6 +9,8 @@ import { useRouter } from '@/i18n/routing';
 import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
 import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
 import { ProductImage } from '@/components/product-image';
+import { LinkLineButton } from '@/components/account/LinkLineButton';
+import { encodeIntent } from '@/lib/auth/intent';
 
 function formatDate(dateStr: string, loc: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -66,6 +68,19 @@ export default function ProfilePage() {
   useEffect(() => {
     setToken(getStoredToken());
   }, []);
+
+  // PR1: handle LINE callback token from redirect
+  useEffect(() => {
+    const lineToken = searchParams.get('line_token');
+    if (lineToken) {
+      setStoredToken(lineToken);
+      setToken(lineToken);
+      // Clean up URL params
+      const url = new URL(window.location.href);
+      url.searchParams.delete('line_token');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
 
   const profileQuery = useQuery({
     queryKey: ['customer', 'me', token],
@@ -311,6 +326,24 @@ export default function ProfilePage() {
                   {authMode === 'login' ? t('switchToRegister') : t('switchToLogin')}
                 </button>
               </div>
+
+              {/* PR1: LINE Login option */}
+              <div className="mt-6 pt-4 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const intent = encodeIntent({ returnPath: returnUrl ?? '/profile' });
+                    window.location.href = `/api/v1/customer/auth/line/start?intent=${intent}`;
+                  }}
+                  className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl text-white text-sm font-medium hover:opacity-90 transition-all"
+                  style={{ backgroundColor: '#06C755' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.5 8.84C17.5 5.27 14.14 2.37 10 2.37C5.86 2.37 2.5 5.27 2.5 8.84C2.5 12.05 5.18 14.72 8.84 15.23C9.09 15.28 9.43 15.4 9.52 15.62C9.6 15.82 9.57 16.13 9.55 16.33L9.45 16.94C9.41 17.18 9.27 17.82 10.01 17.51C10.75 17.19 14.05 15.15 15.59 13.37C16.69 12.15 17.5 10.58 17.5 8.84Z" fill="white"/>
+                  </svg>
+                  Continue with LINE
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -388,6 +421,12 @@ export default function ProfilePage() {
                     <LogOut className="h-4 w-4" />
                     {t('logout')}
                   </button>
+
+                  {/* PR1: Link LINE account */}
+                  <div className="pt-4 border-t border-border">
+                    <h3 className="text-sm font-medium text-cb-heading mb-2">LINE</h3>
+                    <LinkLineButton hasLineIdentity={false} />
+                  </div>
                 </div>
               ) : isEditing ? (
                 <div className="space-y-3">
