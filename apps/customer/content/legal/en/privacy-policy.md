@@ -175,6 +175,7 @@ We may update this policy from time to time. Significant changes will be communi
 
 <!-- TODO: update contact details -->
 
-- **Company**: CuteBunny Rental
+- **Business Name**: CuteBunny Rental
 - **Website**: www.cutebunnyrental.com
-- **Email**: dpo@cutebunnyrental.com
+- **Email**: Cutebunny.rental@gmail.com
+- **Phone**: 063-7965557

@@ -177,6 +177,7 @@
 
 <!-- TODO: อัปเดตข้อมูลติดต่อ -->
 
-- **บริษัท**: CuteBunny Rental
+- **ชื่อธุรกิจ**: CuteBunny Rental
 - **เว็บไซต์**: www.cutebunnyrental.com
-- **อีเมล**: dpo@cutebunnyrental.com
+- **อีเมล**: Cutebunny.rental@gmail.com
+- **โทรศัพท์**: 063-7965557

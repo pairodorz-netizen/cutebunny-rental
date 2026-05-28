@@ -81,8 +81,7 @@ When you link LINE to your CuteBunny Rental account:
 
 <!-- TODO: legal review — verify payment terms -->
 
-- Payment is accepted through the channels displayed on the website
-- Credit/debit card payments are processed by Stripe — we do not store card data directly
+- Payment is accepted through channels designated by the shop (e.g., bank transfer, PromptPay, QR Code)
 - All prices are displayed in Thai Baht (THB) and include VAT where applicable
 
 ---
@@ -101,7 +100,7 @@ When you link LINE to your CuteBunny Rental account:
 
 <!-- TODO: legal review — verify IP clauses -->
 
-- Content, images, logos, and designs on the website are the property of CuteBunny Rental
+- Content, logos, and designs on the website are the property of CuteBunny Rental
 - You are not permitted to copy, reproduce, or distribute content without written consent
 
 ---
@@ -141,6 +140,7 @@ We may update these Terms from time to time. Changes take effect upon publicatio
 
 <!-- TODO: update contact details -->
 
-- **Company**: CuteBunny Rental
+- **Business Name**: CuteBunny Rental
 - **Website**: www.cutebunnyrental.com
-- **Email**: dpo@cutebunnyrental.com
+- **Email**: Cutebunny.rental@gmail.com
+- **Phone**: 063-7965557
