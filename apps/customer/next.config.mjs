@@ -9,6 +9,13 @@ const WORKER_ORIGIN =
 const nextConfig = {
   transpilePackages: ['@cutebunny/shared'],
 
+  experimental: {
+    outputFileTracingIncludes: {
+      '/[locale]/privacy-policy': ['./content/legal/**/*.md'],
+      '/[locale]/terms-of-service': ['./content/legal/**/*.md'],
+    },
+  },
+
   async rewrites() {
     return [
       {
