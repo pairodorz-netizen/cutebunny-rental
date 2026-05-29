@@ -182,6 +182,14 @@ lineAuth.get('/callback', async (c) => {
   });
 
   if (!tokenRes.ok) {
+    let body: unknown;
+    try { body = await tokenRes.json(); } catch { body = await tokenRes.text().catch(() => '<unreadable>'); }
+    console.error('[LINE callback] Token exchange failed:', JSON.stringify({
+      status: tokenRes.status,
+      body,
+      clientIdUsed: config.channelId,
+      redirectUriUsed: config.callbackUrl,
+    }));
     return redirectWithError(config.appBaseUrl, 'Failed to exchange authorization code');
   }
 
@@ -213,7 +221,32 @@ lineAuth.get('/callback', async (c) => {
     lineUserId = payload.sub as string;
     displayName = (payload.name as string) ?? 'LINE User';
     pictureUrl = payload.picture as string | undefined;
-  } catch {
+  } catch (err) {
+    // Structured logging — surface jose verification failure details
+    const joseErr = err instanceof Error ? err : new Error(String(err));
+    const details: Record<string, unknown> = {
+      errorName: joseErr.name,
+      errorMessage: joseErr.message,
+      errorCode: (err as { code?: string }).code,
+      claim: (err as { claim?: string }).claim,
+      reason: (err as { reason?: string }).reason,
+      expectedAudience: config.channelId,
+      expectedIssuer: 'https://access.line.me',
+    };
+
+    // Decode token claims without verification for diagnosis
+    try {
+      const claims = jose.decodeJwt(tokenData.id_token);
+      details.actualAudience = claims.aud;
+      details.actualIssuer = claims.iss;
+      details.actualExpiry = claims.exp;
+      details.actualIssuedAt = claims.iat;
+      details.serverTime = Math.floor(Date.now() / 1000);
+    } catch {
+      details.decodeError = 'Could not decode JWT claims';
+    }
+
+    console.error('[LINE callback] ID token verification failed:', JSON.stringify(details));
     return error(c, 400, 'BAD_REQUEST', 'Invalid ID token');
   }
 
