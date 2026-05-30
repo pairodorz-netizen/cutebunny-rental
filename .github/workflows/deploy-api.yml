@@ -1,11 +1,14 @@
 name: Deploy API (Cloudflare Worker)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/api/**'
-      - '.github/workflows/deploy-api.yml'
+  # TEMP: disabled auto-deploy until prod secrets re-bound after wrangler.toml
+  # env split (BUG-ENV-PERSIST). Restore push trigger after manual verification.
+  #
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - 'apps/api/**'
+  #     - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
 
 concurrency:
