@@ -332,7 +332,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    const intent = encodeIntent({ returnPath: returnUrl ?? '/profile' });
+                    const intent = encodeIntent({ returnPath: returnUrl ?? `/${locale}/profile` });
                     window.location.href = `/api/v1/customer/auth/line/start?intent=${intent}`;
                   }}
                   className="w-full flex items-center justify-center gap-3 py-2.5 rounded-xl text-white text-sm font-medium hover:opacity-90 transition-all"
