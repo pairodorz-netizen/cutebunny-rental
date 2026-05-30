@@ -1,6 +1,6 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { encodeIntent } from '@/lib/auth/intent';
 import { Check, AlertCircle } from 'lucide-react';
@@ -11,6 +11,7 @@ interface LinkLineButtonProps {
 
 export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
   const t = useTranslations('profile');
+  const locale = useLocale();
   const searchParams = useSearchParams();
 
   const lineLinked = searchParams.get('line_linked') === 'true';
@@ -27,7 +28,7 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
   }
 
   const handleLinkLine = () => {
-    const intent = encodeIntent({ returnPath: '/profile' });
+    const intent = encodeIntent({ returnPath: `/${locale}/profile` });
     window.location.href = `/api/v1/customer/auth/line/start?link=1&intent=${intent}`;
   };
 

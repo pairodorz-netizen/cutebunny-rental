@@ -32,5 +32,6 @@ export default function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/(en|th|zh)/:path*'],
+  // Match all paths except Next.js internals and static files
+  matcher: ['/', '/(en|th|zh)/:path*', '/((?!_next|api|.*\\..*).*)'],
 };

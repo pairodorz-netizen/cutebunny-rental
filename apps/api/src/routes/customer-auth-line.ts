@@ -336,7 +336,7 @@ lineAuth.get('/callback', async (c) => {
 });
 
 function redirectWithToken(appBaseUrl: string, intent: string | undefined, token: string): Response {
-  let returnPath = '/profile';
+  let returnPath = '/th/profile';
   if (intent) {
     try {
       const decoded = JSON.parse(atob(intent));
@@ -357,7 +357,7 @@ function redirectWithToken(appBaseUrl: string, intent: string | undefined, token
 }
 
 function redirectWithResult(appBaseUrl: string, intent: string | undefined, result: Record<string, unknown>): Response {
-  let returnPath = '/profile';
+  let returnPath = '/th/profile';
   if (intent) {
     try {
       const decoded = JSON.parse(atob(intent));
@@ -380,7 +380,7 @@ function redirectWithResult(appBaseUrl: string, intent: string | undefined, resu
 }
 
 function redirectWithError(appBaseUrl: string, message: string): Response {
-  const url = new URL('/profile', appBaseUrl);
+  const url = new URL('/th/profile', appBaseUrl);
   url.searchParams.set('line_error', message);
 
   return new Response(null, {
