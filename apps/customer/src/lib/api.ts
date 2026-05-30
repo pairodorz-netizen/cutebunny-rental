@@ -180,6 +180,9 @@ export interface CustomerProfile {
   credit_balance: number;
   address: Record<string, unknown> | null;
   created_at: string;
+  line_user_id: string | null;
+  line_display_name: string | null;
+  line_picture_url: string | null;
 }
 
 export interface CustomerOrderItem {

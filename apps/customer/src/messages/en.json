@@ -179,7 +179,9 @@
     "qty": "Qty",
     "lineLinked": "LINE account linked",
     "linkLine": "Link your LINE account",
-    "lineAlreadyLinkedError": "This LINE account is already linked to another account"
+    "lineAlreadyLinkedError": "This LINE account is already linked to another account",
+    "lineLoginBadge": "Signed in with LINE",
+    "addPhone": "+ Add phone number"
   },
   "auth": {
     "signInTitle": "Sign in to continue",
