@@ -199,18 +199,20 @@ lineAuth.get('/callback', async (c) => {
     token_type: string;
   };
 
-  // Verify the ID token server-side using jose JWKS
+  // Verify the ID token using HS256 + channel secret (LINE web login standard)
+  // LINE web login signs id_tokens with HS256 using the channel secret as key.
+  // Native/LIFF uses ES256 + JWKS, but web OAuth uses symmetric HS256.
+  // See: https://developers.line.biz/en/docs/line-login/verify-id-token/
   let lineUserId: string;
   let displayName: string;
   let pictureUrl: string | undefined;
 
   try {
-    const JWKS = jose.createRemoteJWKSet(
-      new URL('https://api.line.me/oauth2/v2.1/certs'),
-    );
-    const { payload } = await jose.jwtVerify(tokenData.id_token, JWKS, {
+    const secret = new TextEncoder().encode(config.channelSecret);
+    const { payload } = await jose.jwtVerify(tokenData.id_token, secret, {
       issuer: 'https://access.line.me',
       audience: config.channelId,
+      algorithms: ['HS256'],
     });
 
     // Verify nonce
