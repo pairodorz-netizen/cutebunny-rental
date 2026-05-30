@@ -69,3 +69,29 @@ invocation_logs = true
 # See `apps/api/src/scheduled.ts` for full specification.
 [triggers]
 crons = ["0 * * * *", "0 20 * * *"]
+
+# ─── Production environment ──────────────────────────────────────────────
+# Deploy with: wrangler deploy --env production
+#
+# Secrets (LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET,
+# LINE_LOGIN_CALLBACK_URL, DATABASE_URL, DIRECT_URL, JWT_SECRET)
+# must be set via `wrangler secret put <NAME> --env production`
+# — never commit them here.
+
+[env.production]
+name = "cutebunny-api"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+APP_BASE_URL = "https://www.cutebunnyrental.com"
+FEATURE_LINE_LOGIN = "on"
+
+[env.production.observability]
+enabled = true
+
+[env.production.observability.logs]
+enabled = true
+invocation_logs = true
+
+[env.production.triggers]
+crons = ["0 * * * *", "0 20 * * *"]
