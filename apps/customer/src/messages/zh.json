@@ -181,7 +181,12 @@
     "linkLine": "连接LINE帐号",
     "lineAlreadyLinkedError": "此LINE帐号已连接其他帐号",
     "lineLoginBadge": "通过LINE登录",
-    "addPhone": "+ 添加电话号码"
+    "addPhone": "+ 添加电话号码",
+    "lineMergeButton": "将LINE转移到此帐号",
+    "lineMergeConfirmTitle": "确认转移LINE帐号",
+    "lineMergeConfirmBody": "确认后，之前绑定此LINE的帐号将无法再使用LINE登录，需改用邮箱登录。租赁记录不受影响。",
+    "lineMergeConfirmBtn": "确认",
+    "lineMergeCancel": "取消"
   },
   "auth": {
     "signInTitle": "登录以继续",

@@ -78,6 +78,7 @@ lineAuth.get('/start', async (c) => {
 
   const intent = c.req.query('intent') ?? '';
   const link = c.req.query('link') === '1';
+  const merge = c.req.query('merge') === '1';
 
   // If link mode, verify the user is already authenticated
   let authUserId: string | undefined;
@@ -107,6 +108,7 @@ lineAuth.get('/start', async (c) => {
     nonce,
     intent,
     link,
+    merge,
     authUserId,
   });
 
@@ -166,6 +168,7 @@ lineAuth.get('/callback', async (c) => {
   const storedNonce = storedState.nonce as string;
   const intent = storedState.intent as string | undefined;
   const isLink = storedState.link as boolean;
+  const isMerge = storedState.merge as boolean;
   const linkAuthUserId = storedState.authUserId as string | undefined;
 
   // Exchange code for tokens
@@ -271,7 +274,41 @@ lineAuth.get('/callback', async (c) => {
       });
 
       if (existingLineIdentity && existingLineIdentity.customerId !== emailCustomer.id) {
-        // 409 — LINE account already linked to a different customer
+        if (isMerge) {
+          // Merge: move LINE identity from old customer to current customer
+          const fromCustomerId = existingLineIdentity.customerId;
+          await db.$transaction([
+            db.customerIdentity.delete({ where: { id: existingLineIdentity.id } }),
+            db.customer.update({
+              where: { id: fromCustomerId },
+              data: { lineUserId: null, lineDisplayName: null, linePictureUrl: null },
+            }),
+            db.customerIdentity.create({
+              data: {
+                customerId: emailCustomer.id,
+                provider: 'line',
+                providerSubject: lineUserId,
+                verificationMethod: 'line_login',
+                verifiedAt: new Date(),
+                lastUsedAt: new Date(),
+              },
+            }),
+            db.customer.update({
+              where: { id: emailCustomer.id },
+              data: { lineUserId, lineDisplayName: displayName, linePictureUrl: pictureUrl },
+            }),
+            db.systemLog.create({
+              data: {
+                job: 'line_identity_merge',
+                status: 'success',
+                details: { fromCustomerId, toCustomerId: emailCustomer.id, lineUserId },
+              },
+            }),
+          ]);
+          return redirectWithResult(config.appBaseUrl, intent, { linked: true });
+        }
+
+        // Not merge mode — show error + merge option
         return redirectWithResult(config.appBaseUrl, intent, {
           error: 'line_already_linked',
           message: 'This LINE account is already linked to another account',
