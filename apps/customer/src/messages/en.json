@@ -181,7 +181,12 @@
     "linkLine": "Link your LINE account",
     "lineAlreadyLinkedError": "This LINE account is already linked to another account",
     "lineLoginBadge": "Signed in with LINE",
-    "addPhone": "+ Add phone number"
+    "addPhone": "+ Add phone number",
+    "lineMergeButton": "Move LINE to this account",
+    "lineMergeConfirmTitle": "Confirm LINE account transfer",
+    "lineMergeConfirmBody": "After confirming, the previous account linked to this LINE will no longer be able to use LINE login and must use email instead. Rental history remains intact.",
+    "lineMergeConfirmBtn": "Confirm",
+    "lineMergeCancel": "Cancel"
   },
   "auth": {
     "signInTitle": "Sign in to continue",

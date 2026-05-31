@@ -1,10 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { encodeIntent } from '@/lib/auth/intent';
 import { getStoredToken } from '@/lib/auth/token';
-import { Check, AlertCircle } from 'lucide-react';
+import { Check, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface LinkLineButtonProps {
   hasLineIdentity: boolean;
@@ -14,6 +15,7 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
   const t = useTranslations('profile');
   const locale = useLocale();
   const searchParams = useSearchParams();
+  const [showMergeModal, setShowMergeModal] = useState(false);
 
   const lineLinked = searchParams.get('line_linked') === 'true';
   const lineError = searchParams.get('line_error');
@@ -37,6 +39,15 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
     window.location.href = `/api/v1/customer/auth/line/start?link=1&intent=${intent}`;
   };
 
+  const handleMerge = () => {
+    const token = getStoredToken();
+    if (token) {
+      document.cookie = `cb_customer_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=300`;
+    }
+    const intent = encodeIntent({ returnPath: `/${locale}/profile` });
+    window.location.href = `/api/v1/customer/auth/line/start?link=1&merge=1&intent=${intent}`;
+  };
+
   return (
     <div className="space-y-2">
       <button
@@ -52,9 +63,19 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
       </button>
 
       {lineAlreadyLinked && (
-        <div className="flex items-center gap-2 text-sm text-red-500">
-          <AlertCircle className="h-4 w-4" />
-          <span>{t('lineAlreadyLinkedError')}</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-red-500">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{t('lineAlreadyLinkedError')}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMergeModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            {t('lineMergeButton')}
+          </button>
         </div>
       )}
 
@@ -62,6 +83,42 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
         <div className="flex items-center gap-2 text-sm text-red-500">
           <AlertCircle className="h-4 w-4" />
           <span>{lineError}</span>
+        </div>
+      )}
+
+      {/* Merge confirmation modal */}
+      {showMergeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-cb-heading">
+                {t('lineMergeConfirmTitle')}
+              </h3>
+            </div>
+            <p className="text-sm text-cb-secondary mb-6 leading-relaxed">
+              {t('lineMergeConfirmBody')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowMergeModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-medium text-cb-heading hover:bg-cb-surface transition-colors"
+              >
+                {t('lineMergeCancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleMerge}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-colors hover:opacity-90"
+                style={{ backgroundColor: '#06C755' }}
+              >
+                {t('lineMergeConfirmBtn')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -181,7 +181,12 @@
     "linkLine": "เชื่อมต่อบัญชี LINE",
     "lineAlreadyLinkedError": "บัญชี LINE นี้เชื่อมต่อกับบัญชีอื่นแล้ว",
     "lineLoginBadge": "เข้าสู่ระบบด้วย LINE",
-    "addPhone": "+ เพิ่มเบอร์โทรศัพท์"
+    "addPhone": "+ เพิ่มเบอร์โทรศัพท์",
+    "lineMergeButton": "ย้ายบัญชี LINE มาที่บัญชีนี้",
+    "lineMergeConfirmTitle": "ยืนยันการย้ายบัญชี LINE",
+    "lineMergeConfirmBody": "หลังยืนยัน บัญชีเดิมที่ผูก LINE นี้จะไม่สามารถใช้ LINE login ได้อีก ต้องใช้ email แทน รายการเช่ายังครบถ้วน",
+    "lineMergeConfirmBtn": "ยืนยัน",
+    "lineMergeCancel": "ยกเลิก"
   },
   "auth": {
     "signInTitle": "เข้าสู่ระบบเพื่อดำเนินการต่อ",
