@@ -3,6 +3,7 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { encodeIntent } from '@/lib/auth/intent';
+import { getStoredToken } from '@/lib/auth/token';
 import { Check, AlertCircle } from 'lucide-react';
 
 interface LinkLineButtonProps {
@@ -28,6 +29,10 @@ export function LinkLineButton({ hasLineIdentity }: LinkLineButtonProps) {
   }
 
   const handleLinkLine = () => {
+    const token = getStoredToken();
+    if (token) {
+      document.cookie = `cb_customer_token=${token}; Path=/; SameSite=Lax; Secure; Max-Age=300`;
+    }
     const intent = encodeIntent({ returnPath: `/${locale}/profile` });
     window.location.href = `/api/v1/customer/auth/line/start?link=1&intent=${intent}`;
   };
