@@ -179,7 +179,9 @@
     "qty": "数量",
     "lineLinked": "已连接LINE帐号",
     "linkLine": "连接LINE帐号",
-    "lineAlreadyLinkedError": "此LINE帐号已连接其他帐号"
+    "lineAlreadyLinkedError": "此LINE帐号已连接其他帐号",
+    "lineLoginBadge": "通过LINE登录",
+    "addPhone": "+ 添加电话号码"
   },
   "auth": {
     "signInTitle": "登录以继续",

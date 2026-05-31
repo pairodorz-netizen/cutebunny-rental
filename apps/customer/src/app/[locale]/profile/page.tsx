@@ -6,7 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, type CustomerProfile, type CustomerOrder } from '@/lib/api';
 import { useRouter } from '@/i18n/routing';
-import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn } from 'lucide-react';
+import { User, Package, Clock, Edit3, Mail, Phone, LogOut, LogIn, Check } from 'lucide-react';
+/* eslint-disable @next/next/no-img-element */
 import { OrderStatusBadge, OrderStatusTimeline } from '@/components/order-status-timeline';
 import { ProductImage } from '@/components/product-image';
 import { LinkLineButton } from '@/components/account/LinkLineButton';
@@ -64,6 +65,9 @@ export default function ProfilePage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({ first_name: '', last_name: '', phone: '' });
+  const [avatarError, setAvatarError] = useState(false);
+
+  const isPlaceholderEmail = (email: string) => email.endsWith('@placeholder.local');
 
   useEffect(() => {
     setToken(getStoredToken());
@@ -98,6 +102,7 @@ export default function ProfilePage() {
 
   const profile: CustomerProfile | null = profileQuery.data?.data ?? null;
   const orders: CustomerOrder[] = ordersQuery.data?.data ?? [];
+  const isLineUser = !!profile?.line_user_id;
 
   // If token is invalid (401), clear it
   useEffect(() => {
@@ -364,8 +369,23 @@ export default function ProfilePage() {
           <div className="lg:col-span-1">
             <div className="rounded-2xl bg-white p-6 shadow-soft">
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-cb-lavender-100 flex items-center justify-center mb-4">
-                  <User className="h-10 w-10 text-cb-lavender-300" />
+                <div className="w-20 h-20 rounded-full bg-cb-lavender-100 flex items-center justify-center mb-4 overflow-hidden">
+                  {profile?.line_picture_url && !avatarError ? (
+                    <img
+                      src={profile.line_picture_url}
+                      alt={profile.line_display_name ?? ''}
+                      width={80}
+                      height={80}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : profile?.first_name ? (
+                    <span className="text-2xl font-semibold text-cb-lavender-300">
+                      {profile.first_name.charAt(0).toUpperCase()}
+                    </span>
+                  ) : (
+                    <User className="h-10 w-10 text-cb-lavender-300" />
+                  )}
                 </div>
                 {profileQuery.isLoading ? (
                   <div className="animate-pulse space-y-2">
@@ -375,11 +395,24 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <h2 className="text-lg font-semibold text-cb-heading">
-                      {profile ? `${profile.first_name} ${profile.last_name}` : t('guestUser')}
+                      {profile
+                        ? (isLineUser && profile.line_display_name
+                            ? profile.line_display_name
+                            : `${profile.first_name} ${profile.last_name}`)
+                        : t('guestUser')}
                     </h2>
-                    <p className="text-sm text-cb-secondary mt-1">
-                      {profile?.email ?? t('noEmail')}
-                    </p>
+                    {profile && isPlaceholderEmail(profile.email) ? (
+                      <span className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-[#06C755]/10 text-[#06C755]">
+                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M17.5 8.84C17.5 5.27 14.14 2.37 10 2.37C5.86 2.37 2.5 5.27 2.5 8.84C2.5 12.05 5.18 14.72 8.84 15.23C9.09 15.28 9.43 15.4 9.52 15.62C9.6 15.82 9.57 16.13 9.55 16.33L9.45 16.94C9.41 17.18 9.27 17.82 10.01 17.51C10.75 17.19 14.05 15.15 15.59 13.37C16.69 12.15 17.5 10.58 17.5 8.84Z" fill="currentColor"/>
+                        </svg>
+                        {t('lineLoginBadge')}
+                      </span>
+                    ) : (
+                      <p className="text-sm text-cb-secondary mt-1 max-w-full truncate">
+                        {profile?.email ?? t('noEmail')}
+                      </p>
+                    )}
                     {profile?.tier && (
                       <span className="mt-2 inline-block text-xs font-medium px-3 py-1 rounded-full bg-cb-lavender-100 text-cb-lavender-300">
                         {profile.tier}
@@ -391,13 +424,25 @@ export default function ProfilePage() {
 
               {profile && !isEditing ? (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-cb-secondary shrink-0" />
-                    <span className="text-sm text-cb-heading">{profile.email}</span>
-                  </div>
+                  {!isPlaceholderEmail(profile.email) && (
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Mail className="h-4 w-4 text-cb-secondary shrink-0" />
+                      <span className="text-sm text-cb-heading truncate">{profile.email}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-cb-secondary shrink-0" />
-                    <span className="text-sm text-cb-heading">{profile.phone || '-'}</span>
+                    {profile.phone ? (
+                      <span className="text-sm text-cb-heading">{profile.phone}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={startEdit}
+                        className="text-sm text-cb-active hover:underline"
+                      >
+                        {t('addPhone')}
+                      </button>
+                    )}
                   </div>
                   {profile.credit_balance > 0 && (
                     <div className="flex items-center gap-3">
@@ -422,10 +467,17 @@ export default function ProfilePage() {
                     {t('logout')}
                   </button>
 
-                  {/* PR1: Link LINE account */}
+                  {/* LINE account status */}
                   <div className="pt-4 border-t border-border">
                     <h3 className="text-sm font-medium text-cb-heading mb-2">LINE</h3>
-                    <LinkLineButton hasLineIdentity={false} />
+                    {isLineUser ? (
+                      <div className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg bg-[#06C755]/10 text-[#06C755]">
+                        <Check className="h-4 w-4" />
+                        {t('lineLinked')}
+                      </div>
+                    ) : (
+                      <LinkLineButton hasLineIdentity={false} />
+                    )}
                   </div>
                 </div>
               ) : isEditing ? (

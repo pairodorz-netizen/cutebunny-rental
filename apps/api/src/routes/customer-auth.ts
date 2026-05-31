@@ -157,6 +157,7 @@ customerAuth.get('/me', async (c) => {
         id: true, email: true, firstName: true, lastName: true, phone: true,
         tier: true, rentalCount: true, totalPayment: true, creditBalance: true,
         address: true, createdAt: true,
+        lineUserId: true, lineDisplayName: true, linePictureUrl: true,
       },
     });
 
@@ -176,6 +177,9 @@ customerAuth.get('/me', async (c) => {
       credit_balance: customer.creditBalance,
       address: customer.address,
       created_at: customer.createdAt.toISOString(),
+      line_user_id: customer.lineUserId ?? null,
+      line_display_name: customer.lineDisplayName ?? null,
+      line_picture_url: customer.linePictureUrl ?? null,
     });
   } catch {
     return error(c, 401, 'UNAUTHORIZED', 'Invalid or expired token');

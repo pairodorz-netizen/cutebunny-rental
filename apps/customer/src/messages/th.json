@@ -179,7 +179,9 @@
     "qty": "จำนวน",
     "lineLinked": "เชื่อมต่อ LINE แล้ว",
     "linkLine": "เชื่อมต่อบัญชี LINE",
-    "lineAlreadyLinkedError": "บัญชี LINE นี้เชื่อมต่อกับบัญชีอื่นแล้ว"
+    "lineAlreadyLinkedError": "บัญชี LINE นี้เชื่อมต่อกับบัญชีอื่นแล้ว",
+    "lineLoginBadge": "เข้าสู่ระบบด้วย LINE",
+    "addPhone": "+ เพิ่มเบอร์โทรศัพท์"
   },
   "auth": {
     "signInTitle": "เข้าสู่ระบบเพื่อดำเนินการต่อ",
