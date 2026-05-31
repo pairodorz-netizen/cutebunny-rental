@@ -82,19 +82,19 @@ lineAuth.get('/start', async (c) => {
   // If link mode, verify the user is already authenticated
   let authUserId: string | undefined;
   if (link) {
-    const authHeader = c.req.header('Cookie') ?? '';
-    const tokenMatch = authHeader.match(/cb_customer_token=([^;]+)/);
+    const cookieHeader = c.req.header('Cookie') ?? '';
+    const tokenMatch = cookieHeader.match(/cb_customer_token=([^;]+)/);
     if (!tokenMatch) {
-      return error(c, 401, 'UNAUTHORIZED', 'Must be signed in to link accounts');
+      return redirectWithError(config.appBaseUrl, 'Must be signed in to link accounts');
     }
     try {
       const decoded = await verify(tokenMatch[1], getJwtSecret(), 'HS256');
       if (decoded.type !== 'customer') {
-        return error(c, 401, 'UNAUTHORIZED', 'Invalid token');
+        return redirectWithError(config.appBaseUrl, 'Invalid token');
       }
       authUserId = decoded.sub as string;
     } catch {
-      return error(c, 401, 'UNAUTHORIZED', 'Invalid or expired token');
+      return redirectWithError(config.appBaseUrl, 'Invalid or expired token');
     }
   }
 
