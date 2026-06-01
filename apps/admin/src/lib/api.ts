@@ -395,21 +395,40 @@ export interface AdminCustomer {
   id: string;
   name: string;
   phone: string;
-  email: string;
+  email: string | null;
+  email_raw: string;
   tier: string;
   rental_count: number;
   total_payment: number;
   credit_balance: number;
   created_at: string;
+  avatar_url: string | null;
+  line_user_id: string | null;
+  line_display_name: string | null;
+  login_methods: string[];
+  last_login_at: string | null;
 }
 
 export interface AdminCustomerDetail extends AdminCustomer {
   first_name: string;
   last_name: string;
-  avatar_url: string | null;
+  display_name: string | null;
   address: Record<string, unknown>;
+  addresses: Array<Record<string, unknown>>;
   tags: string[];
   locale: string;
+  line_picture_url: string | null;
+  status: string;
+  merged_into: string | null;
+  identities: Array<{
+    id: string;
+    provider: string;
+    provider_subject: string;
+    verification_method: string | null;
+    verified_at: string | null;
+    last_used_at: string | null;
+    created_at: string;
+  }>;
   documents: Array<{ id: string; type: string; verified: boolean; uploaded_at: string }>;
   rental_history: Array<{
     id: string;
@@ -419,6 +438,7 @@ export interface AdminCustomerDetail extends AdminCustomer {
     rental_period: { start: string; end: string };
     created_at: string;
   }>;
+  _deleted: boolean;
 }
 
 /**

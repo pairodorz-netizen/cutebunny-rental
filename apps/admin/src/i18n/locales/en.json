@@ -417,7 +417,15 @@
     "notePlaceholder": "Add a note about this customer...",
     "noNotes": "No notes yet",
     "edited": "edited",
-    "pdpaTooltip": "Personal data masked per PDPA (Thai Personal Data Protection Act) — customer exercised right to deletion"
+    "pdpaTooltip": "Personal data masked per PDPA (Thai Personal Data Protection Act) — customer exercised right to deletion",
+    "contact": "Contact",
+    "loginMethods": "Login Methods",
+    "lastLogin": "Last Login",
+    "noEmail": "No email (LINE login)",
+    "noPhone": "No phone number",
+    "noAddress": "No shipping address",
+    "addresses": "Shipping Addresses",
+    "location": "Location"
   },
   "calendar": {
     "title": "Calendar",

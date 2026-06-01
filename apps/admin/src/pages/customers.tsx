@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle, Pencil, Trash2, Tag, MessageSquare, X, Save, Info } from 'lucide-react';
+import { Search, ChevronLeft, User, Mail, Phone, CreditCard, PlusCircle, Pencil, Trash2, Tag, MessageSquare, X, Save, Info, MapPin, Clock, Shield } from 'lucide-react';
 
 const TIER_COLORS: Record<string, string> = {
   bronze: 'bg-orange-100 text-orange-800',
@@ -12,6 +12,67 @@ const TIER_COLORS: Record<string, string> = {
   gold: 'bg-yellow-100 text-yellow-800',
   platinum: 'bg-purple-100 text-purple-800',
 };
+
+function Avatar({ src, name, size = 'sm' }: { src: string | null; name: string; size?: 'sm' | 'lg' }) {
+  const dim = size === 'lg' ? 'w-16 h-16' : 'w-8 h-8';
+  const textSize = size === 'lg' ? 'text-xl' : 'text-xs';
+  const iconSize = size === 'lg' ? 'h-8 w-8' : 'h-4 w-4';
+  const initial = (name || '').replace(/^\[.*\]$/, '').trim().charAt(0).toUpperCase();
+
+  if (src) {
+    return <img src={src} alt={name} className={`${dim} rounded-full object-cover flex-shrink-0`} />;
+  }
+  if (initial) {
+    return (
+      <div className={`${dim} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
+        <span className={`${textSize} font-semibold text-primary`}>{initial}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={`${dim} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
+      <User className={`${iconSize} text-primary`} />
+    </div>
+  );
+}
+
+function LoginBadges({ methods }: { methods: string[] }) {
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {methods.includes('email') && (
+        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <Mail className="h-2.5 w-2.5" /> Email
+        </span>
+      )}
+      {methods.includes('line') && (
+        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+          <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 4.21 3.74 7.74 8.79 8.4.34.07.81.23.92.52.1.26.07.68.03.94l-.15.89c-.04.26-.2 1.01.89.55.11-.05 5.77-3.4 7.88-5.82C22.36 14.06 22 12.38 22 10.5 22 5.82 17.52 2 12 2z"/></svg>
+          LINE
+        </span>
+      )}
+      {methods.length === 0 && (
+        <span className="text-[10px] text-muted-foreground italic">—</span>
+      )}
+    </div>
+  );
+}
+
+function RelativeTime({ iso }: { iso: string | null }) {
+  if (!iso) return <span className="text-muted-foreground text-xs">—</span>;
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  let text: string;
+  if (mins < 1) text = 'just now';
+  else if (mins < 60) text = `${mins}m ago`;
+  else if (hours < 24) text = `${hours}h ago`;
+  else if (days < 30) text = `${days}d ago`;
+  else text = d.toLocaleDateString();
+  return <span className="text-xs text-muted-foreground" title={d.toLocaleString()}>{text}</span>;
+}
 
 export function CustomersPage() {
   const { t } = useTranslation();
@@ -148,42 +209,54 @@ export function CustomersPage() {
           </div>
         ) : customer ? (
           <div className="space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">{customer.name}</h1>
-                <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${TIER_COLORS[customer.tier] ?? 'bg-gray-100'}`}>
-                  {customer.tier}
-                </span>
+            {/* Header: Avatar + Name + Tier + Login Methods */}
+            <div className="flex items-start gap-4">
+              <Avatar src={customer.avatar_url} name={customer.name} size="lg" />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold truncate">{customer.name}</h1>
+                {customer.line_display_name && customer.line_display_name !== customer.name && (
+                  <p className="text-sm text-muted-foreground truncate">
+                    LINE: {customer.line_display_name}
+                  </p>
+                )}
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${TIER_COLORS[customer.tier] ?? 'bg-gray-100'}`}>
+                    {customer.tier}
+                  </span>
+                  <LoginBadges methods={customer.login_methods} />
+                </div>
               </div>
             </div>
 
+            {/* Contact Info Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Mail className="h-4 w-4" /> {t('customers.email')}
                 </div>
-                <p className="font-medium">
-                  {customer.email === '***@***' ? (
-                    <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
-                      {customer.email} <Info className="h-3 w-3" />
-                    </span>
-                  ) : customer.email}
-                </p>
+                {customer._deleted ? (
+                  <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                    {customer.email_raw} <Info className="h-3 w-3" />
+                  </span>
+                ) : customer.email ? (
+                  <p className="font-medium truncate">{customer.email}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">{t('customers.noEmail')}</p>
+                )}
               </div>
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                   <Phone className="h-4 w-4" /> {t('customers.phone')}
                 </div>
-                <p className="font-medium">
-                  {customer.phone === '***' ? (
-                    <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
-                      {customer.phone} <Info className="h-3 w-3" />
-                    </span>
-                  ) : customer.phone}
-                </p>
+                {customer._deleted ? (
+                  <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                    *** <Info className="h-3 w-3" />
+                  </span>
+                ) : customer.phone ? (
+                  <p className="font-medium">{customer.phone}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">{t('customers.noPhone')}</p>
+                )}
               </div>
               <div className="rounded-lg border p-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -200,6 +273,71 @@ export function CustomersPage() {
                 </Button>
               </div>
             </div>
+
+            {/* LINE Identity + Last Login + Status */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {customer.line_user_id && (
+                <div className="rounded-lg border p-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 5.82 2 10.5c0 4.21 3.74 7.74 8.79 8.4.34.07.81.23.92.52.1.26.07.68.03.94l-.15.89c-.04.26-.2 1.01.89.55.11-.05 5.77-3.4 7.88-5.82C22.36 14.06 22 12.38 22 10.5 22 5.82 17.52 2 12 2z"/></svg>
+                    LINE
+                  </div>
+                  <p className="font-medium truncate">{customer.line_display_name || '—'}</p>
+                  <p className="text-xs text-muted-foreground mt-1 truncate font-mono" title={customer.line_user_id}>
+                    ID: {customer.line_user_id.slice(0, 12)}…
+                  </p>
+                </div>
+              )}
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <Clock className="h-4 w-4" /> {t('customers.lastLogin')}
+                </div>
+                {customer.last_login_at ? (
+                  <p className="font-medium">{new Date(customer.last_login_at).toLocaleString()}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">—</p>
+                )}
+              </div>
+              <div className="rounded-lg border p-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <Shield className="h-4 w-4" /> {t('customers.loginMethods')}
+                </div>
+                <LoginBadges methods={customer.login_methods} />
+              </div>
+            </div>
+
+            {/* Addresses */}
+            {(() => {
+              const addrs = customer.addresses ?? [];
+              return addrs.length > 0 ? (
+                <div className="rounded-lg border">
+                  <div className="p-4 border-b flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="font-semibold">{t('customers.addresses')}</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                    {addrs.map((addr, i) => (
+                      <div key={i} className="rounded-lg border p-3 space-y-1">
+                        <p className="text-xs font-semibold text-muted-foreground">{t('customers.location')} {i + 1}</p>
+                        {typeof addr.name === 'string' && addr.name && <p className="text-sm font-medium">{addr.name}</p>}
+                        {typeof addr.address === 'string' && addr.address && <p className="text-sm">{addr.address}</p>}
+                        {(addr.district || addr.province || addr.postal_code) ? (
+                          <p className="text-sm text-muted-foreground">
+                            {[addr.district, addr.province, addr.postal_code].filter(Boolean).map(String).join(' ')}
+                          </p>
+                        ) : null}
+                        {typeof addr.phone === 'string' && addr.phone && <p className="text-xs text-muted-foreground"><Phone className="h-3 w-3 inline mr-1" />{addr.phone}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border p-4 text-center">
+                  <MapPin className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                  <p className="text-sm text-muted-foreground italic">{t('customers.noAddress')}</p>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-3 gap-4">
               <div className="rounded-lg border p-4 text-center">
@@ -276,7 +414,7 @@ export function CustomersPage() {
                 setEditFirst(customer.first_name);
                 setEditLast(customer.last_name);
                 setEditPhone(customer.phone || '');
-                setEditEmail(customer.email);
+                setEditEmail(customer.email || '');
                 setEditLineId(String(customerAddr.line_id || ''));
                 setEditBirthday(String(customerAddr.birthday || ''));
               }}>
@@ -514,16 +652,16 @@ export function CustomersPage() {
         </select>
       </div>
 
-      <div className="rounded-lg border">
+      <div className="rounded-lg border overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="text-left p-4 text-sm font-medium">{t('customers.name')}</th>
-              <th className="text-left p-4 text-sm font-medium">{t('customers.email')}</th>
-              <th className="text-left p-4 text-sm font-medium">{t('customers.tier')}</th>
-              <th className="text-center p-4 text-sm font-medium">{t('customers.rentals')}</th>
-              <th className="text-right p-4 text-sm font-medium">{t('customers.totalPayment')}</th>
-              <th className="text-left p-4 text-sm font-medium">{t('customers.joined')}</th>
+              <th className="text-left p-3 text-sm font-medium">{t('customers.name')}</th>
+              <th className="text-left p-3 text-sm font-medium hidden sm:table-cell">{t('customers.contact')}</th>
+              <th className="text-left p-3 text-sm font-medium">{t('customers.loginMethods')}</th>
+              <th className="text-left p-3 text-sm font-medium hidden md:table-cell">{t('customers.tier')}</th>
+              <th className="text-center p-3 text-sm font-medium hidden md:table-cell">{t('customers.rentals')}</th>
+              <th className="text-left p-3 text-sm font-medium hidden lg:table-cell">{t('customers.lastLogin')}</th>
             </tr>
           </thead>
           <tbody>
@@ -542,28 +680,45 @@ export function CustomersPage() {
                   className="border-b hover:bg-muted/30 cursor-pointer"
                   onClick={() => setSelectedId(c.id)}
                 >
-                  <td className="p-4 text-sm font-medium">
-                    {c.name === '[Deleted customer]' ? (
-                      <span className="inline-flex items-center gap-1 italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
-                        {c.name} <Info className="h-3 w-3" />
-                      </span>
-                    ) : c.name}
+                  <td className="p-3">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar src={c.avatar_url} name={c.name} />
+                      <div className="min-w-0">
+                        {c.name === '[Deleted customer]' ? (
+                          <span className="inline-flex items-center gap-1 text-sm italic text-muted-foreground" title={t('customers.pdpaTooltip')}>
+                            {c.name} <Info className="h-3 w-3" />
+                          </span>
+                        ) : (
+                          <p className="text-sm font-medium truncate max-w-[180px]">{c.name}</p>
+                        )}
+                        {c.line_display_name && c.line_display_name !== c.name && (
+                          <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">LINE: {c.line_display_name}</p>
+                        )}
+                      </div>
+                    </div>
                   </td>
-                  <td className="p-4 text-sm text-muted-foreground">
-                    {c.email === '***@***' ? (
-                      <span className="inline-flex items-center gap-1" title={t('customers.pdpaTooltip')}>
-                        {c.email} <Info className="h-3 w-3" />
-                      </span>
-                    ) : c.email}
+                  <td className="p-3 hidden sm:table-cell">
+                    <div className="space-y-0.5">
+                      {c.email ? (
+                        <p className="text-sm text-muted-foreground truncate max-w-[200px]">{c.email}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">{t('customers.noEmail')}</p>
+                      )}
+                      {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
+                    </div>
                   </td>
-                  <td className="p-4">
+                  <td className="p-3">
+                    <LoginBadges methods={c.login_methods} />
+                  </td>
+                  <td className="p-3 hidden md:table-cell">
                     <span className={`text-xs px-2 py-0.5 rounded-full ${TIER_COLORS[c.tier] ?? 'bg-gray-100'}`}>
                       {c.tier}
                     </span>
                   </td>
-                  <td className="p-4 text-sm text-center">{c.rental_count}</td>
-                  <td className="p-4 text-sm text-right">{c.total_payment.toLocaleString()} THB</td>
-                  <td className="p-4 text-sm text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="p-3 text-sm text-center hidden md:table-cell">{c.rental_count}</td>
+                  <td className="p-3 hidden lg:table-cell">
+                    <RelativeTime iso={c.last_login_at} />
+                  </td>
                 </tr>
               ))
             )}

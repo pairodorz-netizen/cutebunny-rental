@@ -417,7 +417,15 @@
     "notePlaceholder": "添加关于此客户的备注...",
     "noNotes": "暂无备注",
     "edited": "编辑于",
-    "pdpaTooltip": "个人数据已按照泰国个人数据保护法(PDPA)进行遮蔽 — 客户行使了删除权"
+    "pdpaTooltip": "个人数据已按照泰国个人数据保护法(PDPA)进行遮蔽 — 客户行使了删除权",
+    "contact": "联系方式",
+    "loginMethods": "登录方式",
+    "lastLogin": "最近登录",
+    "noEmail": "无邮箱（LINE 登录）",
+    "noPhone": "无电话号码",
+    "noAddress": "无收货地址",
+    "addresses": "收货地址",
+    "location": "地址"
   },
   "calendar": {
     "title": "日历",
