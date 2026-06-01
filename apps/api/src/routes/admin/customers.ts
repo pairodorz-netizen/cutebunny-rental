@@ -5,6 +5,7 @@ import { success, error } from '../../lib/response';
 import type { Prisma } from '@prisma/client';
 import { isCustomerDeleted, customerDisplayName, customerDisplayEmail, customerDisplayPhone } from '@cutebunny/shared/customer-pii';
 import { normalizePhone, normalizePhoneSearch } from '@cutebunny/shared/phone-normalize';
+import { normalizeAddresses } from '@cutebunny/shared/normalize-addresses';
 
 const adminCustomers = new Hono();
 
@@ -38,6 +39,13 @@ adminCustomers.get('/', async (c) => {
     createdAt: Date;
     rentalCount: number;
     totalPayment: number;
+    avatarUrl: string | null;
+    displayName: string | null;
+    lineUserId: string | null;
+    lineDisplayName: string | null;
+    linePictureUrl: string | null;
+    lastLoginAt: Date | null;
+    status: string;
   }
 
   // Run sequentially to reduce concurrent connection pressure on Neon.
@@ -52,7 +60,14 @@ adminCustomers.get('/', async (c) => {
       c.credit_balance AS "creditBalance",
       c.created_at AS "createdAt",
       COALESCE(stats.rental_count, 0)::int AS "rentalCount",
-      COALESCE(stats.total_payment, 0)::int AS "totalPayment"
+      COALESCE(stats.total_payment, 0)::int AS "totalPayment",
+      c.avatar_url AS "avatarUrl",
+      c.display_name AS "displayName",
+      c.line_user_id AS "lineUserId",
+      c.line_display_name AS "lineDisplayName",
+      c.line_picture_url AS "linePictureUrl",
+      c.last_login_at AS "lastLoginAt",
+      c.status
     FROM customers c
     LEFT JOIN (
       SELECT
@@ -69,11 +84,13 @@ adminCustomers.get('/', async (c) => {
       GROUP BY o.customer_id
     ) stats ON stats.customer_id = c.id
     WHERE c.email NOT LIKE 'deleted_%'
+      AND COALESCE(c.status, 'active') != 'merged'
       AND (${searchPattern}::text IS NULL OR (
         c.first_name ILIKE ${searchPattern}
         OR c.last_name ILIKE ${searchPattern}
         OR c.email ILIKE ${searchPattern}
         OR c.phone LIKE ${searchPattern}
+        OR c.line_display_name ILIKE ${searchPattern}
         OR (${phoneSearchPattern}::text IS NOT NULL AND REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') LIKE ${phoneSearchPattern})
       ))
       AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
@@ -85,11 +102,13 @@ adminCustomers.get('/', async (c) => {
     SELECT COUNT(*)::int AS total
     FROM customers c
     WHERE c.email NOT LIKE 'deleted_%'
+      AND COALESCE(c.status, 'active') != 'merged'
       AND (${searchPattern}::text IS NULL OR (
         c.first_name ILIKE ${searchPattern}
         OR c.last_name ILIKE ${searchPattern}
         OR c.email ILIKE ${searchPattern}
         OR c.phone LIKE ${searchPattern}
+        OR c.line_display_name ILIKE ${searchPattern}
         OR (${phoneSearchPattern}::text IS NOT NULL AND REGEXP_REPLACE(c.phone, '[^0-9]', '', 'g') LIKE ${phoneSearchPattern})
       ))
       AND (${tierFilter}::text IS NULL OR c.tier::text = ${tierFilter})
@@ -97,17 +116,30 @@ adminCustomers.get('/', async (c) => {
 
   const total = countResult[0]?.total ?? 0;
 
-  const data = customers.map((cust: CustomerRow) => ({
-    id: cust.id,
-    name: `${cust.firstName} ${cust.lastName}`,
-    email: cust.email,
-    phone: cust.phone,
-    tier: cust.tier,
-    rental_count: cust.rentalCount,
-    total_payment: cust.totalPayment,
-    credit_balance: cust.creditBalance,
-    created_at: new Date(cust.createdAt).toISOString(),
-  }));
+  const data = customers.map((cust: CustomerRow) => {
+    const isPlaceholderEmail = cust.email.endsWith('@placeholder.local');
+    const loginMethods: string[] = [];
+    if (cust.email && !isPlaceholderEmail) loginMethods.push('email');
+    if (cust.lineUserId) loginMethods.push('line');
+
+    return {
+      id: cust.id,
+      name: cust.displayName || `${cust.firstName} ${cust.lastName}`.trim() || cust.lineDisplayName || 'Unknown',
+      email: isPlaceholderEmail ? null : cust.email,
+      email_raw: cust.email,
+      phone: cust.phone,
+      tier: cust.tier,
+      rental_count: cust.rentalCount,
+      total_payment: cust.totalPayment,
+      credit_balance: cust.creditBalance,
+      created_at: new Date(cust.createdAt).toISOString(),
+      avatar_url: cust.linePictureUrl || cust.avatarUrl || null,
+      line_user_id: cust.lineUserId,
+      line_display_name: cust.lineDisplayName,
+      login_methods: loginMethods,
+      last_login_at: cust.lastLoginAt ? new Date(cust.lastLoginAt).toISOString() : null,
+    };
+  });
 
   return success(c, data, {
     page,
@@ -133,6 +165,17 @@ adminCustomers.get('/:id', async (c) => {
           createdAt: true,
         },
       },
+      identities: {
+        select: {
+          id: true,
+          provider: true,
+          providerSubject: true,
+          verificationMethod: true,
+          verifiedAt: true,
+          lastUsedAt: true,
+          createdAt: true,
+        },
+      },
       orders: {
         select: {
           id: true,
@@ -155,23 +198,49 @@ adminCustomers.get('/:id', async (c) => {
 
   // BUG-541: mask PII for soft-deleted customers (right-to-be-forgotten)
   const deleted = isCustomerDeleted(customer.email);
+  const isPlaceholderEmail = customer.email.endsWith('@placeholder.local');
+
+  const loginMethods: string[] = [];
+  if (!deleted) {
+    if (customer.email && !isPlaceholderEmail) loginMethods.push('email');
+    if (customer.lineUserId) loginMethods.push('line');
+  }
 
   return success(c, {
     id: customer.id,
     name: customerDisplayName(customer.firstName, customer.lastName, customer.email),
+    display_name: deleted ? null : (customer.displayName || null),
     first_name: deleted ? '[Deleted' : customer.firstName,
     last_name: deleted ? 'customer]' : customer.lastName,
-    email: customerDisplayEmail(customer.email),
+    email: deleted ? customerDisplayEmail(customer.email) : (isPlaceholderEmail ? null : customer.email),
+    email_raw: customerDisplayEmail(customer.email),
     phone: customerDisplayPhone(customer.phone, customer.email),
-    avatar_url: deleted ? null : customer.avatarUrl,
+    avatar_url: deleted ? null : (customer.linePictureUrl || customer.avatarUrl || null),
     tier: customer.tier,
     rental_count: customer.rentalCount,
     total_payment: customer.totalPayment,
     credit_balance: customer.creditBalance,
     tags: deleted ? [] : customer.tags,
     address: deleted ? {} : customer.address,
+    addresses: deleted ? [] : normalizeAddresses(customer.address),
     locale: customer.locale,
     _deleted: deleted,
+    line_user_id: deleted ? null : (customer.lineUserId ?? null),
+    line_display_name: deleted ? null : (customer.lineDisplayName ?? null),
+    line_picture_url: deleted ? null : (customer.linePictureUrl ?? null),
+    login_methods: loginMethods,
+    last_login_at: customer.lastLoginAt?.toISOString() ?? null,
+    status: customer.status,
+    merged_into: customer.mergedInto ?? null,
+    identities: deleted ? [] : customer.identities.map((i) => ({
+      id: i.id,
+      provider: i.provider,
+      provider_subject: i.providerSubject,
+      verification_method: i.verificationMethod,
+      verified_at: i.verifiedAt?.toISOString() ?? null,
+      last_used_at: i.lastUsedAt?.toISOString() ?? null,
+      created_at: i.createdAt.toISOString(),
+    })),
     documents: deleted ? [] : customer.documents.map((d) => ({
       id: d.id,
       type: d.docType,
@@ -451,6 +520,128 @@ adminCustomers.put('/:id/notes/:index', async (c) => {
   });
 
   return success(c, notes);
+});
+
+// POST /api/v1/admin/customers/merge — Merge two customer records
+const mergeSchema = z.object({
+  source_id: z.string().uuid(),
+  target_id: z.string().uuid(),
+});
+
+adminCustomers.post('/merge', async (c) => {
+  const db = getDb();
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = mergeSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'source_id and target_id (UUIDs) are required', parsed.error.flatten());
+  }
+
+  const { source_id, target_id } = parsed.data;
+
+  if (source_id === target_id) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Cannot merge a customer into themselves');
+  }
+
+  const [source, target] = await Promise.all([
+    db.customer.findUnique({
+      where: { id: source_id },
+      include: { identities: true, orders: true },
+    }),
+    db.customer.findUnique({
+      where: { id: target_id },
+      include: { identities: true },
+    }),
+  ]);
+
+  if (!source) return error(c, 404, 'NOT_FOUND', 'Source customer not found');
+  if (!target) return error(c, 404, 'NOT_FOUND', 'Target customer not found');
+  if (source.status === 'merged') return error(c, 400, 'VALIDATION_ERROR', 'Source customer is already merged');
+  if (target.status === 'merged') return error(c, 400, 'VALIDATION_ERROR', 'Target customer is already merged');
+
+  // Build transaction operations
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
+
+  // 1. Move identities from source to target (skip duplicates by provider)
+  const targetProviders = new Set(target.identities.map((i) => i.provider));
+  for (const identity of source.identities) {
+    if (targetProviders.has(identity.provider)) {
+      // Delete source identity if target already has one for this provider
+      ops.push(db.customerIdentity.delete({ where: { id: identity.id } }));
+    } else {
+      // Move to target
+      ops.push(db.customerIdentity.update({
+        where: { id: identity.id },
+        data: { customerId: target_id },
+      }));
+    }
+  }
+
+  // 2. Move orders from source to target
+  if (source.orders.length > 0) {
+    ops.push(db.order.updateMany({
+      where: { customerId: source_id },
+      data: { customerId: target_id },
+    }));
+  }
+
+  // 3. Sum credit balances
+  if (source.creditBalance > 0) {
+    ops.push(db.customer.update({
+      where: { id: target_id },
+      data: { creditBalance: target.creditBalance + source.creditBalance },
+    }));
+  }
+
+  // 4. Copy LINE cache from source to target if target doesn't have it
+  if (source.lineUserId && !target.lineUserId) {
+    ops.push(db.customer.update({
+      where: { id: target_id },
+      data: {
+        lineUserId: source.lineUserId,
+        lineDisplayName: source.lineDisplayName,
+        linePictureUrl: source.linePictureUrl,
+      },
+    }));
+  }
+
+  // 5. Soft-delete source: set status=merged, mergedInto=target, rename email
+  ops.push(db.customer.update({
+    where: { id: source_id },
+    data: {
+      status: 'merged',
+      mergedInto: target_id,
+      email: `merged_${source_id}@placeholder.local`,
+      lineUserId: null,
+      lineDisplayName: null,
+      linePictureUrl: null,
+    },
+  }));
+
+  // 6. Audit log
+  ops.push(db.systemLog.create({
+    data: {
+      job: 'customer_merge',
+      status: 'success',
+      details: {
+        sourceId: source_id,
+        targetId: target_id,
+        movedOrders: source.orders.length,
+        movedCredits: source.creditBalance,
+        movedIdentities: source.identities.length,
+      },
+    },
+  }));
+
+  await db.$transaction(ops);
+
+  return success(c, {
+    merged: true,
+    source_id,
+    target_id,
+    moved_orders: source.orders.length,
+    moved_credits: source.creditBalance,
+  });
 });
 
 export default adminCustomers;
