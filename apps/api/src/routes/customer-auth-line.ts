@@ -329,13 +329,14 @@ lineAuth.get('/callback', async (c) => {
         });
       }
 
-      // Update LINE cache on customer
+      // Update LINE cache + lastLoginAt on customer
       await db.customer.update({
         where: { id: emailCustomer.id },
         data: {
           lineUserId,
           lineDisplayName: displayName,
           linePictureUrl: pictureUrl,
+          lastLoginAt: new Date(),
         },
       });
 

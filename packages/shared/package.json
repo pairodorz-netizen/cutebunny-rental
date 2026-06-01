@@ -25,7 +25,8 @@
     "./customer-pii": "./src/customer-pii.ts",
     "./delivery": "./src/delivery.ts",
     "./date-bounds": "./src/date-bounds.ts",
-    "./phone-normalize": "./src/phone-normalize.ts"
+    "./phone-normalize": "./src/phone-normalize.ts",
+    "./normalize-addresses": "./src/normalize-addresses.ts"
   },
   "scripts": {
     "lint": "eslint src --ext .ts,.tsx",

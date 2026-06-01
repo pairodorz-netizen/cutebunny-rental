@@ -36,20 +36,80 @@ export async function resolveCustomer(
   });
 
   if (existing) {
-    // Step 2: update last_used_at
+    // Step 2: update last_used_at + lastLoginAt
+    const now = new Date();
     await db.customerIdentity.update({
       where: { id: existing.id },
-      data: { lastUsedAt: new Date() },
+      data: { lastUsedAt: now },
+    });
+    await db.customer.update({
+      where: { id: existing.customerId },
+      data: { lastLoginAt: now },
     });
     return { customerId: existing.customerId, created: false };
   }
 
-  // Step 3: create customer + identity in a transaction
+  // Step 3: LINE provider — cross-check existing customers before creating new
+  if (provider === 'line') {
+    // 3a: Check lineUserId cache column (safety net for orphaned cache)
+    if (profile.lineUserId) {
+      const byCache = await db.customer.findUnique({
+        where: { lineUserId: profile.lineUserId },
+        select: { id: true },
+      });
+      if (byCache) {
+        await db.customerIdentity.create({
+          data: {
+            customerId: byCache.id,
+            provider,
+            providerSubject,
+            verificationMethod,
+            verifiedAt: new Date(),
+            lastUsedAt: new Date(),
+          },
+        });
+        return { customerId: byCache.id, created: false };
+      }
+    }
+
+    // 3b: If LINE returned an email, check if a customer exists with that email
+    if (profile.email && !profile.email.endsWith('@placeholder.local')) {
+      const byEmail = await db.customer.findUnique({
+        where: { email: profile.email },
+        select: { id: true },
+      });
+      if (byEmail) {
+        await db.customerIdentity.create({
+          data: {
+            customerId: byEmail.id,
+            provider,
+            providerSubject,
+            verificationMethod,
+            verifiedAt: new Date(),
+            lastUsedAt: new Date(),
+          },
+        });
+        // Also set LINE cache columns on the matched customer
+        await db.customer.update({
+          where: { id: byEmail.id },
+          data: {
+            lineUserId: profile.lineUserId,
+            lineDisplayName: profile.displayName,
+            linePictureUrl: profile.linePictureUrl,
+          },
+        });
+        return { customerId: byEmail.id, created: false };
+      }
+    }
+  }
+
+  // Step 4: create customer + identity in a transaction
   try {
     const result = await db.$transaction(async (tx) => {
       const customerData: Record<string, unknown> = {
         source: 'storefront',
         status: 'active',
+        lastLoginAt: new Date(),
       };
 
       if (profile.displayName) customerData.displayName = profile.displayName;
@@ -60,12 +120,10 @@ export async function resolveCustomer(
         if (profile.lineUserId) customerData.lineUserId = profile.lineUserId;
         if (profile.displayName) customerData.lineDisplayName = profile.displayName;
         if (profile.linePictureUrl) customerData.linePictureUrl = profile.linePictureUrl;
-        // LINE-only customers: use display name as first/last, email placeholder
         customerData.firstName = profile.displayName ?? 'LINE User';
         customerData.lastName = '';
         customerData.email = `line_${providerSubject}@placeholder.local`;
       } else {
-        // email provider: use email as-is
         customerData.firstName = profile.displayName ?? '';
         customerData.lastName = '';
         customerData.email = profile.email ?? `${providerSubject}@placeholder.local`;

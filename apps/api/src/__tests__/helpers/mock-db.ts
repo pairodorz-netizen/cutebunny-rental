@@ -114,6 +114,13 @@ export const MOCK_CUSTOMER = {
   address: { line1: '123 Sukhumvit', city: 'Bangkok', postalCode: '10110', provinceCode: 'BKK', country: 'Thailand' },
   locale: 'th',
   avatarUrl: null,
+  displayName: null,
+  lineUserId: null,
+  lineDisplayName: null,
+  linePictureUrl: null,
+  lastLoginAt: null,
+  status: 'active',
+  mergedInto: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

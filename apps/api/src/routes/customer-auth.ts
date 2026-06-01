@@ -110,6 +110,12 @@ customerAuth.post('/login', rateLimit(5, 15), async (c) => {
     return error(c, 401, 'INVALID_CREDENTIALS', 'Invalid email or password');
   }
 
+  // Update last login timestamp
+  await db.customer.update({
+    where: { id: customer.id },
+    data: { lastLoginAt: new Date() },
+  });
+
   const token = await createCustomerToken(customer.id, customer.email);
 
   // PR1: sync email identity row (idempotent, lazy backfill for existing users)
@@ -156,7 +162,7 @@ customerAuth.get('/me', async (c) => {
       select: {
         id: true, email: true, firstName: true, lastName: true, phone: true,
         tier: true, rentalCount: true, totalPayment: true, creditBalance: true,
-        address: true, createdAt: true,
+        address: true, createdAt: true, lastLoginAt: true,
         lineUserId: true, lineDisplayName: true, linePictureUrl: true,
       },
     });
@@ -177,6 +183,7 @@ customerAuth.get('/me', async (c) => {
       credit_balance: customer.creditBalance,
       address: customer.address,
       created_at: customer.createdAt.toISOString(),
+      last_login_at: customer.lastLoginAt?.toISOString() ?? null,
       line_user_id: customer.lineUserId ?? null,
       line_display_name: customer.lineDisplayName ?? null,
       line_picture_url: customer.linePictureUrl ?? null,

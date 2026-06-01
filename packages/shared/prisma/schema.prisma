@@ -308,6 +308,10 @@ model Customer {
   source           String   @default("storefront")
   status           String   @default("active")
   mergedInto       String?  @map("merged_into") @db.Uuid
+  lastLoginAt      DateTime? @map("last_login_at")
+
+  mergedIntoCustomer Customer?  @relation("MergedInto", fields: [mergedInto], references: [id], onDelete: Restrict)
+  mergedFrom         Customer[] @relation("MergedInto")
 
   orders     Order[]
   documents  CustomerDocument[]
