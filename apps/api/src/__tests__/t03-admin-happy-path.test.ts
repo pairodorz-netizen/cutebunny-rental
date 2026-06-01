@@ -640,6 +640,7 @@ describe('T03: Admin Happy Path E2E', () => {
       mockDb.customer.findUnique.mockResolvedValue({
         ...MOCK_CUSTOMER,
         documents: [],
+        identities: [],
         orders: [
           {
             id: 'order-1',
