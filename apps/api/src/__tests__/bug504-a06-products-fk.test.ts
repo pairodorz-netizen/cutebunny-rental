@@ -682,9 +682,12 @@ describe('BUG-504-A06 commit 3 — app cutover (FK-first reads + writes)', () =>
       );
     });
 
-    it('GET /products list filter resolves slug → categoryId before querying', () => {
+    it('GET /products list filter resolves slug via nested relation (no separate findUnique)', () => {
       const source = readCustomerProducts();
-      expect(source).toMatch(/where\.categoryId\s*=/);
+      // BUG-E2E-001: changed from separate findUnique + categoryId to a
+      // nested relation filter `categoryRef: { slug }` to reduce DB
+      // roundtrips and avoid Cloudflare Worker resource limit crashes.
+      expect(source).toMatch(/where\.categoryRef\s*=\s*\{\s*slug:\s*category\s*\}/);
       expect(source).not.toMatch(
         /where\.category\s*=\s*category\s+as\s+Prisma\.ProductWhereInput/,
       );

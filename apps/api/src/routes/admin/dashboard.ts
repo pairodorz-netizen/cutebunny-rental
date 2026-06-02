@@ -56,13 +56,16 @@ async function fetchSummaryData() {
     }).then((ps) => ps.filter((p) => p.stockOnHand < p.lowStockThreshold)),
     db.customer.count({ where: { email: { not: { startsWith: 'deleted_' } } } }),
     db.order.count(),
-    db.product.count(),
+    // BUG-E2E-003: was counting ALL products including soft-deleted,
+    // inflating the overview "total products" stat. Filter deletedAt: null
+    // so the count matches the admin products list.
+    db.product.count({ where: { deletedAt: null } }),
     db.order.groupBy({ by: ['status'], _count: { id: true } }),
     db.financeTransaction.aggregate({
       where: { txType: { in: ['rental_revenue', 'late_fee', 'damage_fee', 'force_buy'] } },
       _sum: { amount: true },
     }),
-    db.product.count({ where: { available: true } }),
+    db.product.count({ where: { available: true, deletedAt: null } }),
     db.order.findMany({
       take: 10,
       orderBy: { createdAt: 'desc' },
@@ -272,7 +275,8 @@ dashboard.get('/overview', async (c) => {
     productsRented,
     recentOrders,
   ] = await Promise.all([
-    db.product.count(),
+    // BUG-E2E-003: exclude soft-deleted products from overview total.
+    db.product.count({ where: { deletedAt: null } }),
     db.order.count(),
     db.order.groupBy({
       by: ['status'],
@@ -283,7 +287,7 @@ dashboard.get('/overview', async (c) => {
       _sum: { amount: true },
     }),
     db.order.count({ where: { status: 'shipped' } }),
-    db.product.count({ where: { available: true } }),
+    db.product.count({ where: { available: true, deletedAt: null } }),
     db.order.count({ where: { status: 'shipped' } }),
     db.order.findMany({
       take: 10,
