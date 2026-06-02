@@ -148,6 +148,17 @@ export default function ProductsPage() {
 
   const filterSidebar = (
     <div className="space-y-6">
+      {/* Clear all — pinned at top for visibility */}
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={clearAllFilters}
+          className="w-full text-sm text-center py-2.5 rounded-xl border border-cb-active text-cb-active hover:bg-cb-active hover:text-white transition-colors font-medium"
+        >
+          {t('filter.clearAll')}
+        </button>
+      )}
+
       {/* Date Availability Filter */}
       <div>
         <h3 className="text-sm font-semibold text-cb-heading mb-3">{t('filter.availability')}</h3>
@@ -293,16 +304,6 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Clear all */}
-      {hasActiveFilters && (
-        <button
-          type="button"
-          onClick={clearAllFilters}
-          className="w-full text-sm text-center py-2.5 rounded-xl border border-cb-active text-cb-active hover:bg-cb-active hover:text-white transition-colors font-medium"
-        >
-          {t('filter.clearAll')}
-        </button>
-      )}
     </div>
   );
 
