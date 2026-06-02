@@ -1,0 +1,53 @@
+name: API Health Check
+
+on:
+  schedule:
+    # Every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: api-health-check
+  cancel-in-progress: true
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check API health (attempt 1)
+        id: check1
+        continue-on-error: true
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            "https://cutebunny-api.cutebunny-rental.workers.dev/health")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          [ "$STATUS" = "200" ]
+
+      - name: Wait before retry
+        if: steps.check1.outcome == 'failure'
+        run: sleep 30
+
+      - name: Check API health (attempt 2)
+        id: check2
+        if: steps.check1.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 \
+            "https://cutebunny-api.cutebunny-rental.workers.dev/health")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          [ "$STATUS" = "200" ]
+
+      - name: Trigger Worker redeploy
+        if: steps.check1.outcome == 'failure' && steps.check2.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy-api.yml',
+              ref: 'main',
+            });
+            console.log('Auto-triggered Deploy API workflow after 2 consecutive health check failures');
