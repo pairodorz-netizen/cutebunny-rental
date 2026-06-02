@@ -39,16 +39,12 @@ products.get('/', async (c) => {
     where.size = { has: size };
   }
   // BUG-504-A06 commit 3 — filter on the FK, not the legacy enum.
-  // The query param is still a category slug for back-compat; we
-  // resolve it through `categories` once and then filter `categoryId`.
-  // An unknown slug forces zero results via a UUID that cannot match
-  // any real row.
+  // BUG-E2E-001: replaced separate findUnique + categoryId filter with
+  // a nested relation filter. The extra DB roundtrip pushed Cloudflare
+  // Worker over CPU limits (Error 1102) on cold starts. A nested
+  // `categoryRef: { slug }` lets Prisma generate a single JOIN query.
   if (category) {
-    const cat = await db.category.findUnique({
-      where: { slug: category },
-      select: { id: true },
-    });
-    where.categoryId = cat?.id ?? '00000000-0000-0000-0000-000000000000';
+    where.categoryRef = { slug: category };
   }
 
   // If availability date filter is provided, exclude products with conflicting bookings
