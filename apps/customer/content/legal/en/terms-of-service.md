@@ -2,7 +2,7 @@
 
 **CuteBunny Rental**
 Last updated: 28 May 2026
-Effective date: <!-- TODO: legal review — set effective date -->
+Effective date: 28 May 2026
 
 ---
 
