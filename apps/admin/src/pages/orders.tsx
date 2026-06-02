@@ -17,7 +17,7 @@ import {
   ADMIN_ORDERS_COUNTS_QUERY_KEY,
   deriveStatusCounts,
 } from '@cutebunny/shared/admin-orders-query-keys';
-import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2 } from 'lucide-react';
+import { Settings, ChevronDown, X, Printer, AlertTriangle, DollarSign, Plus, Trash2, History, Undo2, Package } from 'lucide-react';
 
 /** Detect deleted customer from masked display values (works even if API _deleted flag is not yet deployed) */
 function isDeletedCustomer(customer: { name?: string; email?: string; phone?: string; _deleted?: boolean }): boolean {
@@ -934,12 +934,22 @@ export function OrdersPage() {
         {listLoading ? (
           <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
         ) : orders.length === 0 ? (
-          <div
-            className="p-8 text-center text-muted-foreground"
-            data-testid="orders-empty-state"
-          >
-            {includeStale || !dateFrom ? t('orders.empty') : t('orders.emptyInWindow')}
-          </div>
+          totalCount === 0 && !statusFilter && !debouncedOrderNumber && !debouncedCustomerName ? (
+            <div
+              className="rounded-lg border p-12 text-center"
+              data-testid="orders-empty-state"
+            >
+              <Package className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground">{t('orders.emptyState')}</p>
+            </div>
+          ) : (
+            <div
+              className="p-8 text-center text-muted-foreground"
+              data-testid="orders-empty-state"
+            >
+              {includeStale || !dateFrom ? t('orders.empty') : t('orders.emptyInWindow')}
+            </div>
+          )
         ) : (
           <div className="border rounded-lg overflow-hidden">
             {/* Header */}

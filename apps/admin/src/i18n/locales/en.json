@@ -91,6 +91,7 @@
     "items": "Items",
     "phone": "Phone",
     "empty": "No orders found",
+    "emptyState": "No orders yet. Orders will appear here once customers complete their first rental.",
     "emptyInWindow": "No orders in this window · Try expanding the range or toggling \"show archived\"",
     "prev": "Previous",
     "next": "Next",
