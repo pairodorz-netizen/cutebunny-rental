@@ -40,6 +40,17 @@ export default {
     resetDb();
     const db = getDb();
 
+    // Warmup: keep isolate alive + pre-warm Prisma/Neon connection pool
+    if (event.cron === '*/5 * * * *') {
+      try {
+        await db.$queryRaw`SELECT 1`;
+        console.log('[warmup] DB connection OK');
+      } catch (err) {
+        console.error('[warmup] DB connection failed:', err);
+      }
+      return;
+    }
+
     // BUG-505: Hourly order auto-advance (0 * * * *)
     if (event.cron === '0 * * * *') {
       try {
