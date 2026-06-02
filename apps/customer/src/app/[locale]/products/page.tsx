@@ -112,10 +112,13 @@ export default function ProductsPage() {
     params.available_end = availDate;
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const productsQuery = useQuery({
     queryKey: ['products', params],
     queryFn: () => api.products.list(params),
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
+  const { data, isLoading, isError } = productsQuery;
 
   const allProducts = data?.data ?? [];
   const products = wishlistMode
@@ -425,8 +428,15 @@ export default function ProductsPage() {
             )}
 
             {isError && (
-              <div className="flex items-center justify-center py-20 text-destructive rounded-2xl bg-white">
-                {t('error')}
+              <div className="flex flex-col items-center justify-center py-20 text-destructive rounded-2xl bg-white gap-3">
+                <span>{t('error')}</span>
+                <button
+                  type="button"
+                  onClick={() => productsQuery.refetch()}
+                  className="text-sm px-4 py-2 rounded-xl border border-destructive text-destructive hover:bg-destructive/5 transition-colors"
+                >
+                  {t('retry')}
+                </button>
               </div>
             )}
 
