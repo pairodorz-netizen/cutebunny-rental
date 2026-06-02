@@ -464,6 +464,7 @@
     "group": "Group",
     "total": "Total",
     "noData": "No data available",
+    "emptyState": "No transactions recorded yet. Revenue data will appear here once orders are completed.",
     "error": "Failed to load report",
     "exportCsv": "Export CSV",
     "tab_summary": "Summary",

@@ -147,6 +147,12 @@ export function FinancePage() {
               ))}
             </div>
           ) : summary ? (
+            summary.totals.total_orders === 0 && summary.totals.total_revenue === 0 && summary.totals.total_expenses === 0 ? (
+              <div className="rounded-lg border p-12 text-center">
+                <DollarSign className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground">{t('finance.emptyState')}</p>
+              </div>
+            ) : (
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -283,6 +289,7 @@ export function FinancePage() {
                 </div>
               </div>
             </>
+            )
           ) : null}
         </>
       )}
@@ -308,6 +315,13 @@ export function FinancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
+                      {txData.data.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                            {t('finance.emptyState')}
+                          </td>
+                        </tr>
+                      )}
                       {txData.data.map((tx) => (
                         <tr key={tx.id} className="hover:bg-muted/30">
                           <td className="p-3 text-sm">{new Date(tx.created_at).toLocaleDateString()}</td>

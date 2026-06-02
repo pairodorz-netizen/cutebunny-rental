@@ -464,6 +464,7 @@
     "group": "分组",
     "total": "合计",
     "noData": "暂无数据",
+    "emptyState": "暂无交易记录。订单完成后，收入数据将显示在此处。",
     "error": "加载报告失败",
     "exportCsv": "导出CSV",
     "tab_summary": "摘要",
