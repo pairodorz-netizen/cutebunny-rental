@@ -151,6 +151,9 @@ export const FIXED_ALLOWED_KEYS: Record<string, { label: string; group: string }
   messenger_max_distance_km: { label: 'Messenger Max Distance (km)', group: 'shipping' },
   shop_origin_lat: { label: 'Shop Origin Latitude', group: 'shipping' },
   shop_origin_lng: { label: 'Shop Origin Longitude', group: 'shipping' },
+  // Bank details for customer checkout payment info
+  bank_details_text: { label: 'Bank Details Text', group: 'payment' },
+  bank_qr_image_url: { label: 'Bank QR Code Image URL', group: 'payment' },
 };
 
 const SHIPPING_DAYS_KEY_RE = /^shipping_days_[A-Z0-9]{2,10}$/;
@@ -944,6 +947,114 @@ adminSettings.patch('/shipping/fee-toggle', async (c) => {
   });
 
   return success(c, { enabled: parsed.data.enabled });
+});
+
+// ─── BANK DETAILS ─────────────────────────────────────────────────────────
+// GET /api/v1/admin/settings/bank-details
+adminSettings.get('/bank-details', async (c) => {
+  const db = getDb();
+  const textRow = await db.systemConfig.findUnique({ where: { key: 'bank_details_text' } });
+  const qrRow = await db.systemConfig.findUnique({ where: { key: 'bank_qr_image_url' } });
+
+  const parseValue = (raw: unknown): string => {
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch { return raw; }
+    }
+    return raw ? String(raw) : '';
+  };
+
+  return success(c, {
+    bank_details_text: parseValue(textRow?.value),
+    bank_qr_image_url: parseValue(qrRow?.value),
+  });
+});
+
+// PUT /api/v1/admin/settings/bank-details
+const bankDetailsSchema = z.object({
+  bank_details_text: z.string().optional(),
+  bank_qr_image_url: z.string().optional(),
+});
+
+adminSettings.put('/bank-details', async (c) => {
+  const db = getDb();
+  const admin = getAdmin(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = bankDetailsSchema.safeParse(body);
+  if (!parsed.success) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Invalid input', parsed.error.flatten());
+  }
+
+  const updates: Array<{ key: string; value: string }> = [];
+  if (parsed.data.bank_details_text !== undefined) {
+    updates.push({ key: 'bank_details_text', value: JSON.stringify(parsed.data.bank_details_text) });
+  }
+  if (parsed.data.bank_qr_image_url !== undefined) {
+    updates.push({ key: 'bank_qr_image_url', value: JSON.stringify(parsed.data.bank_qr_image_url) });
+  }
+
+  for (const { key, value } of updates) {
+    const existing = await db.systemConfig.findUnique({ where: { key } });
+    if (existing) {
+      await db.systemConfig.update({ where: { key }, data: { value } });
+    } else {
+      const meta = FIXED_ALLOWED_KEYS[key];
+      await db.systemConfig.create({
+        data: { key, value, label: meta?.label ?? key, group: meta?.group ?? 'payment' },
+      });
+    }
+    await safeAuditLog(db, {
+      adminId: admin.sub,
+      action: 'UPDATE',
+      resource: 'system_config',
+      resourceId: key,
+      details: { key, new_value: value },
+    });
+  }
+
+  return success(c, { updated: true });
+});
+
+// POST /api/v1/admin/settings/bank-details/upload-qr — Upload QR code image
+adminSettings.post('/bank-details/upload-qr', async (c) => {
+  const { createClient } = await import('@supabase/supabase-js');
+  const { getEnv } = await import('../../lib/env');
+  const env = getEnv();
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+    return error(c, 500, 'CONFIG_ERROR', 'Supabase storage is not configured');
+  }
+  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+  const formData = await c.req.formData();
+  const file = formData.get('file') as File | null;
+  if (!file) {
+    return error(c, 400, 'VALIDATION_ERROR', 'No file provided');
+  }
+
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type)) {
+    return error(c, 400, 'VALIDATION_ERROR', 'Only JPEG, PNG, and WebP images are allowed');
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return error(c, 400, 'VALIDATION_ERROR', 'File size must be less than 5MB');
+  }
+
+  const ext = file.name.split('.').pop() ?? 'png';
+  const fileName = `bank-qr/${Date.now()}.${ext}`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('product-images')
+    .upload(fileName, arrayBuffer, { contentType: file.type, upsert: false });
+
+  if (uploadError) {
+    return error(c, 500, 'UPLOAD_ERROR', `Failed to upload: ${uploadError.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(uploadData.path);
+
+  return success(c, { url: urlData.publicUrl }, undefined, 201);
 });
 
 export default adminSettings;

@@ -1266,6 +1266,120 @@ function StoreAddressTab({ editingAddress, setEditingAddress }: {
           <Plus className="h-4 w-4 mr-2" /> {t('settings.addAddress')}
         </Button>
       )}
+
+      {/* Bank Details Section */}
+      <BankDetailsSection />
+    </div>
+  );
+}
+
+// ─── BANK DETAILS SECTION ───────────────────────────────────────────────────
+
+function BankDetailsSection() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [bankText, setBankText] = useState('');
+  const [qrUrl, setQrUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const bankQuery = useQuery({
+    queryKey: ['settings-bank-details'],
+    queryFn: () => adminApi.settings.bankDetails(),
+  });
+
+  useEffect(() => {
+    if (bankQuery.data?.data) {
+      setBankText(bankQuery.data.data.bank_details_text || '');
+      setQrUrl(bankQuery.data.data.bank_qr_image_url || '');
+    }
+  }, [bankQuery.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: (body: { bank_details_text?: string; bank_qr_image_url?: string }) =>
+      adminApi.settings.updateBankDetails(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-bank-details'] });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    },
+  });
+
+  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await adminApi.settings.uploadBankQr(file);
+      setQrUrl(result.data.url);
+    } catch (err) {
+      console.error('QR upload failed:', err);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleSave = () => {
+    saveMutation.mutate({ bank_details_text: bankText, bank_qr_image_url: qrUrl });
+  };
+
+  return (
+    <div className="rounded-lg border">
+      <div className="p-4 border-b bg-muted/30">
+        <h3 className="font-semibold">{t('settings.bankDetailsTitle', 'Bank Details (Checkout)')}</h3>
+        <p className="text-xs text-muted-foreground mt-1">{t('settings.bankDetailsDesc', 'Bank account details displayed on the customer checkout page for payment transfer.')}</p>
+      </div>
+      <div className="p-4 space-y-4">
+        <div>
+          <label className="text-xs text-muted-foreground font-medium">{t('settings.bankDetailsText', 'Bank Details Text')}</label>
+          <textarea
+            className="w-full border rounded-md p-2 text-sm h-28 resize-none mt-1"
+            placeholder={t('settings.bankDetailsPlaceholder', 'e.g.\nBank: Kasikorn\nAccount: 123-4-56789-0\nName: CuteBunny Co., Ltd.')}
+            value={bankText}
+            onChange={(e) => setBankText(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground font-medium">{t('settings.bankQrCode', 'QR Code Image')}</label>
+          <div className="mt-1 flex items-start gap-4">
+            {qrUrl && (
+              <div className="relative">
+                <img src={qrUrl} alt="Bank QR Code" className="h-32 w-32 object-contain rounded border" />
+                <button
+                  onClick={() => setQrUrl('')}
+                  className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            <label className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed cursor-pointer hover:bg-muted/30 text-sm">
+              {uploading ? (
+                <span className="text-muted-foreground">{t('common.uploading', 'Uploading...')}</span>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{qrUrl ? t('settings.changeQr', 'Change QR') : t('settings.uploadQr', 'Upload QR')}</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleQrUpload}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
+            <Save className="h-3.5 w-3.5 mr-1" /> {t('common.save')}
+          </Button>
+          {saveSuccess && <span className="text-xs text-green-600">{t('common.saved', 'Saved!')}</span>}
+        </div>
+      </div>
     </div>
   );
 }
