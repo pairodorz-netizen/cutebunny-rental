@@ -549,7 +549,7 @@ adminProducts.post('/import', async (c) => {
       name_zh: nameZh,
       category,
       size: sizeStr ? sizeStr.split(';').map((s) => s.trim()).filter(Boolean) : ['ONE'],
-      color: colorStr ? colorStr.split(';').map((s) => s.trim()).filter(Boolean) : ['default'],
+      color: colorStr ? colorStr.split(';').map((s) => s.trim().toLowerCase()).filter(Boolean) : ['default'],
       price_1day: isNaN(price1day) ? 0 : price1day,
       price_3day: isNaN(price3day) ? 0 : price3day,
       price_5day: isNaN(price5day) ? 0 : price5day,
@@ -813,7 +813,7 @@ adminProducts.post('/', async (c) => {
       categoryId: resolvedCategoryId,
       brandId: resolvedBrandId,
       size: parsed.data.size,
-      color: parsed.data.color,
+      color: parsed.data.color.map((c: string) => c.toLowerCase()),
       rentalPrice1Day: parsed.data.rental_price_1day,
       rentalPrice3Day: parsed.data.rental_price_3day,
       rentalPrice5Day: parsed.data.rental_price_5day,
@@ -1017,7 +1017,7 @@ adminProducts.patch('/:id', async (c) => {
     updateData.brand = { connect: { id: brand.id } };
   }
   if (parsed.data.size !== undefined) updateData.size = parsed.data.size;
-  if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
+  if (parsed.data.color !== undefined) updateData.color = parsed.data.color.map((c: string) => c.toLowerCase());
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;
   if (parsed.data.rental_price_3day !== undefined) updateData.rentalPrice3Day = parsed.data.rental_price_3day;
   if (parsed.data.rental_price_5day !== undefined) updateData.rentalPrice5Day = parsed.data.rental_price_5day;

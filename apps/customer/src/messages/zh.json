@@ -77,22 +77,18 @@
       "searchPlaceholder": "搜索礼服...",
       "clearAll": "清除全部",
       "colors": {
-        "white": "白色",
         "black": "黑色",
+        "gray": "灰色",
+        "white": "白色",
+        "cream": "奶油色",
+        "brown": "棕色",
         "red": "红色",
-        "pink": "粉色",
         "orange": "橙色",
         "yellow": "黄色",
         "green": "绿色",
         "blue": "蓝色",
-        "navy": "藏青色",
         "purple": "紫色",
-        "cream": "奶油色",
-        "beige": "米色",
-        "brown": "棕色",
-        "gray": "灰色",
-        "gold": "金色",
-        "silver": "银色"
+        "pink": "粉色"
       },
       "priceRanges": {
         "under200": "低于 ฿200",
