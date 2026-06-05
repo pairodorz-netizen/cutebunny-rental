@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -6,6 +7,7 @@ import { routing } from '@/i18n/routing';
 import { Providers } from '@/components/providers';
 import { Header } from '@/components/header';
 import { Footer } from '@/components/footer';
+import { LineTokenHandler } from '@/components/auth/LineTokenHandler';
 import '../globals.css';
 
 export const metadata: Metadata = {
@@ -33,6 +35,9 @@ export default async function LocaleLayout({
       <body className="min-h-screen flex flex-col antialiased font-sans">
         <NextIntlClientProvider messages={messages}>
           <Providers>
+            <Suspense>
+              <LineTokenHandler />
+            </Suspense>
             <Header />
             <main className="flex-1">{children}</main>
             <Footer />
