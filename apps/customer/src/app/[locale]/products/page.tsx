@@ -13,22 +13,18 @@ import { getMaxBookingDate } from '@cutebunny/shared/date-bounds';
 const SIZES = ['XS', 'S', 'M', 'L', 'XL'];
 
 const COLOR_OPTIONS = [
-  { key: 'white', hex: '#FFFFFF' },
-  { key: 'black', hex: '#1a1a1a' },
-  { key: 'red', hex: '#EF4444' },
-  { key: 'pink', hex: '#EC4899' },
-  { key: 'orange', hex: '#F97316' },
-  { key: 'yellow', hex: '#EAB308' },
-  { key: 'green', hex: '#22C55E' },
-  { key: 'blue', hex: '#3B82F6' },
-  { key: 'navy', hex: '#1E3A5F' },
-  { key: 'purple', hex: '#A855F7' },
-  { key: 'cream', hex: '#FFFDD0' },
-  { key: 'beige', hex: '#F5F5DC' },
-  { key: 'brown', hex: '#92400E' },
-  { key: 'gray', hex: '#9CA3AF' },
-  { key: 'gold', hex: '#D4AF37' },
-  { key: 'silver', hex: '#C0C0C0' },
+  { key: 'black', hex: '#4A4A4A' },
+  { key: 'gray', hex: '#B5B5B5' },
+  { key: 'white', hex: '#FEFEFE' },
+  { key: 'cream', hex: '#FFF3E0' },
+  { key: 'brown', hex: '#BCAAA4' },
+  { key: 'red', hex: '#EF9A9A' },
+  { key: 'orange', hex: '#FFCC80' },
+  { key: 'yellow', hex: '#FFF59D' },
+  { key: 'green', hex: '#A5D6A7' },
+  { key: 'blue', hex: '#90CAF9' },
+  { key: 'purple', hex: '#CE93D8' },
+  { key: 'pink', hex: '#F48FB1' },
 ] as const;
 
 interface PriceRange {

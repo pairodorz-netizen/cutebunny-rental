@@ -30,7 +30,7 @@ export async function getMonthAvailability(
   // Check if product has inventory units
   const unitWhere: Record<string, unknown> = { productId };
   if (filters?.size) unitWhere.size = filters.size;
-  if (filters?.color) unitWhere.color = filters.color;
+  if (filters?.color) unitWhere.color = filters.color.toLowerCase();
 
   const units = await db.inventoryUnit.findMany({
     where: unitWhere,

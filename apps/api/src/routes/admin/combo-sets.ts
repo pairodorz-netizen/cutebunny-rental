@@ -202,7 +202,7 @@ adminComboSets.post('/', async (c) => {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
       brandId,
-      color: parsed.data.color,
+      color: parsed.data.color.map((c: string) => c.toLowerCase()),
       size: parsed.data.size,
       rentalPrice1Day: parsed.data.rental_price_1day,
       rentalPrice3Day: parsed.data.rental_price_3day,
@@ -288,7 +288,7 @@ adminComboSets.patch('/:id', async (c) => {
   const updateData: Record<string, unknown> = { brandId };
   if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
   if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
-  if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
+  if (parsed.data.color !== undefined) updateData.color = parsed.data.color.map((c: string) => c.toLowerCase());
   if (parsed.data.size !== undefined) updateData.size = parsed.data.size;
   if (parsed.data.rental_price_1day !== undefined) updateData.rentalPrice1Day = parsed.data.rental_price_1day;
   if (parsed.data.rental_price_3day !== undefined) updateData.rentalPrice3Day = parsed.data.rental_price_3day;

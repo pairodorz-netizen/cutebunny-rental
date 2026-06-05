@@ -33,7 +33,7 @@ products.get('/', async (c) => {
   const where: Prisma.ProductWhereInput = { available: true, deletedAt: null };
 
   if (color) {
-    where.color = { has: color };
+    where.color = { has: color.toLowerCase() };
   }
   if (size) {
     where.size = { has: size };

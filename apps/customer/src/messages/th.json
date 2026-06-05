@@ -83,22 +83,18 @@
       "searchPlaceholder": "ค้นหาชุด...",
       "clearAll": "ล้างทั้งหมด",
       "colors": {
-        "white": "ขาว",
         "black": "ดำ",
+        "gray": "เทา",
+        "white": "ขาว",
+        "cream": "ครีม",
+        "brown": "น้ำตาล",
         "red": "แดง",
-        "pink": "ชมพู",
         "orange": "ส้ม",
         "yellow": "เหลือง",
         "green": "เขียว",
-        "blue": "ฟ้า",
-        "navy": "น้ำเงิน",
+        "blue": "น้ำเงิน",
         "purple": "ม่วง",
-        "cream": "ครีม",
-        "beige": "เบจ",
-        "brown": "น้ำตาล",
-        "gray": "เทา",
-        "gold": "ทอง",
-        "silver": "เงิน"
+        "pink": "ชมพู"
       },
       "priceRanges": {
         "under200": "ต่ำกว่า ฿200",

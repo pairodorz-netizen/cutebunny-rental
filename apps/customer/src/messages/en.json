@@ -77,22 +77,18 @@
       "searchPlaceholder": "Search dresses...",
       "clearAll": "Clear all",
       "colors": {
-        "white": "White",
         "black": "Black",
+        "gray": "Gray",
+        "white": "White",
+        "cream": "Cream",
+        "brown": "Brown",
         "red": "Red",
-        "pink": "Pink",
         "orange": "Orange",
         "yellow": "Yellow",
         "green": "Green",
         "blue": "Blue",
-        "navy": "Navy",
         "purple": "Purple",
-        "cream": "Cream",
-        "beige": "Beige",
-        "brown": "Brown",
-        "gray": "Gray",
-        "gold": "Gold",
-        "silver": "Silver"
+        "pink": "Pink"
       },
       "priceRanges": {
         "under200": "Under ฿200",
