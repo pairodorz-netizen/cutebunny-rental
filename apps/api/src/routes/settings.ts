@@ -77,4 +77,24 @@ settings.get('/storefront', async (c) => {
   return success(c, { storefront_url: url });
 });
 
+// GET /api/v1/settings/bank-details — public read of bank payment details
+// for the customer checkout page. No auth required.
+settings.get('/bank-details', async (c) => {
+  const db = getDb();
+  const textRow = await db.systemConfig.findUnique({ where: { key: 'bank_details_text' } });
+  const qrRow = await db.systemConfig.findUnique({ where: { key: 'bank_qr_image_url' } });
+
+  const parseValue = (raw: unknown): string => {
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch { return raw; }
+    }
+    return raw ? String(raw) : '';
+  };
+
+  return success(c, {
+    bank_details_text: parseValue(textRow?.value),
+    bank_qr_image_url: parseValue(qrRow?.value),
+  });
+});
+
 export default settings;

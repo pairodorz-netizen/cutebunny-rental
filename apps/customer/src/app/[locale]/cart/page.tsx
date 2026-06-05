@@ -193,6 +193,10 @@ export default function CartPage() {
   // Dynamic rental terms fetched from API
   const [rentalTerms, setRentalTerms] = useState<string | null>(null);
 
+  // Bank details for payment section
+  const [bankDetailsText, setBankDetailsText] = useState<string>('');
+  const [bankQrImageUrl, setBankQrImageUrl] = useState<string>('');
+
   // Customer auth state
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [customerEmail, setCustomerEmail] = useState<string | undefined>(undefined);
@@ -220,6 +224,17 @@ export default function CartPage() {
         }
       } catch {
         // Fallback to hardcoded terms from translations
+      }
+    })();
+    (async () => {
+      try {
+        const result = await api.settings.bankDetails();
+        if (!cancelled) {
+          setBankDetailsText(result.data.bank_details_text || '');
+          setBankQrImageUrl(result.data.bank_qr_image_url || '');
+        }
+      } catch {
+        // Bank details not configured — will show fallback message
       }
     })();
     return () => {
@@ -675,6 +690,25 @@ export default function CartPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Bank Details */}
+          <div className="rounded-lg border p-4">
+            <h3 className="font-semibold text-sm mb-2">{t('bankDetailsTitle')}</h3>
+            {bankDetailsText || bankQrImageUrl ? (
+              <div className="space-y-3">
+                {bankDetailsText && (
+                  <pre className="text-sm whitespace-pre-wrap bg-muted/30 rounded p-3 font-sans">{bankDetailsText}</pre>
+                )}
+                {bankQrImageUrl && (
+                  <div className="flex justify-center">
+                    <img src={bankQrImageUrl} alt={t('bankQrAlt')} className="h-48 w-48 object-contain rounded border" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t('bankDetailsFallback')}</p>
+            )}
           </div>
 
           {/* Payment Slip Upload */}

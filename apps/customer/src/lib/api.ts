@@ -298,6 +298,8 @@ export const api = {
       request<{ data: MessengerSettings }>('/api/v1/settings/messenger'),
     rentalTerms: (locale?: string) =>
       request<{ data: { rental_terms: string } }>(`/api/v1/settings/rental-terms${locale ? `?locale=${locale}` : ''}`),
+    bankDetails: () =>
+      request<{ data: { bank_details_text: string; bank_qr_image_url: string } }>('/api/v1/settings/bank-details'),
   },
   customer: {
     login: (email: string, password: string) =>

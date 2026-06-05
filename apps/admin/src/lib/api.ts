@@ -1117,6 +1117,27 @@ export const adminApi = {
       }),
     storefrontUrl: () =>
       request<{ data: { storefront_url: string } }>('/api/v1/settings/storefront'),
+    // Bank details for checkout
+    bankDetails: () =>
+      request<{ data: { bank_details_text: string; bank_qr_image_url: string } }>('/api/v1/admin/settings/bank-details'),
+    updateBankDetails: (body: { bank_details_text?: string; bank_qr_image_url?: string }) =>
+      request<{ data: { updated: boolean } }>('/api/v1/admin/settings/bank-details', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    uploadBankQr: (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return fetchWithDiagnostics(
+        `${API_BASE}/api/v1/admin/settings/bank-details/upload-qr`,
+        { method: 'POST', body: formData, headers: { Authorization: `Bearer ${getToken()}` } },
+        !!getToken(),
+      ).then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error?.message || `Upload failed: ${res.status}`);
+        return json as { data: { url: string } };
+      });
+    },
   },
   // BUG-504-A03: DB-backed taxonomy CRUD (superadmin writes). Separate
   // from `settings.categories` (legacy SystemConfig JSON blob still used
