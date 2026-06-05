@@ -18,7 +18,7 @@ const COLOR_OPTIONS = [
   { key: 'white', hex: '#FEFEFE' },
   { key: 'cream', hex: '#FFF3E0' },
   { key: 'brown', hex: '#BCAAA4' },
-  { key: 'red', hex: '#EF9A9A' },
+  { key: 'red', hex: '#E57373' },
   { key: 'orange', hex: '#FFCC80' },
   { key: 'yellow', hex: '#FFF59D' },
   { key: 'green', hex: '#A5D6A7' },
