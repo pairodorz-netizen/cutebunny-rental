@@ -73,18 +73,15 @@ export default function ProfilePage() {
     setToken(getStoredToken());
   }, []);
 
-  // PR1: handle LINE callback token from redirect
+  // line_token from LINE OAuth is now handled globally by
+  // LineTokenHandler (in root layout).  Re-sync local state from
+  // localStorage so the profile page picks it up on the same render.
   useEffect(() => {
-    const lineToken = searchParams.get('line_token');
-    if (lineToken) {
-      setStoredToken(lineToken);
-      setToken(lineToken);
-      // Clean up URL params
-      const url = new URL(window.location.href);
-      url.searchParams.delete('line_token');
-      window.history.replaceState({}, '', url.toString());
+    const stored = getStoredToken();
+    if (stored && stored !== token) {
+      setToken(stored);
     }
-  }, [searchParams]);
+  });
 
   const profileQuery = useQuery({
     queryKey: ['customer', 'me', token],
