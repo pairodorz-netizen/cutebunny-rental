@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/i18n/routing';
+import { Link, usePathname, useRouter } from '@/i18n/routing';
 import { Search, Heart, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { useWishlistStore } from '@/stores/wishlist-store';
@@ -14,6 +14,7 @@ export function Header() {
   const pathname = usePathname();
   const itemCount = useCartStore((s) => s.items.length);
   const wishlistCount = useWishlistStore((s) => s.ids.length);
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
@@ -62,6 +63,7 @@ export function Header() {
             type="button"
             className="p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
             aria-label="Search"
+            onClick={() => router.push('/products')}
           >
             <Search className="h-5 w-5" />
           </button>
