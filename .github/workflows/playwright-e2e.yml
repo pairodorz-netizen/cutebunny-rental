@@ -37,20 +37,6 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
 
-      - name: Wait for Vercel preview deployment
-        uses: patrickedqvist/wait-for-vercel-preview@v1.3.2
-        id: vercel
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          max_timeout: 300
-          check_interval: 10
-        continue-on-error: true
-
-      - name: Set preview URLs if available
-        if: steps.vercel.outcome == 'success' && steps.vercel.outputs.url != ''
-        run: |
-          echo "E2E_CUSTOMER_URL=${{ steps.vercel.outputs.url }}" >> $GITHUB_ENV
-
       - name: Run Playwright E2E (${{ matrix.browser }})
         run: pnpm exec playwright test --project=${{ matrix.browser }}
 
