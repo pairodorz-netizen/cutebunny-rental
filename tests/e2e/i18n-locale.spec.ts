@@ -1,5 +1,5 @@
-// i18n locale tests — BUG-544/546 regression guards.
-// Verifies Thai-only mode: no EN/ZH leak, correct redirects.
+// i18n locale tests — multi-locale mode (TH/EN/ZH).
+// Verifies locale routing, language switcher, and default locale behavior.
 
 import { test, expect } from '@playwright/test';
 
@@ -8,36 +8,29 @@ const CUSTOMER_BASE =
 const ADMIN_BASE =
   process.env.E2E_ADMIN_URL || 'https://admin-eight-rouge.vercel.app';
 
-test.describe('i18n — customer locale redirect (BUG-544)', () => {
-  test('/en/products → 301 redirect to /th/products', async ({ request }) => {
+test.describe('i18n — customer locale routing', () => {
+  test('/en/products serves English locale (200)', async ({ request }) => {
     const res = await request.get(`${CUSTOMER_BASE}/en/products`, {
       maxRedirects: 0,
     });
-    // Should be a redirect (301 or 308)
-    expect([301, 302, 307, 308]).toContain(res.status());
-    const location = res.headers()['location'] || '';
-    expect(location).toContain('/th/products');
+    expect(res.status()).toBe(200);
   });
 
-  test('/zh/products → 301 redirect to /th/products', async ({ request }) => {
+  test('/zh/products serves Chinese locale (200)', async ({ request }) => {
     const res = await request.get(`${CUSTOMER_BASE}/zh/products`, {
       maxRedirects: 0,
     });
-    expect([301, 302, 307, 308]).toContain(res.status());
-    const location = res.headers()['location'] || '';
-    expect(location).toContain('/th/products');
+    expect(res.status()).toBe(200);
   });
 
-  test('/en/products/[id] → redirect to /th/products/[id]', async ({
+  test('/en/products/[id] serves English locale (200)', async ({
     request,
   }) => {
     const res = await request.get(
       `${CUSTOMER_BASE}/en/products/065abd2c-aa4d-455d-a15a-7079f43bfcc8`,
       { maxRedirects: 0 },
     );
-    expect([301, 302, 307, 308]).toContain(res.status());
-    const location = res.headers()['location'] || '';
-    expect(location).toContain('/th/products');
+    expect(res.status()).toBe(200);
   });
 
   test('/ root → resolves to /th (default locale)', async ({ page }) => {
@@ -47,15 +40,15 @@ test.describe('i18n — customer locale redirect (BUG-544)', () => {
   });
 });
 
-test.describe('i18n — customer Thai-only mode (BUG-544)', () => {
-  test('no locale switcher visible on customer header', async ({ page }) => {
+test.describe('i18n — customer language switcher', () => {
+  test('locale switcher is visible on customer header', async ({ page }) => {
     await page.goto(`${CUSTOMER_BASE}/th`, {
       waitUntil: 'domcontentloaded',
     });
     const globe = page.locator(
-      '[data-testid="locale-switcher"], button[aria-label*="language"], button[aria-label*="Language"]',
+      'button[aria-label*="language"], button[aria-label*="Language"], button[aria-label*="ภาษา"]',
     );
-    await expect(globe).toHaveCount(0);
+    await expect(globe.first()).toBeVisible();
   });
 
   test('customer /th/products displays Thai category labels', async ({

@@ -44,14 +44,14 @@ test.describe('Customer smoke — landing page', () => {
     expect(body).toContain('CuteBunny');
   });
 
-  test('navigation displays Thai labels without globe switcher', async ({
+  test('navigation displays Thai labels with locale switcher', async ({
     page,
   }) => {
     await page.goto(`${CUSTOMER_BASE}/th`);
     await page.waitForLoadState('domcontentloaded');
-    // Globe switcher must not exist (BUG-544)
-    const globe = page.locator('[data-testid="locale-switcher"], [aria-label="language"], [aria-label="Language"]');
-    await expect(globe).toHaveCount(0);
+    // Locale switcher should be visible (multi-locale mode)
+    const globe = page.locator('button[aria-label*="language"], button[aria-label*="Language"], button[aria-label*="ภาษา"]');
+    await expect(globe.first()).toBeVisible();
   });
 });
 
