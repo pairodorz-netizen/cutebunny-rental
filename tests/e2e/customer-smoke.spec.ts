@@ -10,6 +10,8 @@ const API_BASE =
   process.env.E2E_API_URL ||
   'https://cutebunny-api.cutebunny-rental.workers.dev';
 
+const isProduction = CUSTOMER_BASE.includes('cutebunnyrental.com');
+
 // ─── Helpers ────────────────────────────────────────────────────────────
 async function fetchProductCount(): Promise<number> {
   try {
@@ -47,6 +49,7 @@ test.describe('Customer smoke — landing page', () => {
   test('navigation displays Thai labels with locale switcher', async ({
     page,
   }) => {
+    test.skip(isProduction, 'Language switcher requires preview deployment');
     await page.goto(`${CUSTOMER_BASE}/th`);
     await page.waitForLoadState('domcontentloaded');
     // Locale switcher should be visible (multi-locale mode)
