@@ -11,6 +11,12 @@ const localeLabels: Record<string, string> = {
   zh: 'ZH',
 };
 
+const localeNameKeys: Record<string, 'english' | 'thai' | 'chinese'> = {
+  en: 'english',
+  th: 'thai',
+  zh: 'chinese',
+};
+
 export function LocaleSwitcher() {
   const t = useTranslations('common');
   const locale = useLocale();
@@ -38,23 +44,25 @@ export function LocaleSwitcher() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+        className="flex items-center gap-1 p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
         aria-label={t('language')}
       >
-        <Globe className="h-4 w-4" />
-        <span>{localeLabels[locale]}</span>
+        <Globe className="h-5 w-5" />
+        <span className="text-xs font-medium">{localeLabels[locale]}</span>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-36 rounded-md border bg-popover p-1 shadow-md z-50">
-          {(['en', 'th', 'zh'] as const).map((loc) => (
+        <div className="absolute right-0 mt-2 w-36 rounded-xl border bg-white p-1 shadow-md z-50" style={{ borderColor: '#EFEAF6' }}>
+          {(['th', 'en', 'zh'] as const).map((loc) => (
             <button
               key={loc}
               onClick={() => switchLocale(loc)}
-              className={`w-full text-left rounded-sm px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors ${
-                locale === loc ? 'bg-accent font-medium' : ''
+              className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
+                locale === loc
+                  ? 'bg-cb-active text-cb-active-fg font-medium'
+                  : 'text-cb-heading hover:bg-cb-surface'
               }`}
             >
-              {localeLabels[loc]} — {t(loc === 'en' ? 'english' : loc === 'th' ? 'thai' : 'chinese')}
+              {localeLabels[loc]} — {t(localeNameKeys[loc])}
             </button>
           ))}
         </div>
