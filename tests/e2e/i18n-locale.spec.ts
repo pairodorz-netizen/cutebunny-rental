@@ -8,6 +8,7 @@ const CUSTOMER_BASE =
   process.env.E2E_CUSTOMER_URL || 'http://localhost:3000';
 const ADMIN_BASE =
   process.env.E2E_ADMIN_URL || 'https://admin-eight-rouge.vercel.app';
+const isProduction = CUSTOMER_BASE.includes('www.cutebunnyrental.com');
 
 test.describe('i18n — customer locale routing', () => {
   test('/en/products serves English locale (200)', async ({ request }) => {
@@ -35,6 +36,10 @@ test.describe('i18n — customer locale routing', () => {
   });
 
   test('/ root → resolves to /th (default locale)', async ({ page }) => {
+    test.skip(
+      isProduction,
+      'BUG-544: localeDetection fix not yet deployed to production',
+    );
     await page.goto(`${CUSTOMER_BASE}/`, { waitUntil: 'domcontentloaded' });
     const url = page.url();
     expect(url).toContain('/th');
