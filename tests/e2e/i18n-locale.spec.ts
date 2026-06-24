@@ -11,7 +11,9 @@ const ADMIN_BASE =
 const isProduction = CUSTOMER_BASE.includes('cutebunnyrental.com');
 
 test.describe('i18n — customer locale routing', () => {
-  test.skip(isProduction, 'Multi-locale routing requires preview deployment');
+  test.beforeEach(() => {
+    test.skip(isProduction, 'Multi-locale routing requires preview deployment');
+  });
 
   test('/en/products serves English locale (200)', async ({ request }) => {
     const res = await request.get(`${CUSTOMER_BASE}/en/products`, {
@@ -45,7 +47,9 @@ test.describe('i18n — customer locale routing', () => {
 });
 
 test.describe('i18n — customer language switcher', () => {
-  test.skip(isProduction, 'Language switcher requires preview deployment');
+  test.beforeEach(() => {
+    test.skip(isProduction, 'Language switcher requires preview deployment');
+  });
 
   test('locale switcher is visible on customer header', async ({ page }) => {
     await page.goto(`${CUSTOMER_BASE}/th`, {
