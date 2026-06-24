@@ -6,8 +6,7 @@ import { Search, Heart, ShoppingBag, User, Menu, X } from 'lucide-react';
 import { useCartStore } from '@/stores/cart-store';
 import { useWishlistStore } from '@/stores/wishlist-store';
 import { useState } from 'react';
-// LocaleSwitcher temporarily disabled — Thai-only mode (BUG-544)
-// import { LocaleSwitcher } from '@/components/locale-switcher';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 
 export function Header() {
   const t = useTranslations('nav');
@@ -58,7 +57,7 @@ export function Header() {
 
         {/* Right icons */}
         <div className="flex items-center gap-2">
-                        {/* LocaleSwitcher temporarily disabled — Thai-only mode (BUG-544) */}
+          <LocaleSwitcher />
           <button
             type="button"
             className="p-2 rounded-full hover:bg-cb-surface transition-colors text-cb-heading"
@@ -127,6 +126,9 @@ export function Header() {
                 {item.label}
               </Link>
             ))}
+            <div className="px-4 pt-2">
+              <LocaleSwitcher />
+            </div>
           </nav>
         </div>
       )}
