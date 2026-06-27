@@ -199,9 +199,7 @@
     "email": "Email",
     "rentalStart": "Rental Start",
     "rentalEnd": "Rental End",
-    "items": "Items",
     "markAsPaid": "Mark as Paid",
-    "total": "Total",
     "cancelled": "Cancelled",
     "customerName": "Customer Name",
     "feeEntryLabel": "Late Fee / Damage Fee (optional)",
@@ -443,6 +441,15 @@
       "tentative": "Tentative",
       "shipping": "Shipping",
       "washing": "Washing"
+    },
+    "mobile": {
+      "search": "Search dresses...",
+      "allStatuses": "All",
+      "empty": "No dresses for this day",
+      "errorMessage": "Failed to load calendar data",
+      "retry": "Retry",
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month"
     }
   },
   "finance": {

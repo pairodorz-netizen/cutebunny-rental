@@ -30,7 +30,7 @@ export function CalendarPage() {
   // don't drift across timezones (e.g. March 31 wrapping into April 1).
   const endDate = endOfMonthYMD(startDate);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-calendar', startDate, endDate],
     queryFn: () => adminApi.calendar.list({ date_from: startDate, date_to: endDate }),
   });
@@ -101,8 +101,11 @@ export function CalendarPage() {
   return (
     <MobileCalendar
       startDate={startDate}
+      endDate={endDate}
       rawRows={rawRows}
       isLoading={isLoading}
+      isError={isError}
+      refetch={refetch}
       monthName={monthName}
       canGoNext={canGoNext}
       prevMonth={prevMonth}
