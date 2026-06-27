@@ -449,7 +449,9 @@
       "errorMessage": "ไม่สามารถโหลดข้อมูลปฏิทินได้",
       "retry": "ลองอีกครั้ง",
       "prevMonth": "เดือนก่อนหน้า",
-      "nextMonth": "เดือนถัดไป"
+      "nextMonth": "เดือนถัดไป",
+      "currentStatus": "สถานะปัจจุบัน",
+      "changeStatus": "เปลี่ยนสถานะ"
     }
   },
   "finance": {

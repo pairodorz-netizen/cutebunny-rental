@@ -11,6 +11,7 @@ import { DayStrip } from './DayStrip';
 import { FilterChips } from './FilterChips';
 import { DressList } from './DressList';
 import { MobileCalendarSkeleton } from './MobileCalendarSkeleton';
+import { DressDetailSheet } from './DressDetailSheet';
 import type { DayDressRow } from '@/lib/hooks/useCalendarDay';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -83,12 +84,27 @@ export function MobileCalendar({
     () => ['admin-calendar', startDate, endDate] as const,
     [startDate, endDate],
   );
-  const _mutateStatus = useStatusMutation(queryKey);
+  const mutateStatus = useStatusMutation(queryKey);
 
-  const [_selectedRow, _setSelectedRow] = useState<DayDressRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<DayDressRow | null>(null);
 
-  function handleTapRow(_item: DayDressRow) {
-    // PR C: opens DressDetailSheet bottom sheet
+  function handleTapRow(item: DayDressRow) {
+    setSelectedRow(item);
+  }
+
+  function handleCloseSheet() {
+    setSelectedRow(null);
+  }
+
+  async function handleStatusChange(to: SlotState) {
+    if (!selectedRow) return;
+    await mutateStatus({
+      row: selectedRow.row,
+      date: selectedDate,
+      from: selectedRow.status,
+      to,
+    });
+    setSelectedRow(null);
   }
 
   if (isError) {
@@ -140,6 +156,15 @@ export function MobileCalendar({
         <MobileCalendarSkeleton />
       ) : (
         <DressList rows={dressRows} onTapRow={handleTapRow} />
+      )}
+
+      {selectedRow && (
+        <DressDetailSheet
+          item={selectedRow}
+          selectedDate={selectedDate}
+          onClose={handleCloseSheet}
+          onStatusChange={handleStatusChange}
+        />
       )}
     </div>
   );

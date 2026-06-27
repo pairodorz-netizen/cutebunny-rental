@@ -449,7 +449,9 @@
       "errorMessage": "Failed to load calendar data",
       "retry": "Retry",
       "prevMonth": "Previous month",
-      "nextMonth": "Next month"
+      "nextMonth": "Next month",
+      "currentStatus": "Current status",
+      "changeStatus": "Change status"
     }
   },
   "finance": {
