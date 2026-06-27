@@ -5,9 +5,11 @@ import { defineConfig, devices } from '@playwright/test';
 // - admin-smoke: login, finance, deleted customer display (BUG-544/547/548)
 // - i18n-locale: Thai-only mode, redirects, no EN/ZH leak (BUG-544/546)
 // - categories-parity: BUG-504-A05 category parity guard
+// - calendar-mobile: mobile calendar responsive + happy path (mock data)
 //
 // Uses Vercel preview URLs or production URLs via env vars.
 // Local dev: `pnpm test:e2e` boots customer via webServer hook.
+// Admin mobile tests build + serve the admin SPA locally (port 4173).
 
 const CUSTOMER_BASE = process.env.E2E_CUSTOMER_URL || 'http://localhost:3000';
 const API_BASE =
@@ -37,16 +39,34 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
     },
   ],
-  webServer: process.env.E2E_CUSTOMER_URL
-    ? undefined
-    : {
-        command: 'pnpm --filter @cutebunny/customer start',
-        url: `${CUSTOMER_BASE}/th/products`,
-        timeout: 120_000,
-        reuseExistingServer: !process.env.CI,
-        env: {
-          NEXT_PUBLIC_API_URL: API_BASE,
-          PORT: '3000',
-        },
-      },
+  webServer: [
+    // Customer app — only when E2E_CUSTOMER_URL is unset (local dev).
+    ...(!process.env.E2E_CUSTOMER_URL
+      ? [
+          {
+            command: 'pnpm --filter @cutebunny/customer start',
+            url: `${CUSTOMER_BASE}/th/products`,
+            timeout: 120_000,
+            reuseExistingServer: !process.env.CI,
+            env: {
+              NEXT_PUBLIC_API_URL: API_BASE,
+              PORT: '3000',
+            },
+          },
+        ]
+      : []),
+    // Admin SPA — local build+preview for calendar-mobile tests.
+    // Skipped when E2E_ADMIN_LOCAL_URL is already set (e.g. reusing a running server).
+    ...(!process.env.E2E_ADMIN_LOCAL_URL
+      ? [
+          {
+            command:
+              'pnpm --filter @cutebunny/admin build && pnpm --filter @cutebunny/admin preview -- --port 4173',
+            url: 'http://localhost:4173/calendar',
+            timeout: 120_000,
+            reuseExistingServer: !process.env.CI,
+          },
+        ]
+      : []),
+  ],
 });

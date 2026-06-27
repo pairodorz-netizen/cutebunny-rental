@@ -18,6 +18,7 @@ import { MobileCalendar } from '@/components/calendar/MobileCalendar';
 
 export function CalendarPage() {
   const isDesktop = useMediaQuery('(min-width: 768px)');
+  const isFullDesktop = useMediaQuery('(min-width: 1024px)');
 
   const now = new Date();
   const [startDate, setStartDate] = useState(() => {
@@ -94,6 +95,7 @@ export function CalendarPage() {
         rawFilters={rawFilters}
         setRawFilters={setRawFilters}
         debouncedFilters={debouncedFilters}
+        compact={!isFullDesktop}
       />
     );
   }

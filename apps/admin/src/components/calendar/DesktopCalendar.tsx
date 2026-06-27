@@ -54,6 +54,7 @@ interface DesktopCalendarProps {
   rawFilters: CalendarFilters;
   setRawFilters: React.Dispatch<React.SetStateAction<CalendarFilters>>;
   debouncedFilters: CalendarFilters;
+  compact?: boolean;
 }
 
 export function DesktopCalendar({
@@ -69,8 +70,15 @@ export function DesktopCalendar({
   rawFilters,
   setRawFilters,
   debouncedFilters,
+  compact = false,
 }: DesktopCalendarProps) {
   const { t } = useTranslation();
+
+  const visibleColumns = useMemo(
+    () => compact ? CALENDAR_LEFT_COLUMNS.filter((c) => c.sortKey !== 'brand') : CALENDAR_LEFT_COLUMNS,
+    [compact],
+  );
+  const totalLeftColumns = visibleColumns.length;
 
   // BUG-CAL-02 — locale-aware name-ASC by default with SKU tiebreaker;
   // Name header toggles asc/desc. SKU+Brand headers arrive in ATOM 07.
@@ -237,17 +245,17 @@ export function DesktopCalendar({
                     come from the shared spec (90 / 120 / 200). All three are
                     sortable (inherits BUG-CAL-02 collator). ATOM 04 will wire
                     sticky-left using the same widths. */}
-                {CALENDAR_LEFT_COLUMNS.map((col, i) => (
+                {visibleColumns.map((col, i) => (
                   <th
                     key={col.sortKey}
                     className="text-left p-2 cursor-pointer select-none hover:bg-muted"
                     style={{
-                      minWidth: col.width,
-                      width: col.width,
+                      minWidth: compact ? Math.min(col.width, 140) : col.width,
+                      width: compact ? Math.min(col.width, 140) : col.width,
                       ...stickyLeftStyle({
                         index: i,
                         isHeader: true,
-                        totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
+                        totalLeftColumns,
                       }),
                     }}
                     onClick={() => handleHeaderClick(col.sortKey)}
@@ -273,7 +281,7 @@ export function DesktopCalendar({
                   </th>
                 ))}
                 {dates.map((date) => (
-                  <th key={date} className="text-center p-2 min-w-[32px]">
+                  <th key={date} className={`text-center p-2 ${compact ? 'min-w-[26px]' : 'min-w-[32px]'}`}>
                     {dayOfMonth(date)}
                   </th>
                 ))}
@@ -292,57 +300,33 @@ export function DesktopCalendar({
                         (rightmost) cell carries a right-edge box-shadow that
                         appears during horizontal scroll as visual separation
                         from the date cells sliding underneath. */}
-                    <td
-                      className="p-2 truncate"
-                      style={{
-                        minWidth: 90,
-                        width: 90,
-                        maxWidth: 90,
-                        ...stickyLeftStyle({
-                          index: 0,
-                          isHeader: false,
-                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
-                        }),
-                      }}
-                      title={row.sku}
-                      data-testid="calendar-cell-sku"
-                    >
-                      {row.sku}
-                    </td>
-                    <td
-                      className="p-2 truncate"
-                      style={{
-                        minWidth: 120,
-                        width: 120,
-                        maxWidth: 120,
-                        ...stickyLeftStyle({
-                          index: 1,
-                          isHeader: false,
-                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
-                        }),
-                      }}
-                      title={row.brand ?? ''}
-                      data-testid="calendar-cell-brand"
-                    >
-                      {row.brand ?? ''}
-                    </td>
-                    <td
-                      className="p-2 font-medium truncate"
-                      style={{
-                        minWidth: 200,
-                        width: 200,
-                        maxWidth: 200,
-                        ...stickyLeftStyle({
-                          index: 2,
-                          isHeader: false,
-                          totalLeftColumns: CALENDAR_LEFT_COLUMNS.length,
-                        }),
-                      }}
-                      title={row.display_name}
-                      data-testid="calendar-cell-name"
-                    >
-                      {row.display_name}
-                    </td>
+                    {visibleColumns.map((col, i) => {
+                      const value =
+                        col.sortKey === 'sku' ? row.sku :
+                        col.sortKey === 'brand' ? (row.brand ?? '') :
+                        row.display_name;
+                      const cellWidth = compact ? Math.min(col.width, 140) : col.width;
+                      return (
+                        <td
+                          key={col.sortKey}
+                          className={`p-2 truncate ${col.sortKey === 'name' ? 'font-medium' : ''}`}
+                          style={{
+                            minWidth: cellWidth,
+                            width: cellWidth,
+                            maxWidth: cellWidth,
+                            ...stickyLeftStyle({
+                              index: i,
+                              isHeader: false,
+                              totalLeftColumns,
+                            }),
+                          }}
+                          title={value}
+                          data-testid={`calendar-cell-${col.sortKey}`}
+                        >
+                          {value}
+                        </td>
+                      );
+                    })}
                     {dates.map((date) => {
                       const status = (slotMap.get(date) ?? 'available') as SlotState;
                       const color = STATUS_COLORS[status] ?? 'bg-gray-50';
